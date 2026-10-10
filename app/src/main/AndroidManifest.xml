@@ -9,6 +9,7 @@
         android:label="NEXORA"
         android:supportsRtl="true"
         android:theme="@style/Theme.Nexora">
+        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-6858364141205978~9239771129" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_nexora" />
         <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/nexora_notification_color" />
         <service android:name=".NexoraMessagingService" android:exported="false">
