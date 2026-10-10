@@ -384,20 +384,21 @@ class MainActivity : Activity() {
 
     private fun showReels() {
         body.addView(sectionTitle("Reels"))
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(26), dp(45), dp(26), dp(45))
-            background = shape(Color.rgb(24, 22, 35), 22)
-            setMargins(dp(16), dp(10), dp(16), dp(12))
-        }
-        panel.addView(text("▶", 64, Color.WHITE, true).apply { gravity = Gravity.CENTER })
-        panel.addView(text("Short videos", 23, Color.WHITE, true).apply { gravity = Gravity.CENTER; setPadding(0, dp(12), 0, dp(6)) })
-        panel.addView(text("The Reels screen is ready for the video player and media upload integration.", 14, Color.rgb(218, 214, 230)).apply { gravity = Gravity.CENTER; setPadding(0, 0, 0, dp(18)) })
-        panel.addView(primaryButton("Create a video post") { selectedTab = "Create"; render() })
-        body.addView(panel)
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        body.addView(list)
+        db.collection("posts").limit(80).get().addOnSuccessListener { snapshot ->
+            val videos = snapshot.documents.filter { it.getString("mediaType") == "video" }
+                .sortedByDescending { it.getLong("createdAt") ?: 0L }
+            if (videos.isEmpty()) {
+                list.addView(emptyState("No Reels yet", "Publish a video to see it here.", "Create a video") { selectedTab = "Create"; render() })
+            } else {
+                videos.forEach { d ->
+                    list.addView(postCard(d.id, d.getString("uid") ?: "", d.getString("authorName") ?: "NEXORA member",
+                        d.getString("text") ?: "", d.getLong("createdAt") ?: 0L, d.getString("mediaKey"), "video"))
+                }
+            }
+        }.addOnFailureListener { list.addView(emptyState("Reels unavailable", "Check Firestore access and connection.")) }
     }
-
     private fun showActivity() {
         body.addView(sectionTitle("Activity"))
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
