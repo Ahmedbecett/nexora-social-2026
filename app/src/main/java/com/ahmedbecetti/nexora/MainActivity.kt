@@ -56,6 +56,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         auth = FirebaseAuth.getInstance()
         db = FirebaseFirestore.getInstance()
+        NexoraPush.initialize(this)
         window.statusBarColor = Color.rgb(255, 255, 255)
         window.navigationBarColor = Color.rgb(255, 255, 255)
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
@@ -88,6 +89,7 @@ class MainActivity : Activity() {
             setContentView(page)
             return
         }
+        NexoraPush.syncToken()
         page.addView(topBar())
         val scroll = ScrollView(this).apply {
             isFillViewport = true
