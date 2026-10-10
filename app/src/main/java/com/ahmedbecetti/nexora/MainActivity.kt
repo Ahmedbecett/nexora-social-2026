@@ -185,7 +185,7 @@ class MainActivity : Activity() {
                     (user.getString("displayName") ?: "N").take(1).uppercase(),
                     user.getString("displayName") ?: "Member",
                     true
-                ) { Toast.makeText(this, "Stories will be connected in the next feature stage.", Toast.LENGTH_SHORT).show() })
+                ) { showStoriesFor(user.id, user.getString("displayName") ?: "Member") })
             }
         }
         body.addView(storyScroll)
@@ -571,7 +571,7 @@ class MainActivity : Activity() {
         }.addOnFailureListener { statusView.text = "Could not load profile. Check connection." }
     }
 
-    private fun uploadMedia(uri: Uri, mime: String, caption: String, statusView: TextView) {
+    private fun uploadMedia(uri: Uri, mime: String, caption: String, statusView: TextView, isStory: Boolean = false) {
         val user = auth.currentUser ?: return
         val bytes = try {
             contentResolver.openInputStream(uri)?.use { it.readBytes() }
@@ -633,13 +633,37 @@ class MainActivity : Activity() {
                     if (finalFailure != null || finalKey == null) {
                         statusView.text = "Upload failed: ${finalFailure ?: "unknown error"}. Check Vercel URL and storage settings."
                     } else {
-                        createPost(user.uid, caption, finalKey, if (mime.startsWith("video/")) "video" else "image", statusView)
+                        if (isStory) createStory(user.uid, caption, finalKey, if (mime.startsWith("video/")) "video" else "image", statusView) else createPost(user.uid, caption, finalKey, if (mime.startsWith("video/")) "video" else "image", statusView)
                     }
                 }
             }
         }.addOnFailureListener { statusView.text = "Could not get a secure sign-in token." }
     }
 
+    private fun createStory(uid: String, caption: String, key: String, mediaType: String, statusView: TextView) {
+        val user = auth.currentUser ?: return
+        val now = System.currentTimeMillis()
+        val data = mapOf("uid" to uid, "authorName" to (user.displayName ?: user.email?.substringBefore("@") ?: "NEXORA member"), "text" to caption, "mediaKey" to key, "mediaType" to mediaType, "createdAt" to now, "expiresAt" to com.google.firebase.Timestamp(java.util.Date(now + 24L * 60L * 60L * 1000L)))
+        db.collection("stories").add(data).addOnSuccessListener { selectedMedia = null; selectedMimeType = null; selectedTab = "Home"; toast("Story shared for 24 hours."); render() }
+            .addOnFailureListener { statusView.text = "Media uploaded but story save failed. Check Firestore rules." }
+    }
+
+    private fun showStoriesFor(uid: String, displayName: String) {
+        db.collection("stories").whereEqualTo("uid", uid).get().addOnSuccessListener { snapshot ->
+            val active = snapshot.documents.filter { d -> val expiry = d.getTimestamp("expiresAt"); expiry != null && expiry.toDate().time > System.currentTimeMillis() }.sortedBy { it.getLong("createdAt") ?: 0L }
+            if (active.isEmpty()) { toast(displayName + " has no active stories."); return@addOnSuccessListener }
+            val first = active.first(); val key = first.getString("mediaKey")
+            if (key == null) { toast("Story media is unavailable."); return@addOnSuccessListener }
+            val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(8)) }
+            content.addView(text(displayName + " · " + active.size + " active stories", 14, ink, true))
+            val frame = FrameLayout(this).apply { background = shape(soft, 16) }
+            val label = text("Loading story…", 16, gray).apply { gravity = Gravity.CENTER }
+            frame.addView(label, FrameLayout.LayoutParams(-1, -1)); content.addView(frame, LinearLayout.LayoutParams(-1, dp(360)))
+            content.addView(text(first.getString("text") ?: "", 14, ink))
+            AlertDialog.Builder(this).setView(content).setPositiveButton("Close", null).show()
+            loadPostMedia(frame, label, key, first.getString("mediaType") ?: "image")
+        }.addOnFailureListener { toast("Could not load stories. Check Firestore rules.") }
+    }
     private fun loadPostMedia(container: FrameLayout, label: TextView, key: String, mediaType: String) {
         val user = auth.currentUser ?: return
         user.getIdToken(false).addOnSuccessListener { token ->
