@@ -1,14 +1,52 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function owns(userId) { return signedIn() && request.auth.uid == userId; }
+
     match /users/{userId} {
-      allow create: if request.auth != null
-                    && request.auth.uid == userId;
-      allow read: if request.auth != null;
-      allow update: if request.auth != null
-                    && request.auth.uid == userId;
-      allow delete: if request.auth != null
-                    && request.auth.uid == userId;
+      allow create: if owns(userId) && request.resource.data.uid == request.auth.uid;
+      allow read: if signedIn();
+      allow update: if owns(userId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email;
+      allow delete: if owns(userId);
+      match /following/{targetId} {
+        allow read: if signedIn();
+        allow create, delete: if owns(userId) && targetId != userId;
+        allow update: if false;
+      }
+      match /followers/{followerId} {
+        allow read: if signedIn();
+        allow create: if owns(followerId) && userId != followerId;
+        allow delete: if owns(followerId) || owns(userId);
+        allow update: if false;
+      }
+    }
+
+    match /posts/{postId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 2200;
+      allow update: if signedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == resource.data.uid;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      match /likes/{userId} {
+        allow read: if signedIn();
+        allow create, delete: if owns(userId);
+        allow update: if false;
+      }
+      match /comments/{commentId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1000;
+        allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+        allow update: if false;
+      }
     }
   }
 }
