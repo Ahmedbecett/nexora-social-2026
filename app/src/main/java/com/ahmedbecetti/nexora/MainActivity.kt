@@ -148,9 +148,9 @@ class MainActivity : Activity() {
         val items = listOf(
             Triple("Home", "⌂", "Home"),
             Triple("Search", "⌕", "Search"),
-            Triple("Reels", "▻", "Reels"),
-            Triple("Activity", "♡", "Activity"),
-            Triple("Profile", "●", "Profile")
+            Triple("Create", "＋", "Create"),
+            Triple("Reels", "▣", "Reels"),
+            Triple("Profile", "♙", "Profile")
         )
         items.forEach { item ->
             val active = selectedTab == item.first
@@ -197,14 +197,7 @@ class MainActivity : Activity() {
         body.addView(storyScroll)
         body.addView(divider())
 
-        val heading = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(8))
-        }
-        heading.addView(text("اكتشف NEXORA", 18, ink, true), LinearLayout.LayoutParams(0, -2, 1f))
-        heading.addView(text("أحدث المنشورات", 12, gray))
-        body.addView(heading)
+        // Match the reference: stories lead directly into a clean, edge-to-edge feed.
         val feed = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             tag = "posts"
@@ -271,7 +264,7 @@ class MainActivity : Activity() {
         val media = FrameLayout(this).apply {
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 intArrayOf(Color.rgb(239, 235, 255), Color.rgb(255, 232, 240), Color.rgb(232, 242, 255)))
-            layoutParams = LinearLayout.LayoutParams(-1, dp(225))
+            layoutParams = LinearLayout.LayoutParams(-1, dp(340))
         }
         val mediaLabel = TextView(this).apply {
             text = if (mediaKey == null) "NEXORA" else "Loading media…"
@@ -328,7 +321,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(15), dp(2), dp(15), dp(8))
         }
-        caption.addView(text("NEXORA community", 12, ink, true))
+        caption.addView(text(author, 12, ink, true))
         caption.addView(text(content, 14, ink).apply { setPadding(0, dp(4), 0, dp(3)) })
         val comments = text("View comments / add a comment", 12, gray).apply {
             setPadding(0, dp(5), 0, dp(2))
@@ -435,7 +428,7 @@ class MainActivity : Activity() {
     }
 
     private fun showSearch() {
-        body.addView(sectionTitle("استكشف"))
+        body.addView(sectionTitle("Search"))
         val input = EditText(this).apply {
             hint = "ابحث عن أشخاص بالاسم أو البريد الإلكتروني"
             textSize = 14f
@@ -492,7 +485,7 @@ class MainActivity : Activity() {
     }
 
     private fun showReels() {
-        body.addView(sectionTitle("فيديوهات قصيرة"))
+        body.addView(sectionTitle("Reels"))
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         body.addView(list)
         db.collection("posts").limit(80).get().addOnSuccessListener { snapshot ->
@@ -509,7 +502,7 @@ class MainActivity : Activity() {
         }.addOnFailureListener { list.addView(emptyState("Reels unavailable", "Check Firestore access and connection.")) }
     }
     private fun showActivity() {
-        body.addView(sectionTitle("الإشعارات والنشاط"))
+        body.addView(sectionTitle("Notifications"))
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         body.addView(list)
         val uid = auth.currentUser?.uid ?: return
@@ -530,7 +523,7 @@ class MainActivity : Activity() {
     }
 
     private fun showMessages() {
-        body.addView(sectionTitle("الرسائل"))
+        body.addView(sectionTitle("Messages"))
         body.addView(padded(primaryButton("Find people to message") { selectedTab = "Search"; render() }))
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         body.addView(list)
@@ -611,7 +604,7 @@ class MainActivity : Activity() {
     }
     private fun showCreate() {
         val isStory = selectedTab == "CreateStory"
-        body.addView(sectionTitle(if (isStory) "إنشاء قصة" else "إنشاء منشور"))
+        body.addView(sectionTitle(if (isStory) "New story" else "New post"))
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
@@ -854,7 +847,7 @@ class MainActivity : Activity() {
 
     private fun showProfile() {
         val user = auth.currentUser ?: return
-        body.addView(sectionTitle("Profile"))
+        body.addView(sectionTitle(user.displayName ?: "Profile"))
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -907,7 +900,7 @@ class MainActivity : Activity() {
         body.addView(stats)
         db.collection("users").document(user.uid).collection("followers").get().addOnSuccessListener { setStat(followers, "Followers", it.size().toString()) }
         db.collection("users").document(user.uid).collection("following").get().addOnSuccessListener { setStat(following, "Following", it.size().toString()) }
-        body.addView(sectionTitle("Your posts"))
+        body.addView(sectionTitle("Posts"))
         val grid = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(2), dp(2), dp(2), dp(10))
@@ -968,7 +961,7 @@ class MainActivity : Activity() {
     private fun showAuth() {
         page.setPadding(dp(22), dp(42), dp(22), dp(28))
         page.addView(space(35))
-        page.addView(text("nexora", 40, ink, true).apply { gravity = Gravity.CENTER; letterSpacing = -0.04f })
+        page.addView(text("NEXORA", 38, ink, true).apply { gravity = Gravity.CENTER; letterSpacing = -0.055f; typeface = Typeface.create("sans-serif-black", Typeface.BOLD) })
         page.addView(text("Your world. Your people.", 14, gray).apply { gravity = Gravity.CENTER; setPadding(0, dp(4), 0, dp(28)) })
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
