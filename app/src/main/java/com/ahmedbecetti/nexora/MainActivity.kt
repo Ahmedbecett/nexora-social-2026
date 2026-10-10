@@ -876,6 +876,57 @@ class MainActivity : Activity() {
         body.addView(stats)
         db.collection("users").document(user.uid).collection("followers").get().addOnSuccessListener { setStat(followers, "Followers", it.size().toString()) }
         db.collection("users").document(user.uid).collection("following").get().addOnSuccessListener { setStat(following, "Following", it.size().toString()) }
+        body.addView(sectionTitle("Your posts"))
+        val grid = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(2), dp(2), dp(2), dp(10))
+        }
+        body.addView(grid)
+        db.collection("posts").whereEqualTo("uid", user.uid).limit(60).get()
+            .addOnSuccessListener { snapshot ->
+                grid.removeAllViews()
+                val posts = snapshot.documents.sortedByDescending { it.getLong("createdAt") ?: 0L }
+                if (posts.isEmpty()) {
+                    grid.addView(emptyState("No posts yet", "Your photos and videos will appear here.", "Create your first post") {
+                        selectedTab = "Create"; render()
+                    })
+                } else {
+                    posts.chunked(3).forEach { group ->
+                        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                        group.forEach { doc ->
+                            val tile = FrameLayout(this).apply {
+                                background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                                    intArrayOf(Color.rgb(255, 232, 241), Color.rgb(237, 231, 250), Color.rgb(231, 242, 255)))
+                                setOnClickListener {
+                                    AlertDialog.Builder(this@MainActivity)
+                                        .setView(postCard(doc.id, user.uid,
+                                            doc.getString("authorName") ?: "NEXORA member",
+                                            doc.getString("text") ?: "",
+                                            doc.getLong("createdAt") ?: 0L,
+                                            doc.getString("mediaKey"), doc.getString("mediaType")))
+                                        .setPositiveButton("Close", null).show()
+                                }
+                            }
+                            val label = text(
+                                if (doc.getString("mediaType") == "video") "▶" else (doc.getString("text") ?: "N").take(1).ifBlank { "N" },
+                                22, violet, true
+                            ).apply { gravity = Gravity.CENTER }
+                            tile.addView(label, FrameLayout.LayoutParams(-1, -1))
+                            val key = doc.getString("mediaKey")
+                            if (key != null) loadPostMedia(tile, label, key, doc.getString("mediaType") ?: "image")
+                            val params = LinearLayout.LayoutParams(0, dp(116), 1f)
+                            params.setMargins(dp(1), dp(1), dp(1), dp(1))
+                            row.addView(tile, params)
+                        }
+                        repeat(3 - group.size) {
+                            val spacer = View(this)
+                            row.addView(spacer, LinearLayout.LayoutParams(0, dp(116), 1f))
+                        }
+                        grid.addView(row)
+                    }
+                }
+            }
+            .addOnFailureListener { grid.addView(emptyState("Posts unavailable", "Check Firestore permissions and connection.")) }
         body.addView(padded(secondaryButton("Sign out") {
             auth.signOut()
             selectedTab = "Home"
