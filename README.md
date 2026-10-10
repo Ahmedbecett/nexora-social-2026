@@ -8,7 +8,8 @@ NEXORA is an Android social networking app project by Ahmedbecetti.
 ## Implemented foundation
 - Firebase Authentication: email/password sign-in and registration.
 - Firestore profile creation and profile editing (display name and bio).
-- Instagram-inspired native Android UI shell: top action bar, horizontal story circles, post cards, bottom navigation for Home/Search/Reels/Activity/Profile, create-post screen, inbox placeholder, and profile screen.
+- Instagram-inspired native Android UI with a clean white canvas, dark typography, violet/magenta accents, gradient story rings, custom launcher icon, top actions, post cards, and bottom navigation for Home/Search/Reels/Activity/Profile.
+- Profile editor, follower/following counts, and a three-column grid of the signed-in user's posts.
 - Social home feed with text posts.
 - Like/unlike actions using each post's `likes/{uid}` subcollection.
 - Comment creation.
