@@ -108,6 +108,7 @@ class MainActivity : Activity() {
             "Profile" -> showProfile()
             "Messages" -> showMessages()
             "Create" -> showCreate()
+            "CreateStory" -> showCreate()
         }
     }
 
@@ -177,7 +178,7 @@ class MainActivity : Activity() {
             isHorizontalScrollBarEnabled = false
             addView(stories)
         }
-        stories.addView(storyItem("＋", "Your story", true) { selectedTab = "Create"; render() })
+        stories.addView(storyItem("＋", "Your story", true) { selectedTab = "CreateStory"; render() })
         val uid = auth.currentUser?.uid ?: return
         db.collection("users").limit(18).get().addOnSuccessListener { users ->
             users.documents.filter { it.id != uid }.take(17).forEach { user ->
@@ -499,14 +500,15 @@ class MainActivity : Activity() {
         dialog.show()
     }
     private fun showCreate() {
-        body.addView(sectionTitle("Create post"))
+        val isStory = selectedTab == "CreateStory"
+        body.addView(sectionTitle(if (isStory) "Create story" else "Create post"))
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
             background = shape(surface, 18)
             setMargins(dp(14), dp(8), dp(14), dp(12))
         }
-        card.addView(text("Share a moment", 20, ink, true))
+        card.addView(text(if (isStory) "Share a 24-hour moment" else "Share a moment", 20, ink, true))
         card.addView(text("Share a caption, photo or video. Media is uploaded to Neon through the authenticated Vercel API.", 13, gray).apply { setPadding(0, dp(5), 0, dp(14) ) })
         val caption = EditText(this).apply {
             hint = "Write a caption…"
@@ -527,7 +529,9 @@ class MainActivity : Activity() {
             val user = auth.currentUser
             val value = caption.text.toString().trim()
             if (user == null) return@primaryButton
-            if (value.isBlank() && selectedMedia == null) {
+            if (isStory && selectedMedia == null) {
+                status.text = "Choose a photo or video for your story."
+            } else if (value.isBlank() && selectedMedia == null) {
                 status.text = "Write a caption or choose media first."
             } else if (value.length > 2200) {
                 status.text = "Caption must be 2,200 characters or fewer."
@@ -536,7 +540,9 @@ class MainActivity : Activity() {
                 val mediaUri = selectedMedia
                 val mime = selectedMimeType
                 if (mediaUri != null && mime != null) {
-                    uploadMedia(mediaUri, mime, caption = value, status = status)
+                    uploadMedia(mediaUri, mime, caption = value, statusView = status, isStory = isStory)
+                } else if (isStory) {
+                    status.text = "Stories require a photo or video."
                 } else {
                     createPost(user.uid, value, null, null, status)
                 }
