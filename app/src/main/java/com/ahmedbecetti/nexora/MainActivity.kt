@@ -29,14 +29,15 @@ import com.google.firebase.firestore.ListenerRegistration
  * Native Android views are used intentionally; no APK/build was run.
  */
 class MainActivity : Activity() {
-    // NEXORA dark-neon design system: deep navy surfaces, electric violet and magenta accents.
-    private val ink = Color.rgb(242, 244, 255)
-    private val paper = Color.rgb(5, 10, 25)
-    private val surface = Color.rgb(12, 22, 43)
-    private val soft = Color.rgb(21, 34, 62)
-    private val gray = Color.rgb(157, 172, 202)
-    private val violet = Color.rgb(93, 92, 255)
-    private val pink = Color.rgb(255, 55, 174)
+    // NEXORA visual system inspired by the supplied reference: crisp white canvas,
+    // near-black typography, subtle dividers, and Instagram-style violet/magenta accents.
+    private val ink = Color.rgb(25, 25, 30)
+    private val paper = Color.rgb(255, 255, 255)
+    private val surface = Color.rgb(255, 255, 255)
+    private val soft = Color.rgb(247, 247, 250)
+    private val gray = Color.rgb(112, 115, 124)
+    private val violet = Color.rgb(131, 58, 180)
+    private val pink = Color.rgb(225, 48, 108)
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
     private lateinit var page: LinearLayout
@@ -55,9 +56,9 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         auth = FirebaseAuth.getInstance()
         db = FirebaseFirestore.getInstance()
-        window.statusBarColor = paper
-        window.navigationBarColor = paper
-        window.decorView.systemUiVisibility = 0
+        window.statusBarColor = Color.rgb(255, 255, 255)
+        window.navigationBarColor = Color.rgb(255, 255, 255)
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         render()
     }
 
@@ -120,8 +121,9 @@ class MainActivity : Activity() {
             setPadding(dp(16), dp(9), dp(14), dp(9))
             setBackgroundColor(paper)
         }
-        val logo = text("nexora", 28, ink, true).apply {
-            letterSpacing = -0.045f
+        val logo = text("Nexora", 29, ink, true).apply {
+            typeface = Typeface.create("cursive", Typeface.BOLD)
+            letterSpacing = -0.035f
             setOnClickListener { selectedTab = "Home"; render() }
         }
         bar.addView(logo, LinearLayout.LayoutParams(0, -2, 1f))
@@ -139,7 +141,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(dp(4), dp(5), dp(4), dp(5))
             setBackgroundColor(paper)
-            background = shape(paper, 0, topStroke = Color.rgb(239, 239, 242))
+            background = shape(paper, 0, topStroke = Color.rgb(232, 232, 236))
         }
         val items = listOf(
             Triple("Home", "⌂", "Home"),
@@ -917,7 +919,7 @@ class MainActivity : Activity() {
             setOnClickListener { click() }
         }
         val circle = FrameLayout(this).apply {
-            background = shape(if (isNew) Color.rgb(255, 242, 247) else soft, 50, if (isNew) pink else Color.rgb(221, 222, 229), dp(2))
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, if (isNew) intArrayOf(Color.rgb(255, 196, 70), Color.rgb(238, 42, 123), Color.rgb(131, 58, 180)) else intArrayOf(soft, soft)).apply { shape = GradientDrawable.OVAL; setStroke(dp(2), if (isNew) pink else Color.rgb(225, 225, 230)) }
             setPadding(dp(3), dp(3), dp(3), dp(3))
         }
         val glyph = TextView(this).apply {
@@ -936,7 +938,7 @@ class MainActivity : Activity() {
 
     private fun avatar(initial: String, size: Int): TextView = text(initial, 16, violet, true).apply {
         gravity = Gravity.CENTER
-        background = shape(Color.rgb(239, 233, 255), 50, Color.rgb(223, 211, 255), dp(1))
+        background = shape(Color.rgb(255, 239, 246), 50, Color.rgb(255, 210, 225), dp(1))
         layoutParams = LinearLayout.LayoutParams(dp(size), dp(size))
     }
 
@@ -1000,7 +1002,7 @@ class MainActivity : Activity() {
         textSize = 11f
         isAllCaps = false
         setTextColor(violet)
-        background = shape(Color.rgb(242, 237, 255), 10)
+        background = shape(Color.rgb(255, 240, 246), 10)
         setOnClickListener { action() }
     }
 
