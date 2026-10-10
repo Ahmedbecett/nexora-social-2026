@@ -1234,7 +1234,11 @@ class MainActivity : Activity() {
                                             authText("رقم الهاتف غير صالح. استخدم الصيغة الدولية مثل +213XXXXXXXXX.", "Invalid phone number. Use international format, e.g. +213XXXXXXXXX.")
                                         else -> authText("تعذر إرسال رسالة التحقق. تحقق من اتصال الإنترنت وإعدادات Firebase Phone Auth. التفاصيل: ", "Could not send the verification SMS. Check your internet connection and Firebase Phone Auth settings. Details: ") + detail
                                     }
-                                    toast(friendly)
+                                    AlertDialog.Builder(this@MainActivity)
+                                        .setTitle(authText("تعذّر إرسال رمز SMS", "Could not send SMS code"))
+                                        .setMessage(friendly + "\n\n" + authText("رمز الخطأ: ", "Error details: ") + detail)
+                                        .setPositiveButton(authText("حسنًا", "OK"), null)
+                                        .show()
                                 }
                                 override fun onCodeSent(verificationId: String, token: PhoneAuthProvider.ForceResendingToken) {
                                     showOtpPrompt(verificationId, phoneNumber)
@@ -1249,10 +1253,10 @@ class MainActivity : Activity() {
     }
 
     private fun showOtpPrompt(verificationId: String, phone: String) {
-        val codeInput = authField("رمز التحقق المكوّن من 6 أرقام")
+        val codeInput = authField(authText("رمز التحقق المكوّن من 6 أرقام", "6-digit verification code"))
         codeInput.inputType = 2
         AlertDialog.Builder(this)
-            .setTitle("تحقق من رقم الهاتف")
+            .setTitle(authText("تحقق من رقم الهاتف", "Verify phone number"))
             .setMessage("أدخل الرمز الذي وصلك برسالة SMS على $phone")
             .setView(codeInput)
             .setNegativeButton("إلغاء", null)
