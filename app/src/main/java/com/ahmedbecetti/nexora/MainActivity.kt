@@ -1003,12 +1003,22 @@ class MainActivity : Activity() {
 
     private fun showAuth() {
         page.setPadding(dp(24), dp(22), dp(24), dp(18))
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         page.layoutDirection = if (authArabic()) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
         page.addView(space(18))
         page.addView(text("NEXORA", 42, ink, true).apply {
             gravity = Gravity.CENTER
-            letterSpacing = -0.055f
-            typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
+            letterSpacing = -0.065f
+            typeface = Typeface.create("sans-serif-black", Typeface.BOLD_ITALIC)
+            // Brand gradient inspired by the reference, without copying Instagram's name or logo.
+            post {
+                paint.shader = android.graphics.LinearGradient(
+                    0f, 0f, width.toFloat().coerceAtLeast(1f), 0f,
+                    intArrayOf(Color.rgb(255, 154, 0), Color.rgb(255, 35, 85), Color.rgb(190, 0, 210)),
+                    null, android.graphics.Shader.TileMode.CLAMP
+                )
+                invalidate()
+            }
         })
         page.addView(text("Your world. Your people.", 15, gray).apply {
             gravity = Gravity.CENTER
@@ -1135,8 +1145,12 @@ class MainActivity : Activity() {
 
     private fun authErrorMessage(error: Throwable?): String {
         val code = (error as? com.google.firebase.FirebaseException)?.message.orEmpty()
+        val details = error?.message.orEmpty()
         return when {
-            code.contains("EMAIL_ALREADY_IN_USE", true) -> authText("هذا البريد مرتبط بحساب موجود. سجّل الدخول أو استعد كلمة السر.", "This email is already in use. Sign in or reset your password.")
+            error is com.google.firebase.auth.FirebaseAuthUserCollisionException ||
+                code.contains("EMAIL_ALREADY_IN_USE", true) ||
+                details.contains("email address is already in use", true) ->
+                authText("هذا البريد مرتبط بحساب موجود. ارجع إلى تسجيل الدخول أو استخدم «هل نسيت كلمة السر؟».", "This email is already in use. Switch to Sign in or use “Forgot password?”.")
             code.contains("INVALID_CREDENTIAL", true) || code.contains("WRONG_PASSWORD", true) -> authText("البريد أو كلمة السر غير صحيحة.", "Email or password is incorrect.")
             code.contains("TOO_MANY_REQUESTS", true) -> authText("محاولات كثيرة. انتظر قليلًا ثم حاول مجددًا.", "Too many attempts. Wait a while and try again.")
             else -> error?.localizedMessage ?: authText("حدث خطأ. حاول مجددًا.", "Something went wrong. Please try again.")
