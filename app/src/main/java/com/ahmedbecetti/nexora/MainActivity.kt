@@ -997,38 +997,63 @@ class MainActivity : Activity() {
     }
 
     private fun showAuth() {
-        page.setPadding(dp(24), dp(24), dp(24), dp(20))
-        page.addView(space(12))
-        page.addView(text("NEXORA", 43, ink, true).apply {
+        page.setPadding(dp(24), dp(22), dp(24), dp(18))
+        page.layoutDirection = View.LAYOUT_DIRECTION_LTR
+        page.addView(space(18))
+        page.addView(text("NEXORA", 42, ink, true).apply {
             gravity = Gravity.CENTER
-            letterSpacing = -0.04f
-            typeface = Typeface.create("cursive", Typeface.BOLD)
+            letterSpacing = -0.055f
+            typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
         })
-        page.addView(text("Your world. Your people.", 14, gray).apply {
+        page.addView(text("Your world. Your people.", 15, gray).apply {
             gravity = Gravity.CENTER
-            setPadding(0, dp(2), 0, dp(26))
+            setPadding(0, dp(3), 0, dp(48))
         })
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(2), dp(8), dp(2), dp(8))
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setPadding(0, dp(4), 0, dp(8))
         }
-        val title = text("تسجيل الدخول", 27, ink, true)
-        val subtitle = text("أهلاً بك مجددًا في NEXORA", 14, gray).apply { setPadding(0, dp(5), 0, dp(20)) }
+        val title = text("أهلاً بعودتك", 27, ink, true)
+        val subtitle = text("انضم إلى مجتمع يشبهك.", 15, gray).apply {
+            setPadding(0, dp(6), 0, dp(24))
+        }
         val name = authField("الاسم الكامل").apply { visibility = View.GONE }
-        val email = authField("اسم المستخدم أو البريد الإلكتروني").apply { inputType = 33 }
-        val password = authField("كلمة السر").apply { inputType = 129 }
-        val message = text("", 12, pink).apply { setPadding(0, dp(5), 0, dp(5)) }
+        val email = authField("البريد الإلكتروني").apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+        }
+        val password = authField("كلمة السر").apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+        }
+        val eye = text("إظهار", 13, Color.rgb(0, 112, 243), true).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+        var passwordVisible = false
+        eye.setOnClickListener {
+            passwordVisible = !passwordVisible
+            password.inputType = if (passwordVisible)
+                android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            else android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            password.setSelection(password.text?.length ?: 0)
+            eye.text = if (passwordVisible) "إخفاء" else "إظهار"
+        }
+        val message = text("", 12, pink).apply { setPadding(0, dp(7), 0, dp(5)) }
         var registering = false
         val submit = authPrimaryButton("تسجيل الدخول") {}
         val switch = authSecondaryButton("إنشاء حساب جديد") {}
         val forgot = text("هل نسيت كلمة السر؟", 14, Color.rgb(0, 112, 243), true).apply {
             gravity = Gravity.CENTER
-            setPadding(0, dp(14), 0, dp(14))
+            setPadding(0, dp(13), 0, dp(13))
             setOnClickListener {
                 val address = email.text.toString().trim()
-                if (address.isBlank() || !address.contains("@")) {
-                    message.text = "أدخل بريدك الإلكتروني أولاً لإرسال رابط الاستعادة."
+                if (address.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(address).matches()) {
+                    message.text = "أدخل بريدًا إلكترونيًا صحيحًا أولاً."
                 } else {
                     auth.sendPasswordResetEmail(address)
                         .addOnSuccessListener { message.text = "أرسلنا رابط إعادة تعيين كلمة السر إلى بريدك." }
@@ -1037,24 +1062,33 @@ class MainActivity : Activity() {
             }
         }
         fun updateMode() {
-            title.text = if (registering) "إنشاء حساب" else "تسجيل الدخول"
-            subtitle.text = if (registering) "أنشئ حسابك وانضم إلى مجتمع NEXORA." else "أهلاً بك مجددًا في NEXORA"
+            title.text = if (registering) "إنشاء حساب" else "أهلاً بعودتك"
+            subtitle.text = if (registering) "أنشئ حساب NEXORA الخاص بك في خطوات سهلة." else "انضم إلى مجتمع يشبهك."
             name.visibility = if (registering) View.VISIBLE else View.GONE
-            submit.text = if (registering) "التالي" else "تسجيل الدخول"
+            submit.text = if (registering) "إنشاء الحساب" else "تسجيل الدخول"
             switch.text = if (registering) "لديك حساب بالفعل؟ تسجيل الدخول" else "ليس لديك حساب؟ إنشاء حساب جديد"
             forgot.visibility = if (registering) View.GONE else View.VISIBLE
+            eye.visibility = View.VISIBLE
         }
-        switch.setOnClickListener { registering = !registering; message.text = ""; updateMode() }
+        switch.setOnClickListener {
+            registering = !registering
+            message.text = ""
+            updateMode()
+        }
         submit.setOnClickListener {
             val e = email.text.toString().trim()
             val p = password.text.toString()
             val n = name.text.toString().trim()
             if (e.isBlank() || p.isBlank() || (registering && n.isBlank())) {
                 message.text = "أكمل الحقول المطلوبة."
+            } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(e).matches()) {
+                message.text = "أدخل بريدًا إلكترونيًا صحيحًا."
             } else if (registering && p.length < 6) {
                 message.text = "يجب أن تتكون كلمة السر من 6 أحرف على الأقل."
             } else if (registering) {
+                submit.isEnabled = false
                 auth.createUserWithEmailAndPassword(e, p).addOnCompleteListener(this) { task ->
+                    submit.isEnabled = true
                     if (!task.isSuccessful) message.text = task.exception?.localizedMessage ?: "فشل إنشاء الحساب."
                     else {
                         val user = auth.currentUser ?: return@addOnCompleteListener
@@ -1069,7 +1103,9 @@ class MainActivity : Activity() {
                     }
                 }
             } else {
+                submit.isEnabled = false
                 auth.signInWithEmailAndPassword(e, p).addOnCompleteListener(this) { task ->
+                    submit.isEnabled = true
                     if (task.isSuccessful) {
                         syncAuthProfileAndOpen(auth.currentUser?.displayName ?: e.substringBefore("@"), e)
                     } else message.text = task.exception?.localizedMessage ?: "تعذر تسجيل الدخول."
@@ -1081,50 +1117,25 @@ class MainActivity : Activity() {
         card.addView(subtitle)
         card.addView(name)
         card.addView(space(10))
-        card.addView(email)
+        card.addView(email, LinearLayout.LayoutParams(-1, -2))
         card.addView(space(10))
-        card.addView(password)
+        val passwordRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        passwordRow.addView(password, LinearLayout.LayoutParams(0, -2, 1f))
+        passwordRow.addView(eye)
+        card.addView(passwordRow)
         card.addView(message)
         card.addView(space(8))
-        card.addView(submit)
+        card.addView(submit, LinearLayout.LayoutParams(-1, dp(54)))
         card.addView(forgot)
-        card.addView(divider().apply { setPadding(0, dp(12), 0, dp(12)) })
+        card.addView(divider().apply { setPadding(0, dp(10), 0, dp(10)) })
         card.addView(authSecondaryButton("المتابعة برقم الهاتف") { startPhoneAuthentication() })
         card.addView(space(10))
         card.addView(switch)
         page.addView(card)
         updateMode()
-    }
-
-    private fun authField(hintText: String): EditText = EditText(this).apply {
-        hint = hintText
-        textSize = 15f
-        setTextColor(ink)
-        setHintTextColor(Color.rgb(145, 147, 154))
-        isSingleLine = true
-        setPadding(dp(16), dp(12), dp(16), dp(12))
-        background = shape(Color.rgb(250, 250, 252), 12, Color.rgb(220, 220, 225), dp(1))
-    }
-
-    private fun authPrimaryButton(label: String, action: () -> Unit): Button = Button(this).apply {
-        text = label
-        textSize = 16f
-        isAllCaps = false
-        setTextColor(Color.WHITE)
-        background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-            intArrayOf(Color.rgb(255, 149, 0), Color.rgb(225, 48, 108), Color.rgb(131, 58, 180))).apply { cornerRadius = dp(14).toFloat() }
-        setPadding(dp(12), dp(10), dp(12), dp(10))
-        setOnClickListener { action() }
-    }
-
-    private fun authSecondaryButton(label: String, action: () -> Unit): Button = Button(this).apply {
-        text = label
-        textSize = 14f
-        isAllCaps = false
-        setTextColor(ink)
-        background = shape(Color.rgb(247, 247, 250), 12, Color.rgb(232, 232, 236), dp(1))
-        setPadding(dp(12), dp(9), dp(12), dp(9))
-        setOnClickListener { action() }
     }
 
     private fun startPhoneAuthentication() {
