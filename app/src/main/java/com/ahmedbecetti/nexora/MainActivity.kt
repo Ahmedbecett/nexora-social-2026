@@ -398,15 +398,50 @@ class MainActivity : Activity() {
 
     private fun showActivity() {
         body.addView(sectionTitle("Activity"))
-        body.addView(emptyState("Your activity", "Likes, new followers and comments will appear here once notifications are connected."))
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        body.addView(list)
+        val uid = auth.currentUser?.uid ?: return
+        db.collection("notifications").whereEqualTo("recipientUid", uid).limit(80).get().addOnSuccessListener { snapshot ->
+            val items = snapshot.documents.sortedByDescending { it.getLong("createdAt") ?: 0L }
+            if (items.isEmpty()) list.addView(emptyState("You are all caught up", "Likes, comments and follows will appear here."))
+            items.forEach { d ->
+                val actor = d.getString("actorName") ?: "A member"
+                val type = d.getString("type") ?: "activity"
+                val action = when (type) { "like" -> "liked your post"; "comment" -> "commented on your post"; "follow" -> "started following you"; "message" -> "sent you a message"; else -> "interacted with you" }
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)) }
+                row.addView(avatar(actor.take(1).uppercase(), 42)); row.addView(space(10))
+                row.addView(text("$actor $action", 14, ink).apply { layoutParams = LinearLayout.LayoutParams(0, -2, 1f) })
+                list.addView(row); list.addView(divider())
+                if (d.getBoolean("read") != true) d.reference.update("read", true)
+            }
+        }.addOnFailureListener { list.addView(emptyState("Activity unavailable", "Check Firestore rules and connection.")) }
     }
 
     private fun showMessages() {
         body.addView(sectionTitle("Messages"))
-        body.addView(emptyState("Your conversations", "The inbox layout is prepared. Real-time direct messaging is a later implementation stage."))
         body.addView(padded(primaryButton("Find people to message") { selectedTab = "Search"; render() }))
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        body.addView(list)
+        val uid = auth.currentUser?.uid ?: return
+        db.collection("conversations").whereArrayContains("members", uid).limit(80).get().addOnSuccessListener { snapshot ->
+            if (snapshot.isEmpty) list.addView(emptyState("Your inbox is empty", "Find a member in Search and start a conversation."))
+            snapshot.documents.forEach { d ->
+                val members = d.get("members") as? List<*> ?: emptyList<Any>()
+                val other = members.filterIsInstance<String>().firstOrNull { it != uid } ?: return@forEach
+                db.collection("users").document(other).get().addOnSuccessListener { profile ->
+                    val name = profile.getString("displayName") ?: "NEXORA member"
+                    val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)) }
+                    row.addView(avatar(name.take(1).uppercase(), 44)); row.addView(space(10))
+                    val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                    details.addView(text(name, 14, ink, true))
+                    details.addView(text(d.getString("lastMessage") ?: "Open conversation", 12, gray))
+                    row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
+                    row.setOnClickListener { toast("Conversation selected. Message thread UI is still being completed.") }
+                    list.addView(row); list.addView(divider())
+                }
+            }
+        }.addOnFailureListener { list.addView(emptyState("Inbox unavailable", "Check Firestore rules and connection.")) }
     }
-
     private fun showCreate() {
         body.addView(sectionTitle("Create post"))
         val card = LinearLayout(this).apply {
