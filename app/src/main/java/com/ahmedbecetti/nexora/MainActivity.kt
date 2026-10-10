@@ -23,6 +23,10 @@ import java.util.concurrent.Executors
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.MobileAds
 
 /**
  * NEXORA's first complete navigation/UI skeleton.
@@ -47,6 +51,7 @@ class MainActivity : Activity() {
     private var feedListener: ListenerRegistration? = null
     private var selectedMedia: Uri? = null
     private var selectedMimeType: String? = null
+    private var bannerAdView: AdView? = null
     private val network = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     // Change this to the actual Vercel deployment URL if the project uses a different domain.
@@ -57,6 +62,7 @@ class MainActivity : Activity() {
         auth = FirebaseAuth.getInstance()
         db = FirebaseFirestore.getInstance()
         NexoraPush.initialize(this)
+        MobileAds.initialize(this) {}
         window.statusBarColor = Color.rgb(255, 255, 255)
         window.navigationBarColor = Color.rgb(255, 255, 255)
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
@@ -65,6 +71,8 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         feedListener?.remove()
+        bannerAdView?.destroy()
+        bannerAdView = null
         super.onDestroy()
     }
 
@@ -78,7 +86,19 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun createBannerAd(): AdView {
+        bannerAdView?.destroy()
+        return AdView(this).apply {
+            adUnitId = "ca-app-pub-6858364141205978/9187800239"
+            setAdSize(AdSize.BANNER)
+            bannerAdView = this
+            loadAd(AdRequest.Builder().build())
+        }
+    }
+
     private fun render() {
+        bannerAdView?.destroy()
+        bannerAdView = null
         feedListener?.remove()
         page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -86,6 +106,7 @@ class MainActivity : Activity() {
         }
         if (auth.currentUser == null) {
             showAuth()
+            page.addView(createBannerAd(), LinearLayout.LayoutParams(-1, -2))
             setContentView(page)
             return
         }
@@ -102,6 +123,7 @@ class MainActivity : Activity() {
         }
         scroll.addView(body)
         page.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        page.addView(createBannerAd(), LinearLayout.LayoutParams(-1, -2))
         page.addView(bottomBar())
         setContentView(page)
         when (selectedTab) {
