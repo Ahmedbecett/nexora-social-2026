@@ -5,29 +5,41 @@ NEXORA is an Android social networking app project by Ahmedbecetti.
 ## Android package
 `com.ahmedbecetti.nexora`
 
-## Current foundation
-- Firebase Authentication using email and password.
-- Firestore user profile creation during registration.
+## Implemented foundation
+- Firebase Authentication: email/password sign-in and registration.
+- Firestore profile creation and profile editing (display name and bio).
+- Social home feed with text posts.
+- Like/unlike actions using each post's `likes/{uid}` subcollection.
+- Comment creation and display of recent comments.
+- Member discovery by display name/email and follow/follower documents.
 - Firebase client configuration at `app/google-services.json`.
 - Firestore rules source at `firestore.rules`.
 - Firebase Storage rules source at `storage.rules`.
-- GitHub Actions APK workflow is manual-only. Do not run it until feature development is complete.
+- Vercel server endpoint at `api/storage/upload-url.js` that verifies Firebase ID tokens and creates short-lived S3-compatible upload URLs for Neon Object Storage.
+
+## Vercel storage API configuration
+Configure these environment variables in Vercel. Never commit their values:
+- `AWS_ENDPOINT_URL_S3`: Neon S3 endpoint.
+- `AWS_ACCESS_KEY_ID`: Neon access key ID.
+- `AWS_SECRET_ACCESS_KEY`: Neon secret access key.
+- `AWS_REGION`: Neon region, for example `us-east-2`.
+- `S3_BUCKET`: exact bucket name created in Neon Object Storage.
+- `FIREBASE_SERVICE_ACCOUNT_JSON`: Firebase service-account JSON used server-side to verify Firebase ID tokens. Keep this secret and use a service account with only the permissions required.
+
+The endpoint accepts authenticated POST requests with a Firebase ID token in `Authorization: Bearer <token>`, and JSON containing `contentType`, `size`, and optional `fileName`. It currently allows JPEG, PNG, WebP, MP4, QuickTime, and WebM files up to 20 MB and returns a five-minute presigned PUT URL. The client must upload the bytes to that URL with the returned Content-Type header.
 
 ## Firebase Console setup
 1. Enable Email/Password in Firebase Authentication.
 2. Create the Cloud Firestore database.
 3. Publish the rules from `firestore.rules` in Firestore → Rules. Changes in GitHub do not publish automatically.
-4. Enable Firebase Storage and publish `storage.rules` in Storage → Rules. Storage rules are not active until published in Firebase Console or deployed using Firebase CLI.
+4. Firebase Storage rules are separate from Neon Object Storage; publish `storage.rules` only if Firebase Storage is actually used.
+5. Configure the Vercel variables above, including the exact Neon bucket name. A successful Vercel deployment alone does not prove an upload works.
+
+## Current limitations / remaining work
+- The Android UI does not yet call the Vercel upload endpoint; image/video picker and upload progress UI remain to be implemented.
+- Stories, short-video/Reels UI, direct messages, push notifications, blocking/reporting, privacy settings, and production-grade moderation are not implemented yet.
+- Review Firestore rules before public release and publish the intended rules manually in Firebase Console.
+- No APK build or CI build has been run during feature development, by design.
 
 ## Build policy
-The APK workflow is intentionally manual-only during development. Do not start a build until the owner confirms feature development is complete.
-
-## Planned product scope
-- Profiles and profile editing
-- Photo/video posts and feed
-- Stories and short vertical videos
-- Likes, comments, follows and discovery
-- Direct and group messaging
-- Notifications, privacy controls, reporting and blocking
-
-Features in the planned scope are not considered implemented until their code is added and verified. Do not commit service-account keys or other private credentials.
+The APK workflow is intentionally manual-only. Do not run it until feature development and review are complete.
