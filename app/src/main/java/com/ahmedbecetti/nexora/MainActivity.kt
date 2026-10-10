@@ -352,7 +352,36 @@ class MainActivity : Activity() {
             "targetId" to targetId,
             "read" to false,
             "createdAt" to System.currentTimeMillis()
-        )).addOnFailureListener { /* Activity remains usable if notifications are unavailable. */ }
+        )).addOnSuccessListener { notification ->
+            sendPushForNotification(notification.id)
+        }.addOnFailureListener { /* Activity remains usable if notifications are unavailable. */ }
+    }
+
+    private fun sendPushForNotification(notificationId: String) {
+        val user = auth.currentUser ?: return
+        user.getIdToken(false).addOnSuccessListener { tokenResult ->
+            val idToken = tokenResult.token ?: return@addOnSuccessListener
+            network.execute {
+                var connection: HttpURLConnection? = null
+                try {
+                    connection = (URL("$apiBaseUrl/api/push").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        connectTimeout = 10000
+                        readTimeout = 10000
+                        doOutput = true
+                        setRequestProperty("Authorization", "Bearer $idToken")
+                        setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    }
+                    val payload = JSONObject().put("notificationId", notificationId).toString()
+                    connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                    connection.responseCode
+                } catch (_: Exception) {
+                    // Firestore notifications remain available if push delivery is not configured.
+                } finally {
+                    connection?.disconnect()
+                }
+            }
+        }
     }
 
     private fun toggleLike(postId: String) {
