@@ -58,8 +58,16 @@ export default async function handler(req, res) {
     const bucket = process.env.S3_BUCKET;
     if (!bucket) return res.status(500).json({ error: "S3_BUCKET is not configured" });
 
-    const extFromName = typeof fileName === "string" ? fileName.split(".").pop()?.toLowerCase() : "";
-    const safeExt = extFromName && /^[a-z0-9]{1,8}$/.test(extFromName) ? extFromName : "bin";
+    // Derive the extension from the validated MIME type rather than trusting the client filename.
+    const extensionByType = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "video/mp4": "mp4",
+      "video/quicktime": "mov",
+      "video/webm": "webm"
+    };
+    const safeExt = extensionByType[contentType];
     const mediaType = contentType.startsWith("image/") ? "images" : "videos";
     const key = `users/${decoded.uid}/${mediaType}/${randomUUID()}.${safeExt}`;
     const command = new PutObjectCommand({
