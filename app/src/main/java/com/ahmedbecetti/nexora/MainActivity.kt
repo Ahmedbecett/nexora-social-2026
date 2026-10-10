@@ -655,7 +655,7 @@ class MainActivity : Activity() {
     }
 
     private fun showStoriesFor(uid: String, displayName: String) {
-        db.collection("stories").whereEqualTo("uid", uid).get().addOnSuccessListener { snapshot ->
+        db.collection("stories").whereEqualTo("uid", uid).whereGreaterThan("expiresAt", com.google.firebase.Timestamp.now()).get().addOnSuccessListener { snapshot ->
             val active = snapshot.documents.filter { d -> val expiry = d.getTimestamp("expiresAt"); expiry != null && expiry.toDate().time > System.currentTimeMillis() }.sortedBy { it.getLong("createdAt") ?: 0L }
             if (active.isEmpty()) { toast(displayName + " has no active stories."); return@addOnSuccessListener }
             val first = active.first(); val key = first.getString("mediaKey")
