@@ -39,11 +39,16 @@ The upload endpoint accepts authenticated POST requests with a Firebase ID token
 5. Configure the Vercel variables above, including the exact Neon bucket name. A successful Vercel deployment alone does not prove an upload works.
 
 ## Current limitations / remaining work
-- Android source now calls the Vercel upload/view endpoints for post media, provides a story publishing/viewing flow, lists video posts in Reels, reads activity notifications, and supports conversation creation plus real-time message threads. These paths have not been runtime-tested.
-- Notification writes are not yet fully wired to every social action; push notifications, blocking/reporting workflows, privacy settings, and production-grade moderation are not implemented.
-- The Android API base URL is currently `https://nexora-storage.vercel.app`; confirm this is the real deployment URL before expecting media upload/playback to work.
-- Review Firestore rules before public release and publish the intended rules manually in Firebase Console.
-- No APK build or CI build has been run during feature development, by design.
+- Media upload/playback, stories, Reels, messaging, and notification delivery require live Firebase, Vercel, and Neon configuration and still need end-to-end runtime testing.
+- Notification writes are wired for likes, comments, follows, and messages; push notifications, blocking, full privacy controls, and production-grade moderation are not implemented.
+- The Android API base URL is `https://nexora-storage.vercel.app`; verify that this is the active Vercel deployment before expecting media upload/playback to work.
+- `GET /api/health` reports whether required environment variables are present. It does not reveal their values and does not validate credentials or perform live database/storage operations.
+- Firestore rules in this repository must be reviewed and manually published in Firebase Console; commits do not publish rules automatically.
+- The Android build workflow compiles a debug APK, uploads it as a workflow artifact, and attempts to publish it as a GitHub Release. A successful commit is not proof that the build passed; check Actions and Releases for the result.
 
-## Build policy
-The APK workflow is intentionally manual-only. Do not run it until feature development and review are complete.
+## Build and download
+- [GitHub Actions](https://github.com/Ahmedbecett/nexora-social-2026/actions)
+- [GitHub Releases](https://github.com/Ahmedbecett/nexora-social-2026/releases)
+- [Storage configuration health check](https://nexora-storage.vercel.app/api/health)
+
+The generated debug APK is unsigned for production distribution and intended for testing. A production release should use a protected signing key stored in GitHub Actions secrets.
