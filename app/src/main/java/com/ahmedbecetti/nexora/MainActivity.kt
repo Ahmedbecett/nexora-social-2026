@@ -280,23 +280,25 @@ class MainActivity : Activity() {
             }.show()
         })
         card.addView(head)
-        // Placeholder media canvas gives the feed a clear visual hierarchy until upload wiring lands.
-        val media = FrameLayout(this).apply {
-            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                intArrayOf(Color.rgb(239, 235, 255), Color.rgb(255, 232, 240), Color.rgb(232, 242, 255)))
-            layoutParams = LinearLayout.LayoutParams(-1, dp(340))
+        // Only render a media canvas when the post actually contains uploaded media.
+        // Text-only posts stay compact instead of displaying a fake placeholder image.
+        if (!mediaKey.isNullOrBlank()) {
+            val media = FrameLayout(this).apply {
+                background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                    intArrayOf(Color.rgb(239, 235, 255), Color.rgb(255, 232, 240), Color.rgb(232, 242, 255)))
+                layoutParams = LinearLayout.LayoutParams(-1, dp(340))
+            }
+            val mediaLabel = TextView(this).apply {
+                text = "Loading media…"
+                textSize = 18f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(ink)
+                gravity = Gravity.CENTER
+            }
+            media.addView(mediaLabel, FrameLayout.LayoutParams(-1, -1))
+            loadPostMedia(media, mediaLabel, mediaKey, mediaType ?: "image")
+            card.addView(media)
         }
-        val mediaLabel = TextView(this).apply {
-            text = if (mediaKey == null) "NEXORA" else "Loading media…"
-            textSize = 24f
-            typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
-            setTextColor(Color.argb(100, 80, 60, 160))
-            gravity = Gravity.CENTER
-        }
-        media.addView(mediaLabel, FrameLayout.LayoutParams(-1, -1))
-        if (mediaKey != null) loadPostMedia(media, mediaLabel, mediaKey, mediaType ?: "image")
-        else mediaLabel.text = "NEXORA · your moment"
-        card.addView(media)
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
