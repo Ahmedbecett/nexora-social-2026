@@ -315,6 +315,14 @@ class MainActivity : Activity() {
             }
         })
         card.addView(actions)
+        val likeSummary = text("Loading likes…", 12, ink, true).apply {
+            setPadding(dp(15), dp(3), dp(15), dp(2))
+        }
+        card.addView(likeSummary)
+        db.collection("posts").document(postId).collection("likes").get()
+            .addOnSuccessListener { likes ->
+                likeSummary.text = if (likes.isEmpty) "Be the first to like this" else "${likes.size()} likes"
+            }
         val caption = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(15), dp(2), dp(15), dp(8))
@@ -890,12 +898,16 @@ class MainActivity : Activity() {
         })
         body.addView(card)
         val stats = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setMargins(dp(14), 0, dp(14), dp(12)) }
+        val postsCount = statCard("Posts", "…")
         val followers = statCard("Followers", "…")
         val following = statCard("Following", "…")
+        stats.addView(postsCount, LinearLayout.LayoutParams(0, -2, 1f))
+        stats.addView(space(5))
         stats.addView(followers, LinearLayout.LayoutParams(0, -2, 1f))
-        stats.addView(space(8))
+        stats.addView(space(5))
         stats.addView(following, LinearLayout.LayoutParams(0, -2, 1f))
         body.addView(stats)
+        db.collection("posts").whereEqualTo("uid", user.uid).get().addOnSuccessListener { setStat(postsCount, "Posts", it.size().toString()) }
         db.collection("users").document(user.uid).collection("followers").get().addOnSuccessListener { setStat(followers, "Followers", it.size().toString()) }
         db.collection("users").document(user.uid).collection("following").get().addOnSuccessListener { setStat(following, "Following", it.size().toString()) }
         body.addView(sectionTitle("Posts"))
