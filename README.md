@@ -38,8 +38,9 @@ The upload endpoint accepts authenticated POST requests with a Firebase ID token
 5. Configure the Vercel variables above, including the exact Neon bucket name. A successful Vercel deployment alone does not prove an upload works.
 
 ## Current limitations / remaining work
-- The Android UI does not yet call the Vercel upload endpoint; selected media is only held temporarily in the screen and is not uploaded or shown in feed posts. Upload progress, image/video rendering, stories, and the actual Reels player remain to be implemented.
-- Stories are currently visual placeholders; short-video/Reels playback, direct messages, push notifications, blocking/reporting, privacy settings, and production-grade moderation are not implemented yet. Activity and inbox screens are structural placeholders.
+- Android source now calls the Vercel upload/view endpoints for post media, provides a story publishing/viewing flow, lists video posts in Reels, reads activity notifications, and supports conversation creation plus real-time message threads. These paths have not been runtime-tested.
+- Notification writes are not yet fully wired to every social action; push notifications, blocking/reporting workflows, privacy settings, and production-grade moderation are not implemented.
+- The Android API base URL is currently `https://nexora-storage.vercel.app`; confirm this is the real deployment URL before expecting media upload/playback to work.
 - Review Firestore rules before public release and publish the intended rules manually in Firebase Console.
 - No APK build or CI build has been run during feature development, by design.
 
