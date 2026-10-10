@@ -338,12 +338,34 @@ class MainActivity : Activity() {
         return card
     }
 
+    private fun notifyUser(recipientUid: String, type: String, targetId: String) {
+        val actor = auth.currentUser ?: return
+        if (recipientUid.isBlank() || recipientUid == actor.uid) return
+        val actorName = actor.displayName ?: actor.email?.substringBefore("@") ?: "NEXORA member"
+        db.collection("notifications").add(mapOf(
+            "actorUid" to actor.uid,
+            "actorName" to actorName,
+            "recipientUid" to recipientUid,
+            "type" to type,
+            "targetId" to targetId,
+            "read" to false,
+            "createdAt" to System.currentTimeMillis()
+        )).addOnFailureListener { /* Activity remains usable if notifications are unavailable. */ }
+    }
+
     private fun toggleLike(postId: String) {
         val uid = auth.currentUser?.uid ?: return
-        val ref = db.collection("posts").document(postId).collection("likes").document(uid)
+        val post = db.collection("posts").document(postId)
+        val ref = post.collection("likes").document(uid)
         ref.get().addOnSuccessListener { snapshot ->
-            if (snapshot.exists()) ref.delete()
-            else ref.set(mapOf("uid" to uid, "createdAt" to System.currentTimeMillis()))
+            if (snapshot.exists()) {
+                ref.delete().addOnSuccessListener { toast("Like removed.") }
+                    .addOnFailureListener { toast("Couldn't remove like. Check Firestore rules.") }
+            } else {
+                ref.set(mapOf("uid" to uid, "createdAt" to System.currentTimeMillis()))
+                    .addOnSuccessListener { post.get().addOnSuccessListener { d -> notifyUser(d.getString("uid") ?: "", "like", postId) } }
+                    .addOnFailureListener { toast("Couldn't like post. Check Firestore rules.") }
+            }
         }.addOnFailureListener { toast("Couldn't update like. Check Firestore rules.") }
     }
 
@@ -370,7 +392,12 @@ class MainActivity : Activity() {
                         "createdAt" to System.currentTimeMillis()
                     )
                     db.collection("posts").document(postId).collection("comments").add(data)
-                        .addOnSuccessListener { toast("Comment posted.") }
+                        .addOnSuccessListener {
+                            db.collection("posts").document(postId).get().addOnSuccessListener { post ->
+                                notifyUser(post.getString("uid") ?: "", "comment", postId)
+                            }
+                            toast("Comment posted.")
+                        }
                         .addOnFailureListener { toast("Comment failed. Check Firestore rules.") }
                 }
             }.show()
@@ -427,8 +454,10 @@ class MainActivity : Activity() {
         db.runBatch { batch ->
             batch.set(following, mapOf("uid" to targetUid, "createdAt" to System.currentTimeMillis()))
             batch.set(follower, mapOf("uid" to uid, "createdAt" to System.currentTimeMillis()))
-        }.addOnSuccessListener { toast("Following member.") }
-            .addOnFailureListener { toast("Follow failed. Check Firestore rules.") }
+        }.addOnSuccessListener {
+            notifyUser(targetUid, "follow", targetUid)
+            toast("Following member.")
+        }.addOnFailureListener { toast("Follow failed. Check Firestore rules.") }
     }
 
     private fun showReels() {
@@ -541,8 +570,10 @@ class MainActivity : Activity() {
                 db.runBatch { batch ->
                     batch.set(ref.collection("messages").document(), mapOf("uid" to me, "text" to value, "createdAt" to now))
                     batch.update(ref, mapOf("lastMessage" to value.take(120), "lastMessageAt" to now, "updatedAt" to now))
-                }.addOnSuccessListener { input.setText("") }
-                    .addOnFailureListener { toast("Message failed. Check Firestore rules.") }
+                }.addOnSuccessListener {
+                    input.setText("")
+                    notifyUser(otherUid, "message", conversationId)
+                }.addOnFailureListener { toast("Message failed. Check Firestore rules.") }
             }
         }
         dialog.show()
