@@ -1138,6 +1138,37 @@ class MainActivity : Activity() {
         updateMode()
     }
 
+    private fun authField(hintText: String): EditText = EditText(this).apply {
+        hint = hintText
+        textSize = 15f
+        setTextColor(ink)
+        setHintTextColor(Color.rgb(145, 147, 154))
+        isSingleLine = true
+        setPadding(dp(16), dp(12), dp(16), dp(12))
+        background = shape(Color.rgb(250, 250, 252), 12, Color.rgb(220, 220, 225), dp(1))
+    }
+
+    private fun authPrimaryButton(label: String, action: () -> Unit): Button = Button(this).apply {
+        text = label
+        textSize = 16f
+        isAllCaps = false
+        setTextColor(Color.WHITE)
+        background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            intArrayOf(Color.rgb(0, 132, 255), Color.rgb(0, 102, 242))).apply { cornerRadius = dp(14).toFloat() }
+        setPadding(dp(12), dp(10), dp(12), dp(10))
+        setOnClickListener { action() }
+    }
+
+    private fun authSecondaryButton(label: String, action: () -> Unit): Button = Button(this).apply {
+        text = label
+        textSize = 14f
+        isAllCaps = false
+        setTextColor(ink)
+        background = shape(Color.rgb(247, 247, 250), 12, Color.rgb(232, 232, 236), dp(1))
+        setPadding(dp(12), dp(9), dp(12), dp(9))
+        setOnClickListener { action() }
+    }
+
     private fun startPhoneAuthentication() {
         val phoneInput = authField("رقم الهاتف بصيغة دولية مثل +213…")
         phoneInput.inputType = 3
