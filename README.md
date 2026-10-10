@@ -8,10 +8,12 @@ NEXORA is an Android social networking app project by Ahmedbecetti.
 ## Implemented foundation
 - Firebase Authentication: email/password sign-in and registration.
 - Firestore profile creation and profile editing (display name and bio).
+- Instagram-inspired native Android UI shell: top action bar, horizontal story circles, post cards, bottom navigation for Home/Search/Reels/Activity/Profile, create-post screen, inbox placeholder, and profile screen.
 - Social home feed with text posts.
 - Like/unlike actions using each post's `likes/{uid}` subcollection.
-- Comment creation and display of recent comments.
+- Comment creation.
 - Member discovery by display name/email and follow/follower documents.
+- System media picker UI for selecting an image or video (the selected media is not uploaded yet).
 - Firebase client configuration at `app/google-services.json`.
 - Firestore rules source at `firestore.rules`.
 - Firebase Storage rules source at `storage.rules`.
@@ -36,8 +38,8 @@ The upload endpoint accepts authenticated POST requests with a Firebase ID token
 5. Configure the Vercel variables above, including the exact Neon bucket name. A successful Vercel deployment alone does not prove an upload works.
 
 ## Current limitations / remaining work
-- The Android UI does not yet call the Vercel upload endpoint; image/video picker and upload progress UI remain to be implemented.
-- Stories, short-video/Reels UI, direct messages, push notifications, blocking/reporting, privacy settings, and production-grade moderation are not implemented yet.
+- The Android UI does not yet call the Vercel upload endpoint; selected media is only held temporarily in the screen and is not uploaded or shown in feed posts. Upload progress, image/video rendering, stories, and the actual Reels player remain to be implemented.
+- Stories are currently visual placeholders; short-video/Reels playback, direct messages, push notifications, blocking/reporting, privacy settings, and production-grade moderation are not implemented yet. Activity and inbox screens are structural placeholders.
 - Review Firestore rules before public release and publish the intended rules manually in Firebase Console.
 - No APK build or CI build has been run during feature development, by design.
 
