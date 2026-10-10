@@ -309,9 +309,9 @@ class MainActivity : Activity() {
         actions.addView(iconButton("➤", 22, ink) {
             val shareText = buildString {
                 append(author)
-                if (content.isNotBlank()) append("\\n").append(content)
-                append("\\n\\nShared from NEXORA")
-                append("\\nhttps://github.com/Ahmedbecetti/nexora-social-2026")
+                if (content.isNotBlank()) append("\n").append(content)
+                append("\n\nShared from NEXORA")
+                append("\nhttps://github.com/Ahmedbecetti/nexora-social-2026")
             }
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
