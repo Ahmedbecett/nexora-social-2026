@@ -49,6 +49,7 @@ The upload endpoint accepts authenticated POST requests with a Firebase ID token
 ## Build and download
 - [GitHub Actions](https://github.com/Ahmedbecett/nexora-social-2026/actions)
 - [GitHub Releases](https://github.com/Ahmedbecett/nexora-social-2026/releases)
+- [Direct APK download — available after the first successful release](https://github.com/Ahmedbecett/nexora-social-2026/releases/latest/download/app-debug.apk)
 - [Storage configuration health check](https://nexora-storage.vercel.app/api/health)
 
 The generated debug APK is unsigned for production distribution and intended for testing. A production release should use a protected signing key stored in GitHub Actions secrets.
