@@ -21,14 +21,14 @@ NEXORA is an Android social networking app project by Ahmedbecetti.
 
 ## Vercel storage API configuration
 Configure these environment variables in Vercel. Never commit their values:
-- `AWS_ENDPOINT_URL_S3`: Neon S3 endpoint.
+- `AWS_ENDPOINT_URL_S3`: `https://br-bold-sky-b4c1teyk.storage.c-6.us-east-2.aws.neon.tech` (also configured as a non-secret fallback in both API handlers).
 - `AWS_ACCESS_KEY_ID`: Neon access key ID.
 - `AWS_SECRET_ACCESS_KEY`: Neon secret access key.
-- `AWS_REGION`: Neon region, for example `us-east-2`.
+- `AWS_REGION`: `us-east-2`.
 - `S3_BUCKET`: exact bucket name created in Neon Object Storage.
 - `FIREBASE_SERVICE_ACCOUNT_JSON`: Firebase service-account JSON used server-side to verify Firebase ID tokens. Keep this secret and use a service account with only the permissions required.
 
-The upload endpoint accepts authenticated POST requests with a Firebase ID token in `Authorization: Bearer <token>`, and JSON containing `contentType`, `size`, and optional `fileName`. It allows JPEG, PNG, WebP, MP4, QuickTime, and WebM files up to 20 MB and returns a five-minute presigned PUT URL. The client must upload the bytes to that URL with the returned Content-Type header. The view endpoint accepts an authenticated POST containing the stored object `key` and returns a five-minute presigned GET URL. The Android source calls these endpoints using `https://nexora-storage.vercel.app` as its current base URL. This hostname has not been verified as the actual deployment for this repository; replace it in `MainActivity.kt` with the real Vercel deployment URL if different.
+The upload endpoint accepts authenticated POST requests with a Firebase ID token in `Authorization: Bearer <token>`, and JSON containing `contentType`, `size`, and optional `fileName`. It allows JPEG, PNG, WebP, MP4, QuickTime, and WebM files up to 20 MB and returns a five-minute presigned PUT URL. The client must upload the bytes to that URL with the returned Content-Type header. The view endpoint accepts an authenticated POST containing the stored object `key` and returns a five-minute presigned GET URL. The Android source calls these endpoints using `https://nexora-storage.vercel.app` as its current base URL. This is the Vercel API hostname, not the Neon endpoint; it still must be verified against the actual Vercel deployment and replaced in `MainActivity.kt` if different.
 
 ## Firebase Console setup
 1. Enable Email/Password in Firebase Authentication.
