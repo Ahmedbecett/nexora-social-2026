@@ -29,13 +29,14 @@ import com.google.firebase.firestore.ListenerRegistration
  * Native Android views are used intentionally; no APK/build was run.
  */
 class MainActivity : Activity() {
-    private val ink = Color.rgb(17, 18, 23)
-    private val paper = Color.WHITE
-    private val surface = Color.rgb(248, 248, 250)
-    private val soft = Color.rgb(238, 239, 243)
-    private val gray = Color.rgb(116, 119, 129)
-    private val violet = Color.rgb(123, 82, 255)
-    private val pink = Color.rgb(255, 69, 128)
+    // NEXORA dark-neon design system: deep navy surfaces, electric violet and magenta accents.
+    private val ink = Color.rgb(242, 244, 255)
+    private val paper = Color.rgb(5, 10, 25)
+    private val surface = Color.rgb(12, 22, 43)
+    private val soft = Color.rgb(21, 34, 62)
+    private val gray = Color.rgb(157, 172, 202)
+    private val violet = Color.rgb(93, 92, 255)
+    private val pink = Color.rgb(255, 55, 174)
     private lateinit var auth: FirebaseAuth
     private lateinit var db: FirebaseFirestore
     private lateinit var page: LinearLayout
@@ -56,7 +57,7 @@ class MainActivity : Activity() {
         db = FirebaseFirestore.getInstance()
         window.statusBarColor = paper
         window.navigationBarColor = paper
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        window.decorView.systemUiVisibility = 0
         render()
     }
 
@@ -197,8 +198,8 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(8))
         }
-        heading.addView(text("For you", 18, ink, true), LinearLayout.LayoutParams(0, -2, 1f))
-        heading.addView(text("Latest posts", 12, gray))
+        heading.addView(text("اكتشف NEXORA", 18, ink, true), LinearLayout.LayoutParams(0, -2, 1f))
+        heading.addView(text("أحدث المنشورات", 12, gray))
         body.addView(heading)
         val feed = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -306,10 +307,10 @@ class MainActivity : Activity() {
             setPadding(dp(14), dp(10), dp(14), dp(10))
         }
         AlertDialog.Builder(this)
-            .setTitle("Add comment")
+            .setTitle("إضافة تعليق")
             .setView(input)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Post") { _, _ ->
+            .setNegativeButton("إلغاء", null)
+            .setPositiveButton("نشر") { _, _ ->
                 val message = input.text.toString().trim()
                 val user = auth.currentUser ?: return@setPositiveButton
                 if (message.isBlank() || message.length > 1000) {
@@ -329,16 +330,16 @@ class MainActivity : Activity() {
     }
 
     private fun showSearch() {
-        body.addView(sectionTitle("Explore"))
+        body.addView(sectionTitle("استكشف"))
         val input = EditText(this).apply {
-            hint = "Search people by name or email"
+            hint = "ابحث عن أشخاص بالاسم أو البريد الإلكتروني"
             textSize = 14f
             setSingleLine(true)
             setTextColor(ink)
             setPadding(dp(14), dp(10), dp(14), dp(10))
             background = shape(surface, 14)
         }
-        val searchButton = primaryButton("Search people") {}
+        val searchButton = primaryButton("بحث عن أشخاص") {}
         val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(6), dp(14), 0) }
         searchButton.setOnClickListener {
             results.removeAllViews()
@@ -384,7 +385,7 @@ class MainActivity : Activity() {
     }
 
     private fun showReels() {
-        body.addView(sectionTitle("Reels"))
+        body.addView(sectionTitle("فيديوهات قصيرة"))
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         body.addView(list)
         db.collection("posts").limit(80).get().addOnSuccessListener { snapshot ->
@@ -401,7 +402,7 @@ class MainActivity : Activity() {
         }.addOnFailureListener { list.addView(emptyState("Reels unavailable", "Check Firestore access and connection.")) }
     }
     private fun showActivity() {
-        body.addView(sectionTitle("Activity"))
+        body.addView(sectionTitle("الإشعارات والنشاط"))
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         body.addView(list)
         val uid = auth.currentUser?.uid ?: return
@@ -422,7 +423,7 @@ class MainActivity : Activity() {
     }
 
     private fun showMessages() {
-        body.addView(sectionTitle("Messages"))
+        body.addView(sectionTitle("الرسائل"))
         body.addView(padded(primaryButton("Find people to message") { selectedTab = "Search"; render() }))
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         body.addView(list)
@@ -470,7 +471,7 @@ class MainActivity : Activity() {
         val messages = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(messages)
         panel.addView(scroll, LinearLayout.LayoutParams(-1, dp(300)))
-        val input = EditText(this).apply { hint = "Write a message…"; setTextColor(ink); maxLines = 3 }
+        val input = EditText(this).apply { hint = "اكتب رسالة..."; setTextColor(ink); maxLines = 3 }
         panel.addView(input)
         val dialog = AlertDialog.Builder(this).setTitle(otherName).setView(panel).setNegativeButton("Close", null).setPositiveButton("Send", null).create()
         val listener = db.collection("conversations").document(conversationId).collection("messages").addSnapshotListener(this) { snap, error ->
@@ -501,17 +502,17 @@ class MainActivity : Activity() {
     }
     private fun showCreate() {
         val isStory = selectedTab == "CreateStory"
-        body.addView(sectionTitle(if (isStory) "Create story" else "Create post"))
+        body.addView(sectionTitle(if (isStory) "إنشاء قصة" else "إنشاء منشور"))
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
             background = shape(surface, 18)
             setMargins(dp(14), dp(8), dp(14), dp(12))
         }
-        card.addView(text(if (isStory) "Share a 24-hour moment" else "Share a moment", 20, ink, true))
+        card.addView(text(if (isStory) "شارك لحظة تختفي بعد 24 ساعة" else "شارك لحظتك مع العالم", 20, ink, true))
         card.addView(text("Share a caption, photo or video. Media is uploaded to Neon through the authenticated Vercel API.", 13, gray).apply { setPadding(0, dp(5), 0, dp(14) ) })
         val caption = EditText(this).apply {
-            hint = "Write a caption…"
+            hint = "اكتب وصفًا..."
             minLines = 4
             gravity = Gravity.TOP
             textSize = 15f
@@ -521,11 +522,11 @@ class MainActivity : Activity() {
         }
         card.addView(caption)
         card.addView(space(10))
-        card.addView(secondaryButton(if (selectedMedia == null) "＋  Choose photo or video" else "✓  Media selected") { pickMedia() })
+        card.addView(secondaryButton(if (selectedMedia == null) "＋  اختر صورة أو فيديو" else "✓  تم اختيار الوسائط") { pickMedia() })
         status = text("", 12, gray).apply { setPadding(0, dp(8), 0, dp(4)) }
         card.addView(status)
         card.addView(space(10))
-        card.addView(primaryButton("Share post") {
+        card.addView(primaryButton(if (isStory) "نشر القصة" else "نشر المنشور") {
             val user = auth.currentUser
             val value = caption.text.toString().trim()
             if (user == null) return@primaryButton
