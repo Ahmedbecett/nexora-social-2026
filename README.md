@@ -13,7 +13,7 @@ NEXORA is an Android social networking app project by Ahmedbecetti.
 - Like/unlike actions using each post's `likes/{uid}` subcollection.
 - Comment creation.
 - Member discovery by display name/email and follow/follower documents.
-- System media picker UI for selecting an image or video (the selected media is not uploaded yet).
+- System media picker and Android client code that requests authenticated presigned upload/download URLs from the Vercel storage API and stores media keys in Firestore posts. Runtime operation still depends on the correct deployed Vercel URL and environment variables.
 - Firebase client configuration at `app/google-services.json`.
 - Firestore rules source at `firestore.rules`.
 - Firebase Storage rules source at `storage.rules`.
@@ -28,7 +28,7 @@ Configure these environment variables in Vercel. Never commit their values:
 - `S3_BUCKET`: exact bucket name created in Neon Object Storage.
 - `FIREBASE_SERVICE_ACCOUNT_JSON`: Firebase service-account JSON used server-side to verify Firebase ID tokens. Keep this secret and use a service account with only the permissions required.
 
-The upload endpoint accepts authenticated POST requests with a Firebase ID token in `Authorization: Bearer <token>`, and JSON containing `contentType`, `size`, and optional `fileName`. It allows JPEG, PNG, WebP, MP4, QuickTime, and WebM files up to 20 MB and returns a five-minute presigned PUT URL. The client must upload the bytes to that URL with the returned Content-Type header. The view endpoint accepts an authenticated POST containing the stored object `key` and returns a five-minute presigned GET URL. These API endpoints are committed, but the Android app has not yet been wired to call them.
+The upload endpoint accepts authenticated POST requests with a Firebase ID token in `Authorization: Bearer <token>`, and JSON containing `contentType`, `size`, and optional `fileName`. It allows JPEG, PNG, WebP, MP4, QuickTime, and WebM files up to 20 MB and returns a five-minute presigned PUT URL. The client must upload the bytes to that URL with the returned Content-Type header. The view endpoint accepts an authenticated POST containing the stored object `key` and returns a five-minute presigned GET URL. The Android source calls these endpoints using `https://nexora-storage.vercel.app` as its current base URL. This hostname has not been verified as the actual deployment for this repository; replace it in `MainActivity.kt` with the real Vercel deployment URL if different.
 
 ## Firebase Console setup
 1. Enable Email/Password in Firebase Authentication.
