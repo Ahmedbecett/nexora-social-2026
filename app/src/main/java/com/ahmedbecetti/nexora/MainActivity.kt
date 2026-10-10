@@ -4,6 +4,10 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
+import android.os.Handler
+import android.os.Looper
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -11,6 +15,11 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.widget.*
+import org.json.JSONObject
+import java.io.BufferedOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -35,6 +44,11 @@ class MainActivity : Activity() {
     private var selectedTab = "Home"
     private var feedListener: ListenerRegistration? = null
     private var selectedMedia: Uri? = null
+    private var selectedMimeType: String? = null
+    private val network = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    // Change this to the actual Vercel deployment URL if the project uses a different domain.
+    private val apiBaseUrl = "https://nexora-storage.vercel.app"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,7 +70,8 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 410 && resultCode == RESULT_OK) {
             selectedMedia = data?.data
-            Toast.makeText(this, if (selectedMedia != null) "Media selected. Upload integration is the next step." else "No media selected.", Toast.LENGTH_SHORT).show()
+            selectedMimeType = selectedMedia?.let { contentResolver.getType(it) }
+            Toast.makeText(this, if (selectedMedia != null) "Media selected: ${selectedMimeType ?: "unknown type"}" else "No media selected.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -201,12 +216,12 @@ class MainActivity : Activity() {
                     selectedTab = "Create"; render()
                 })
             } else {
-                docs.forEach { doc -> feed.addView(postCard(doc.id, doc.getString("uid") ?: "", doc.getString("authorName") ?: "NEXORA member", doc.getString("text") ?: "", doc.getLong("createdAt") ?: 0L)) }
+                docs.forEach { doc -> feed.addView(postCard(doc.id, doc.getString("uid") ?: "", doc.getString("authorName") ?: "NEXORA member", doc.getString("text") ?: "", doc.getLong("createdAt") ?: 0L, doc.getString("mediaKey"), doc.getString("mediaType"))) }
             }
         }
     }
 
-    private fun postCard(postId: String, authorUid: String, author: String, content: String, createdAt: Long): View {
+    private fun postCard(postId: String, authorUid: String, author: String, content: String, createdAt: Long, mediaKey: String?, mediaType: String?): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(6), 0, dp(10))
@@ -237,13 +252,15 @@ class MainActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(-1, dp(225))
         }
         val mediaLabel = TextView(this).apply {
-            text = "N"
-            textSize = 74f
+            text = if (mediaKey == null) "NEXORA" else "Loading media…"
+            textSize = 24f
             typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
-            setTextColor(Color.argb(65, 123, 82, 255))
+            setTextColor(Color.argb(100, 80, 60, 160))
             gravity = Gravity.CENTER
         }
         media.addView(mediaLabel, FrameLayout.LayoutParams(-1, -1))
+        if (mediaKey != null) loadPostMedia(media, mediaLabel, mediaKey, mediaType ?: "image")
+        else mediaLabel.text = "NEXORA · your moment"
         card.addView(media)
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -399,7 +416,7 @@ class MainActivity : Activity() {
             setMargins(dp(14), dp(8), dp(14), dp(12))
         }
         card.addView(text("Share a moment", 20, ink, true))
-        card.addView(text("Write a caption or choose a photo/video. Media upload will be connected to Neon in the next stage.", 13, gray).apply { setPadding(0, dp(5), 0, dp(14) ) })
+        card.addView(text("Share a caption, photo or video. Media is uploaded to Neon through the authenticated Vercel API.", 13, gray).apply { setPadding(0, dp(5), 0, dp(14) ) })
         val caption = EditText(this).apply {
             hint = "Write a caption…"
             minLines = 4
@@ -423,29 +440,172 @@ class MainActivity : Activity() {
                 status.text = "Write a caption or choose media first."
             } else if (value.length > 2200) {
                 status.text = "Caption must be 2,200 characters or fewer."
-            } else if (selectedMedia != null) {
-                status.text = "Media is selected, but upload is not connected yet. Text posts can be shared now."
             } else {
-                status.text = "Sharing…"
-                db.collection("users").document(user.uid).get().addOnSuccessListener { profile ->
-                    val data = mapOf(
-                        "uid" to user.uid,
-                        "authorName" to (profile.getString("displayName") ?: user.email?.substringBefore("@") ?: "NEXORA member"),
-                        "text" to value,
-                        "createdAt" to System.currentTimeMillis()
-                    )
-                    db.collection("posts").add(data)
-                        .addOnSuccessListener {
-                            selectedMedia = null
-                            selectedTab = "Home"
-                            toast("Post shared.")
-                            render()
-                        }
-                        .addOnFailureListener { status.text = "Could not share. Check Firestore rules." }
-                }.addOnFailureListener { status.text = "Could not load profile. Check connection." }
+                status.text = if (selectedMedia != null) "Uploading media…" else "Sharing…"
+                val mediaUri = selectedMedia
+                val mime = selectedMimeType
+                if (mediaUri != null && mime != null) {
+                    uploadMedia(mediaUri, mime, caption = value, status = status)
+                } else {
+                    createPost(user.uid, value, null, null, status)
+                }
             }
         })
         body.addView(card)
+    }
+
+
+    private fun createPost(uid: String, caption: String, mediaKey: String?, mediaType: String?, statusView: TextView) {
+        db.collection("users").document(uid).get().addOnSuccessListener { profile ->
+            val data = mutableMapOf<String, Any>(
+                "uid" to uid,
+                "authorName" to (profile.getString("displayName") ?: auth.currentUser?.email?.substringBefore("@") ?: "NEXORA member"),
+                "text" to caption,
+                "createdAt" to System.currentTimeMillis()
+            )
+            if (mediaKey != null && mediaType != null) {
+                data["mediaKey"] = mediaKey
+                data["mediaType"] = mediaType
+                data["mediaContentType"] = selectedMimeType ?: "application/octet-stream"
+            }
+            db.collection("posts").add(data)
+                .addOnSuccessListener {
+                    selectedMedia = null
+                    selectedMimeType = null
+                    selectedTab = "Home"
+                    toast("Post shared.")
+                    render()
+                }
+                .addOnFailureListener { statusView.text = "Upload completed, but post save failed. The file may remain in storage." }
+        }.addOnFailureListener { statusView.text = "Could not load profile. Check connection." }
+    }
+
+    private fun uploadMedia(uri: Uri, mime: String, caption: String, statusView: TextView) {
+        val user = auth.currentUser ?: return
+        val bytes = try {
+            contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        } catch (_: Exception) { null }
+        if (bytes == null || bytes.isEmpty()) {
+            statusView.text = "Could not read the selected file."
+            return
+        }
+        if (bytes.size > 20 * 1024 * 1024) {
+            statusView.text = "Maximum upload size is 20 MB."
+            return
+        }
+        if (mime !in listOf("image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm")) {
+            statusView.text = "Choose JPG, PNG, WebP, MP4, MOV or WebM."
+            return
+        }
+        statusView.text = "Preparing secure upload…"
+        user.getIdToken(false).addOnSuccessListener { tokenResult ->
+            network.execute {
+                var key: String? = null
+                var failure: String? = null
+                try {
+                    val request = JSONObject()
+                        .put("contentType", mime)
+                        .put("size", bytes.size)
+                        .put("fileName", "upload." + (mime.substringAfter("/").replace("jpeg", "jpg")))
+                    val conn = (URL("$apiBaseUrl/api/storage/upload-url").openConnection() as HttpURLConnection)
+                    conn.requestMethod = "POST"
+                    conn.connectTimeout = 15000
+                    conn.readTimeout = 20000
+                    conn.doOutput = true
+                    conn.setRequestProperty("Authorization", "Bearer ${tokenResult.token}")
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.outputStream.use { it.write(request.toString().toByteArray(Charsets.UTF_8)) }
+                    val code = conn.responseCode
+                    val responseText = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
+                    conn.disconnect()
+                    if (code !in 200..299) throw IllegalStateException("Upload authorization failed (HTTP $code)")
+                    val result = JSONObject(responseText)
+                    val uploadUrl = result.getString("uploadUrl")
+                    key = result.getString("key")
+                    val put = (URL(uploadUrl).openConnection() as HttpURLConnection)
+                    put.requestMethod = "PUT"
+                    put.connectTimeout = 20000
+                    put.readTimeout = 60000
+                    put.doOutput = true
+                    put.setRequestProperty("Content-Type", mime)
+                    put.setFixedLengthStreamingMode(bytes.size)
+                    BufferedOutputStream(put.outputStream).use { it.write(bytes) }
+                    val putCode = put.responseCode
+                    put.disconnect()
+                    if (putCode !in 200..299) throw IllegalStateException("Object storage upload failed (HTTP $putCode)")
+                } catch (e: Exception) {
+                    failure = e.message ?: "Upload failed."
+                }
+                val finalKey = key
+                val finalFailure = failure
+                mainHandler.post {
+                    if (finalFailure != null || finalKey == null) {
+                        statusView.text = "Upload failed: ${finalFailure ?: "unknown error"}. Check Vercel URL and storage settings."
+                    } else {
+                        createPost(user.uid, caption, finalKey, if (mime.startsWith("video/")) "video" else "image", statusView)
+                    }
+                }
+            }
+        }.addOnFailureListener { statusView.text = "Could not get a secure sign-in token." }
+    }
+
+    private fun loadPostMedia(container: FrameLayout, label: TextView, key: String, mediaType: String) {
+        val user = auth.currentUser ?: return
+        user.getIdToken(false).addOnSuccessListener { token ->
+            network.execute {
+                var signedUrl: String? = null
+                try {
+                    val conn = (URL("$apiBaseUrl/api/storage/view-url").openConnection() as HttpURLConnection)
+                    conn.requestMethod = "POST"
+                    conn.connectTimeout = 12000
+                    conn.readTimeout = 15000
+                    conn.doOutput = true
+                    conn.setRequestProperty("Authorization", "Bearer ${token.token}")
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.outputStream.use { it.write(JSONObject().put("key", key).toString().toByteArray(Charsets.UTF_8)) }
+                    if (conn.responseCode in 200..299) {
+                        val result = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                        signedUrl = result.getString("url")
+                    }
+                    conn.disconnect()
+                } catch (_: Exception) { }
+                val url = signedUrl
+                mainHandler.post {
+                    if (url == null) {
+                        label.text = "Media unavailable"
+                    } else if (mediaType == "video") {
+                        val video = VideoView(this).apply {
+                            setVideoURI(Uri.parse(url))
+                            setOnPreparedListener { player -> player.isLooping = true; label.visibility = View.GONE }
+                            setOnErrorListener { _, _, _ -> label.visibility = View.VISIBLE; label.text = "Video couldn't play"; true }
+                        }
+                        container.addView(video, FrameLayout.LayoutParams(-1, -1))
+                        label.text = "▶  Tap to play video"
+                        label.setOnClickListener { label.visibility = View.GONE; video.start() }
+                    } else {
+                        network.execute {
+                            var bitmap: android.graphics.Bitmap? = null
+                            try {
+                                URL(url).openStream().use { bitmap = BitmapFactory.decodeStream(it) }
+                            } catch (_: Exception) { }
+                            val image = bitmap
+                            mainHandler.post {
+                                if (image == null) label.text = "Image couldn't load"
+                                else {
+                                    val imageView = ImageView(this).apply {
+                                        setImageBitmap(image)
+                                        scaleType = ImageView.ScaleType.CENTER_CROP
+                                        contentDescription = "NEXORA post image"
+                                    }
+                                    container.addView(imageView, FrameLayout.LayoutParams(-1, -1))
+                                    label.visibility = View.GONE
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }.addOnFailureListener { label.text = "Sign in to view media" }
     }
 
     private fun pickMedia() {
