@@ -4,15 +4,15 @@ import { getFirestore, collection, doc, setDoc, addDoc, query, orderBy, limit, o
 import { getMessaging, getToken, isSupported } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
 
 const firebaseConfig = {
-  apiKey: "REPLACE_WITH_FIREBASE_WEB_API_KEY",
+  apiKey: "AIzaSyAD3w57QmDr3kFyKFMRyKuuVBuZSDQ_uqk",
   authDomain: "nexora-social-2026.firebaseapp.com",
   projectId: "nexora-social-2026",
   storageBucket: "nexora-social-2026.firebasestorage.app",
   messagingSenderId: "549843291889",
-  appId: "REPLACE_WITH_FIREBASE_WEB_APP_ID",
+  appId: "1:549843291889:web:044d5024be1ed3a7066350",
   measurementId: "G-3E8ZB5PG9T"
 };
-const VAPID_PUBLIC_KEY = "REPLACE_WITH_FIREBASE_WEB_PUSH_VAPID_PUBLIC_KEY";
+const VAPID_PUBLIC_KEY = "BCn--A62vWNNd8QpbJsB2sDXDtx1alNrSTxuuLg0ttBc7M_rjMn0tprtC4s60w_PH_QqSqyoFXlqppXX0cArRFo";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
