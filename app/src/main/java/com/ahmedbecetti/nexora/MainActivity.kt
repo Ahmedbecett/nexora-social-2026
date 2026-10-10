@@ -129,10 +129,8 @@ class MainActivity : Activity() {
             setOnClickListener { selectedTab = "Home"; render() }
         }
         bar.addView(logo, LinearLayout.LayoutParams(0, -2, 1f))
-        bar.addView(iconButton("＋", 30, ink) { selectedTab = "Create"; render() })
-        bar.addView(space(8))
         bar.addView(iconButton("♡", 30, ink) { selectedTab = "Activity"; render() })
-        bar.addView(space(8))
+        bar.addView(space(12))
         bar.addView(iconButton("➤", 24, ink) { selectedTab = "Messages"; render() })
         return bar
     }
