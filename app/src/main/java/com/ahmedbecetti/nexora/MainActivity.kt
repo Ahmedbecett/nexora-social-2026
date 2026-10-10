@@ -243,7 +243,23 @@ class MainActivity : Activity() {
         head.addView(iconButton("•••", 18, ink) {
             val options = arrayOf("Report post", "Cancel")
             AlertDialog.Builder(this).setItems(options) { _, which ->
-                if (which == 0) Toast.makeText(this, "Reporting will be added with safety controls.", Toast.LENGTH_SHORT).show()
+                if (which == 0) {
+                    val uid = auth.currentUser?.uid
+                    if (uid == null) {
+                        toast("Sign in to report a post.")
+                    } else {
+                        db.collection("reports").add(mapOf(
+                            "reporterUid" to uid,
+                            "targetType" to "post",
+                            "targetId" to postId,
+                            "targetUid" to authorUid,
+                            "reason" to "user_report",
+                            "status" to "open",
+                            "createdAt" to System.currentTimeMillis()
+                        )).addOnSuccessListener { toast("Report submitted for review.") }
+                            .addOnFailureListener { toast("Report failed. Check Firestore rules.") }
+                    }
+                }
             }.show()
         })
         card.addView(head)
@@ -271,9 +287,38 @@ class MainActivity : Activity() {
         }
         actions.addView(iconButton("♡", 29, ink) { toggleLike(postId) })
         actions.addView(iconButton("◯", 24, ink) { commentDialog(postId) })
-        actions.addView(iconButton("➤", 22, ink) { Toast.makeText(this, "Sharing will be added with messaging.", Toast.LENGTH_SHORT).show() })
+        actions.addView(iconButton("➤", 22, ink) {
+            val shareText = buildString {
+                append(author)
+                if (content.isNotBlank()) append("\\n").append(content)
+                append("\\n\\nShared from NEXORA")
+                append("\\nhttps://github.com/Ahmedbecetti/nexora-social-2026")
+            }
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, shareText)
+            }
+            startActivity(Intent.createChooser(send, "Share with"))
+        })
         actions.addView(LinearLayout(this), LinearLayout.LayoutParams(0, 1, 1f))
-        actions.addView(iconButton("⌑", 27, ink) { Toast.makeText(this, "Saved posts are coming later.", Toast.LENGTH_SHORT).show() })
+        actions.addView(iconButton("⌑", 27, ink) {
+            val uid = auth.currentUser?.uid
+            if (uid == null) {
+                toast("Sign in to save posts.")
+            } else {
+                val ref = db.collection("users").document(uid).collection("savedPosts").document(postId)
+                ref.get().addOnSuccessListener { saved ->
+                    if (saved.exists()) {
+                        ref.delete().addOnSuccessListener { toast("Removed from saved posts.") }
+                            .addOnFailureListener { toast("Could not remove saved post.") }
+                    } else {
+                        ref.set(mapOf("postId" to postId, "savedAt" to System.currentTimeMillis()))
+                            .addOnSuccessListener { toast("Post saved.") }
+                            .addOnFailureListener { toast("Save failed. Check Firestore rules.") }
+                    }
+                }.addOnFailureListener { toast("Could not check saved posts.") }
+            }
+        })
         card.addView(actions)
         val caption = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
