@@ -996,9 +996,14 @@ class MainActivity : Activity() {
         }))
     }
 
+    private fun authArabic(): Boolean =
+        java.util.Locale.getDefault().language.startsWith("ar")
+
+    private fun authText(ar: String, en: String): String = if (authArabic()) ar else en
+
     private fun showAuth() {
         page.setPadding(dp(24), dp(22), dp(24), dp(18))
-        page.layoutDirection = View.LAYOUT_DIRECTION_LTR
+        page.layoutDirection = if (authArabic()) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
         page.addView(space(18))
         page.addView(text("NEXORA", 42, ink, true).apply {
             gravity = Gravity.CENTER
@@ -1012,25 +1017,25 @@ class MainActivity : Activity() {
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            layoutDirection = if (authArabic()) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
             setPadding(0, dp(4), 0, dp(8))
         }
-        val title = text("أهلاً بعودتك", 27, ink, true)
-        val subtitle = text("انضم إلى مجتمع يشبهك.", 15, gray).apply {
+        val title = text(authText("أهلاً بعودتك", "Welcome back"), 27, ink, true)
+        val subtitle = text(authText("انضم إلى مجتمع يشبهك.", "Join a community that feels like yours."), 15, gray).apply {
             setPadding(0, dp(6), 0, dp(24))
         }
-        val name = authField("الاسم الكامل").apply { visibility = View.GONE }
-        val email = authField("البريد الإلكتروني").apply {
+        val name = authField(authText("الاسم الكامل", "Full name")).apply { visibility = View.GONE }
+        val email = authField(authText("البريد الإلكتروني", "Email address")).apply {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
             layoutDirection = View.LAYOUT_DIRECTION_LTR
             textAlignment = View.TEXT_ALIGNMENT_VIEW_START
         }
-        val password = authField("كلمة السر").apply {
+        val password = authField(authText("كلمة السر", "Password")).apply {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             layoutDirection = View.LAYOUT_DIRECTION_LTR
             textAlignment = View.TEXT_ALIGNMENT_VIEW_START
         }
-        val eye = text("إظهار", 13, Color.rgb(0, 112, 243), true).apply {
+        val eye = text(authText("إظهار", "Show"), 13, Color.rgb(0, 112, 243), true).apply {
             gravity = Gravity.CENTER
             setPadding(dp(8), dp(8), dp(8), dp(8))
         }
@@ -1041,55 +1046,50 @@ class MainActivity : Activity() {
                 android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
             else android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             password.setSelection(password.text?.length ?: 0)
-            eye.text = if (passwordVisible) "إخفاء" else "إظهار"
+            eye.text = if (passwordVisible) authText("إخفاء", "Hide") else authText("إظهار", "Show")
         }
         val message = text("", 12, pink).apply { setPadding(0, dp(7), 0, dp(5)) }
         var registering = false
-        val submit = authPrimaryButton("تسجيل الدخول") {}
-        val switch = authSecondaryButton("إنشاء حساب جديد") {}
-        val forgot = text("هل نسيت كلمة السر؟", 14, Color.rgb(0, 112, 243), true).apply {
+        val submit = authPrimaryButton(authText("تسجيل الدخول", "Sign in")) {}
+        val switch = authSecondaryButton(authText("إنشاء حساب جديد", "Create a new account")) {}
+        val forgot = text(authText("هل نسيت كلمة السر؟", "Forgot password?"), 14, Color.rgb(0, 112, 243), true).apply {
             gravity = Gravity.CENTER
             setPadding(0, dp(13), 0, dp(13))
             setOnClickListener {
                 val address = email.text.toString().trim()
                 if (address.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(address).matches()) {
-                    message.text = "أدخل بريدًا إلكترونيًا صحيحًا أولاً."
+                    message.text = authText("أدخل بريدًا إلكترونيًا صحيحًا أولاً.", "Enter a valid email address first.")
                 } else {
                     auth.sendPasswordResetEmail(address)
-                        .addOnSuccessListener { message.text = "أرسلنا رابط إعادة تعيين كلمة السر إلى بريدك." }
-                        .addOnFailureListener { message.text = it.localizedMessage ?: "تعذر إرسال رابط الاستعادة." }
+                        .addOnSuccessListener { message.text = authText("أرسلنا رابط إعادة تعيين كلمة السر إلى بريدك.", "Password reset link sent. Check your email.") }
+                        .addOnFailureListener { message.text = authErrorMessage(it) }
                 }
             }
         }
         fun updateMode() {
-            title.text = if (registering) "إنشاء حساب" else "أهلاً بعودتك"
-            subtitle.text = if (registering) "أنشئ حساب NEXORA الخاص بك في خطوات سهلة." else "انضم إلى مجتمع يشبهك."
+            title.text = if (registering) authText("إنشاء حساب", "Create account") else authText("أهلاً بعودتك", "Welcome back")
+            subtitle.text = if (registering) authText("أنشئ حساب NEXORA الخاص بك في خطوات سهلة.", "Create your NEXORA account in a few easy steps.") else authText("انضم إلى مجتمع يشبهك.", "Join a community that feels like yours.")
             name.visibility = if (registering) View.VISIBLE else View.GONE
-            submit.text = if (registering) "إنشاء الحساب" else "تسجيل الدخول"
-            switch.text = if (registering) "لديك حساب بالفعل؟ تسجيل الدخول" else "ليس لديك حساب؟ إنشاء حساب جديد"
+            submit.text = if (registering) authText("إنشاء الحساب", "Create account") else authText("تسجيل الدخول", "Sign in")
+            switch.text = if (registering) authText("لديك حساب بالفعل؟ تسجيل الدخول", "Already have an account? Sign in") else authText("ليس لديك حساب؟ إنشاء حساب جديد", "Don't have an account? Create one")
             forgot.visibility = if (registering) View.GONE else View.VISIBLE
-            eye.visibility = View.VISIBLE
         }
-        switch.setOnClickListener {
-            registering = !registering
-            message.text = ""
-            updateMode()
-        }
+        switch.setOnClickListener { registering = !registering; message.text = ""; updateMode() }
         submit.setOnClickListener {
             val e = email.text.toString().trim()
             val p = password.text.toString()
             val n = name.text.toString().trim()
             if (e.isBlank() || p.isBlank() || (registering && n.isBlank())) {
-                message.text = "أكمل الحقول المطلوبة."
+                message.text = authText("أكمل الحقول المطلوبة.", "Please complete all required fields.")
             } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(e).matches()) {
-                message.text = "أدخل بريدًا إلكترونيًا صحيحًا."
+                message.text = authText("أدخل بريدًا إلكترونيًا صحيحًا.", "Enter a valid email address.")
             } else if (registering && p.length < 6) {
-                message.text = "يجب أن تتكون كلمة السر من 6 أحرف على الأقل."
+                message.text = authText("يجب أن تتكون كلمة السر من 6 أحرف على الأقل.", "Password must be at least 6 characters.")
             } else if (registering) {
                 submit.isEnabled = false
                 auth.createUserWithEmailAndPassword(e, p).addOnCompleteListener(this) { task ->
                     submit.isEnabled = true
-                    if (!task.isSuccessful) message.text = task.exception?.localizedMessage ?: "فشل إنشاء الحساب."
+                    if (!task.isSuccessful) message.text = authErrorMessage(task.exception)
                     else {
                         val user = auth.currentUser ?: return@addOnCompleteListener
                         user.updateProfile(com.google.firebase.auth.UserProfileChangeRequest.Builder().setDisplayName(n).build())
@@ -1098,7 +1098,7 @@ class MainActivity : Activity() {
                                     "uid" to user.uid, "displayName" to n, "email" to e, "bio" to "",
                                     "photoUrl" to "", "createdAt" to System.currentTimeMillis()
                                 )).addOnSuccessListener { selectedTab = "Home"; render() }
-                                    .addOnFailureListener { message.text = "تم إنشاء الحساب لكن تعذر حفظ الملف الشخصي." }
+                                    .addOnFailureListener { message.text = authText("أُنشئ الحساب لكن تعذر حفظ الملف الشخصي.", "Account created, but the profile could not be saved.") }
                             }
                     }
                 }
@@ -1106,23 +1106,18 @@ class MainActivity : Activity() {
                 submit.isEnabled = false
                 auth.signInWithEmailAndPassword(e, p).addOnCompleteListener(this) { task ->
                     submit.isEnabled = true
-                    if (task.isSuccessful) {
-                        syncAuthProfileAndOpen(auth.currentUser?.displayName ?: e.substringBefore("@"), e)
-                    } else message.text = task.exception?.localizedMessage ?: "تعذر تسجيل الدخول."
+                    if (task.isSuccessful) syncAuthProfileAndOpen(auth.currentUser?.displayName ?: e.substringBefore("@"), e)
+                    else message.text = authErrorMessage(task.exception)
                 }
             }
         }
-
         card.addView(title)
         card.addView(subtitle)
         card.addView(name)
         card.addView(space(10))
         card.addView(email, LinearLayout.LayoutParams(-1, -2))
         card.addView(space(10))
-        val passwordRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
+        val passwordRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         passwordRow.addView(password, LinearLayout.LayoutParams(0, -2, 1f))
         passwordRow.addView(eye)
         card.addView(passwordRow)
@@ -1131,11 +1126,21 @@ class MainActivity : Activity() {
         card.addView(submit, LinearLayout.LayoutParams(-1, dp(54)))
         card.addView(forgot)
         card.addView(divider().apply { setPadding(0, dp(10), 0, dp(10)) })
-        card.addView(authSecondaryButton("المتابعة برقم الهاتف") { startPhoneAuthentication() })
+        card.addView(authSecondaryButton(authText("المتابعة برقم الهاتف", "Continue with phone number")) { startPhoneAuthentication() })
         card.addView(space(10))
         card.addView(switch)
         page.addView(card)
         updateMode()
+    }
+
+    private fun authErrorMessage(error: Throwable?): String {
+        val code = (error as? com.google.firebase.FirebaseException)?.message.orEmpty()
+        return when {
+            code.contains("EMAIL_ALREADY_IN_USE", true) -> authText("هذا البريد مرتبط بحساب موجود. سجّل الدخول أو استعد كلمة السر.", "This email is already in use. Sign in or reset your password.")
+            code.contains("INVALID_CREDENTIAL", true) || code.contains("WRONG_PASSWORD", true) -> authText("البريد أو كلمة السر غير صحيحة.", "Email or password is incorrect.")
+            code.contains("TOO_MANY_REQUESTS", true) -> authText("محاولات كثيرة. انتظر قليلًا ثم حاول مجددًا.", "Too many attempts. Wait a while and try again.")
+            else -> error?.localizedMessage ?: authText("حدث خطأ. حاول مجددًا.", "Something went wrong. Please try again.")
+        }
     }
 
     private fun authField(hintText: String): EditText = EditText(this).apply {
@@ -1170,43 +1175,59 @@ class MainActivity : Activity() {
     }
 
     private fun startPhoneAuthentication() {
-        val phoneInput = authField("رقم الهاتف بصيغة دولية مثل +213…")
-        phoneInput.inputType = 3
+        val phoneInput = authField(authText("رقم الهاتف مع مفتاح الدولة، مثل +213…", "Phone number with country code, e.g. +213…")).apply {
+            inputType = android.text.InputType.TYPE_CLASS_PHONE
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+        }
         AlertDialog.Builder(this)
-            .setTitle("التسجيل برقم الهاتف")
-            .setMessage("سنرسل رمز تحقق SMS عبر Firebase. أدخل الرقم مع مفتاح الدولة.")
+            .setTitle(authText("التحقق برقم الهاتف", "Phone verification"))
+            .setMessage(authText(
+                "سنرسل رسالة SMS تحتوي على رمز تحقق إلى رقم الهاتف الذي أدخلته. تأكد من كتابة الرقم كاملًا مع مفتاح الدولة.",
+                "We’ll send an SMS with a verification code to the phone number you enter. Include the country calling code."
+            ))
             .setView(phoneInput)
-            .setNegativeButton("إلغاء", null)
-            .setPositiveButton("إرسال الرمز", null)
+            .setNegativeButton(authText("إلغاء", "Cancel"), null)
+            .setPositiveButton(authText("إرسال الرمز", "Send code"), null)
             .create().also { dialog ->
                 dialog.setOnShowListener {
                     dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                        val phone = phoneInput.text.toString().trim()
-                        if (!phone.matches(Regex("^\\+[1-9][0-9]{7,14}$"))) {
-                            phoneInput.error = "اكتب الرقم الدولي مع + ومفتاح الدولة"
+                        val phoneNumber = phoneInput.text.toString().trim().replace(" ", "").replace("-", "")
+                        if (!phoneNumber.matches(Regex("^\\+[1-9][0-9]{7,14}$"))) {
+                            phoneInput.error = authText("اكتب الرقم الدولي مثل +213XXXXXXXXX", "Enter the full international number, e.g. +213XXXXXXXXX")
                             return@setOnClickListener
                         }
                         dialog.dismiss()
                         val options = PhoneAuthOptions.newBuilder(auth)
-                            .setPhoneNumber(phone)
+                            .setPhoneNumber(phoneNumber)
                             .setTimeout(60L, TimeUnit.SECONDS)
                             .setActivity(this)
                             .setCallbacks(object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
                                 override fun onVerificationCompleted(credential: PhoneAuthCredential) {
                                     auth.signInWithCredential(credential).addOnCompleteListener(this@MainActivity) { task ->
-                                        if (task.isSuccessful) syncAuthProfileAndOpen(phone, phone)
-                                        else toast(task.exception?.localizedMessage ?: "فشل التحقق من رقم الهاتف.")
+                                        if (task.isSuccessful) syncAuthProfileAndOpen(phoneNumber, phoneNumber)
+                                        else toast(authErrorMessage(task.exception))
                                     }
                                 }
                                 override fun onVerificationFailed(error: com.google.firebase.FirebaseException) {
-                                    toast("تعذر إرسال رمز SMS: " + (error.localizedMessage ?: "تحقق من إعدادات Firebase"))
+                                    val detail = error.message.orEmpty()
+                                    val friendly = when {
+                                        detail.contains("OPERATION_NOT_ALLOWED", true) ->
+                                            authText("إرسال SMS غير مفعّل في Firebase لهذا المشروع. فعّل Phone ضمن Authentication > Sign-in method، وتحقق من سياسة مناطق SMS.", "SMS sign-in is disabled in Firebase. Enable Phone under Authentication > Sign-in method and check the SMS region policy.")
+                                        detail.contains("TOO_MANY_REQUESTS", true) || detail.contains("QUOTA_EXCEEDED", true) ->
+                                            authText("تجاوزت طلبات SMS الحد المسموح مؤقتًا. انتظر قبل المحاولة مجددًا.", "The SMS quota or rate limit was reached. Wait before trying again.")
+                                        detail.contains("INVALID_PHONE_NUMBER", true) ->
+                                            authText("رقم الهاتف غير صالح. استخدم الصيغة الدولية مثل +213XXXXXXXXX.", "Invalid phone number. Use international format, e.g. +213XXXXXXXXX.")
+                                        else -> authText("تعذر إرسال رسالة التحقق. تحقق من اتصال الإنترنت وإعدادات Firebase Phone Auth. التفاصيل: ", "Could not send the verification SMS. Check your internet connection and Firebase Phone Auth settings. Details: ") + detail
+                                    }
+                                    toast(friendly)
                                 }
                                 override fun onCodeSent(verificationId: String, token: PhoneAuthProvider.ForceResendingToken) {
-                                    showOtpPrompt(verificationId, phone)
+                                    showOtpPrompt(verificationId, phoneNumber)
                                 }
                             }).build()
                         PhoneAuthProvider.verifyPhoneNumber(options)
-                        toast("جارٍ طلب رمز التحقق من Firebase…")
+                        toast(authText("جارٍ إرسال رسالة التحقق إلى رقمك…", "Sending a verification SMS to your phone…"))
                     }
                 }
                 dialog.show()
