@@ -18,7 +18,7 @@ function getFirebaseApp() {
 }
 
 function getS3() {
-  const endpoint = process.env.AWS_ENDPOINT_URL_S3;
+  const endpoint = process.env.AWS_ENDPOINT_URL_S3 || "https://br-bold-sky-b4c1teyk.storage.c-6.us-east-2.aws.neon.tech";
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
   const region = process.env.AWS_REGION || "us-east-2";
