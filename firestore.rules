@@ -135,6 +135,24 @@ service cloud.firestore {
         && request.resource.data.type in ['like', 'comment', 'follow', 'message'];
     }
 
+    match /reports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.targetUid is string
+        && request.resource.data.targetUid != request.auth.uid
+        && request.resource.data.targetType in ['post', 'story', 'user']
+        && request.resource.data.targetId is string
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.status == 'open'
+        && request.resource.data.createdAt is int
+        && request.resource.data.keys().hasOnly([
+          'reporterUid', 'targetType', 'targetId', 'targetUid',
+          'reason', 'status', 'createdAt'
+        ]);
+      allow read, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
