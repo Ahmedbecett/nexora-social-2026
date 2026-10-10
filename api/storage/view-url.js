@@ -11,7 +11,8 @@ function getFirebaseApp() {
 }
 
 function getS3() {
-  const { AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY } = process.env;
+  const AWS_ENDPOINT_URL_S3 = process.env.AWS_ENDPOINT_URL_S3 || "https://br-bold-sky-b4c1teyk.storage.c-6.us-east-2.aws.neon.tech";
+  const { AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY } = process.env;
   if (!AWS_ENDPOINT_URL_S3 || !AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
     throw new Error("Storage environment variables are not configured");
   }
