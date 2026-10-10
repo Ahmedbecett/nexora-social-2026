@@ -356,6 +356,8 @@ class MainActivity : Activity() {
                     details.addView(text(d.getString("bio") ?: "NEXORA member", 12, gray))
                     row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
                     row.addView(smallButton("Follow") { followUser(d.id) })
+                    row.addView(space(4))
+                    row.addView(smallButton("Message") { startConversation(d.id, d.getString("displayName") ?: "Member") })
                     results.addView(row)
                     results.addView(divider())
                 }
@@ -436,11 +438,64 @@ class MainActivity : Activity() {
                     details.addView(text(name, 14, ink, true))
                     details.addView(text(d.getString("lastMessage") ?: "Open conversation", 12, gray))
                     row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
-                    row.setOnClickListener { toast("Conversation selected. Message thread UI is still being completed.") }
+                    row.setOnClickListener { openConversation(d.id, other, name) }
                     list.addView(row); list.addView(divider())
                 }
             }
         }.addOnFailureListener { list.addView(emptyState("Inbox unavailable", "Check Firestore rules and connection.")) }
+    }
+    private fun startConversation(otherUid: String, otherName: String) {
+        val me = auth.currentUser?.uid ?: return
+        if (me == otherUid) return
+        db.collection("conversations").whereArrayContains("members", me).get().addOnSuccessListener { snapshot ->
+            val existing = snapshot.documents.firstOrNull { doc ->
+                val members = doc.get("members") as? List<*>
+                members?.size == 2 && members.contains(otherUid)
+            }
+            if (existing != null) { openConversation(existing.id, otherUid, otherName) }
+            else {
+                val now = System.currentTimeMillis()
+                db.collection("conversations").add(mapOf("members" to listOf(me, otherUid), "createdAt" to now, "updatedAt" to now, "lastMessage" to "", "lastMessageAt" to now))
+                    .addOnSuccessListener { openConversation(it.id, otherUid, otherName) }
+                    .addOnFailureListener { toast("Could not start conversation. Check Firestore rules.") }
+            }
+        }.addOnFailureListener { toast("Could not find conversations. Check Firestore rules.") }
+    }
+
+    private fun openConversation(conversationId: String, otherUid: String, otherName: String) {
+        val panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(8)) }
+        val scroll = ScrollView(this)
+        val messages = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(messages)
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, dp(300)))
+        val input = EditText(this).apply { hint = "Write a message…"; setTextColor(ink); maxLines = 3 }
+        panel.addView(input)
+        val dialog = AlertDialog.Builder(this).setTitle(otherName).setView(panel).setNegativeButton("Close", null).setPositiveButton("Send", null).create()
+        val listener = db.collection("conversations").document(conversationId).collection("messages").addSnapshotListener(this) { snap, error ->
+            messages.removeAllViews()
+            if (error != null) { messages.addView(text("Could not load messages.", 13, gray)); return@addSnapshotListener }
+            snap?.documents?.sortedBy { it.getLong("createdAt") ?: 0L }?.forEach { d ->
+                val mine = d.getString("uid") == auth.currentUser?.uid
+                messages.addView(text((if (mine) "You: " else otherName + ": ") + (d.getString("text") ?: ""), 14, ink).apply { setPadding(dp(8), dp(6), dp(8), dp(6)) })
+            }
+            scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+        }
+        dialog.setOnDismissListener { listener.remove() }
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val value = input.text.toString().trim()
+                val me = auth.currentUser?.uid ?: return@setOnClickListener
+                if (value.isBlank() || value.length > 4000) { toast("Message must be 1–4,000 characters."); return@setOnClickListener }
+                val ref = db.collection("conversations").document(conversationId)
+                val now = System.currentTimeMillis()
+                db.runBatch { batch ->
+                    batch.set(ref.collection("messages").document(), mapOf("uid" to me, "text" to value, "createdAt" to now))
+                    batch.update(ref, mapOf("lastMessage" to value.take(120), "lastMessageAt" to now, "updatedAt" to now))
+                }.addOnSuccessListener { input.setText("") }
+                    .addOnFailureListener { toast("Message failed. Check Firestore rules.") }
+            }
+        }
+        dialog.show()
     }
     private fun showCreate() {
         body.addView(sectionTitle("Create post"))
