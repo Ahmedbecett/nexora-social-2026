@@ -3,6 +3,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:allowBackup="true"
+        android:icon="@drawable/ic_nexora"
         android:label="NEXORA"
         android:supportsRtl="true"
         android:theme="@style/Theme.Nexora">
