@@ -53,3 +53,34 @@ The upload endpoint accepts authenticated POST requests with a Firebase ID token
 - [Storage configuration health check](https://nexora-storage.vercel.app/api/health)
 
 The generated debug APK is unsigned for production distribution and intended for testing. A production release should use a protected signing key stored in GitHub Actions secrets.
+
+## Firebase Hosting web client
+
+A responsive NEXORA web starter lives in `public/`. It uses the Firebase web app configuration for project `nexora-social-2026`, supports email/password account creation and sign-in, reads and creates text posts in Firestore, and can register this browser for Firebase Cloud Messaging notifications. Browser push requires HTTPS, a supported browser, notification permission, and published Firestore rules.
+
+### Deploy from the repository root
+
+Install Node.js and Firebase CLI, then run:
+
+```sh
+npm install -g firebase-tools
+firebase login
+firebase use nexora-social-2026
+firebase deploy --only hosting
+```
+
+The repository contains `.firebaserc` and `firebase.json`, so Firebase Hosting publishes the `public/` directory to the project's Hosting site. You can deploy from Termux or a computer with the Firebase CLI installed.
+
+### One-time Firebase Console setup
+
+1. In Firebase Console → Authentication → Sign-in method, enable **Email/Password**.
+2. In Firestore Database, create the database if needed and publish the repository's `firestore.rules`.
+3. In Project settings → General, register/confirm the Web app configuration. The web app config is client-side configuration, not a Firebase Admin credential.
+4. In Project settings → Cloud Messaging → Web Push certificates, use the public VAPID key for browser push. The website includes it in its client code; do not use it as a server credential.
+5. After Hosting deploys, open the Hosting URL in Chrome, create an account, and tap **Enable browser notifications**.
+
+For native Android push sending, separately configure `FIREBASE_SERVICE_ACCOUNT_JSON` as a private environment variable in Vercel and redeploy the Vercel API. Never commit a service-account JSON file or paste its private key into chat.
+
+### Current web-client scope
+
+The Hosting site currently provides sign-in/sign-up, text posting, a live Firestore feed, and browser push-token registration. It is a web companion/starter, not yet a full web clone of all native Android screens and features. Notification delivery must be tested after deployment and the server credentials/rules are configured.
