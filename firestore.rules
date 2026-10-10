@@ -19,6 +19,11 @@ service cloud.firestore {
           .hasOnly(['displayName', 'bio', 'photoUrl', 'updatedAt']);
       allow delete: if owns(userId);
 
+      // Each user can manage only their own FCM device tokens. Trusted Admin SDK services bypass these rules.
+      match /fcmTokens/{tokenId} {
+        allow read, create, update, delete: if owns(userId);
+      }
+
       match /following/{targetId} {
         allow read: if signedIn();
         allow create: if owns(userId) && targetId != userId
