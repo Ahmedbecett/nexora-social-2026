@@ -15,7 +15,7 @@ NEXORA is an Android social networking app project by Ahmedbecetti.
 - Firebase client configuration at `app/google-services.json`.
 - Firestore rules source at `firestore.rules`.
 - Firebase Storage rules source at `storage.rules`.
-- Vercel server endpoint at `api/storage/upload-url.js` that verifies Firebase ID tokens and creates short-lived S3-compatible upload URLs for Neon Object Storage.
+- Vercel endpoints at `api/storage/upload-url.js` and `api/storage/view-url.js` that verify Firebase ID tokens and create short-lived S3-compatible upload and download URLs for Neon Object Storage.
 
 ## Vercel storage API configuration
 Configure these environment variables in Vercel. Never commit their values:
@@ -26,7 +26,7 @@ Configure these environment variables in Vercel. Never commit their values:
 - `S3_BUCKET`: exact bucket name created in Neon Object Storage.
 - `FIREBASE_SERVICE_ACCOUNT_JSON`: Firebase service-account JSON used server-side to verify Firebase ID tokens. Keep this secret and use a service account with only the permissions required.
 
-The endpoint accepts authenticated POST requests with a Firebase ID token in `Authorization: Bearer <token>`, and JSON containing `contentType`, `size`, and optional `fileName`. It currently allows JPEG, PNG, WebP, MP4, QuickTime, and WebM files up to 20 MB and returns a five-minute presigned PUT URL. The client must upload the bytes to that URL with the returned Content-Type header.
+The upload endpoint accepts authenticated POST requests with a Firebase ID token in `Authorization: Bearer <token>`, and JSON containing `contentType`, `size`, and optional `fileName`. It allows JPEG, PNG, WebP, MP4, QuickTime, and WebM files up to 20 MB and returns a five-minute presigned PUT URL. The client must upload the bytes to that URL with the returned Content-Type header. The view endpoint accepts an authenticated POST containing the stored object `key` and returns a five-minute presigned GET URL. These API endpoints are committed, but the Android app has not yet been wired to call them.
 
 ## Firebase Console setup
 1. Enable Email/Password in Firebase Authentication.
