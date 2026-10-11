@@ -1,5 +1,5 @@
 /** أيقونات إضافية لشريط الدردشة الجديد (نفس أسلوب icons.jsx: خطوط 2px، حواف دائرية). */
-const S = ({ children, size = 24, fill = 'none', stroke = 'currentColor', sw = 2, className, style, vb = '0 0 24 24' }) => (
+const S = ({ children, size = 24, fill = 'none', stroke = 'currentColor', sw = 1.8, className, style, vb = '0 0 24 24' }) => (
   <svg width={size} height={size} viewBox={vb} fill={fill} stroke={stroke} strokeWidth={sw}
     strokeLinecap="round" strokeLinejoin="round" className={className} style={style} aria-hidden="true">{children}</svg>
 );
@@ -112,11 +112,45 @@ export const IDragHandle = (p) => <S {...p}><path d="M5 9h14M5 15h14" /></S>;
 
 /** سماعة الهاتف (شريط المحادثة) — بنفس شكل إنستغرام */
 export const IHandset = ({ size = 24, ...p }) => <S size={size} sw={1.8} {...p}>
-  <path d="M6.4 3.6h2.5c.5 0 .9.3 1 .8l.7 2.3c.1.3.3.6.6.7.9.5 1.7 1.3 2.2 2.2.1.3.4.5.7.6l2.3.7c.5.1.8.5.8 1v2.5c0 .7-.6 1.2-1.3 1.2C8.6 15.6 3.7 10.7 3.7 4.9c0-.7.5-1.3 1.2-1.3Z" />
+  <path d="M6.55 3.35h2.2c.56 0 1.03.4 1.13.95l.5 2.4c.1.48-.02.97-.34 1.33l-1.25 1.4a13.6 13.6 0 0 0 5.2 5.2l1.4-1.25c.36-.32.85-.44 1.33-.34l2.4.5c.55.1.95.57.95 1.13v2.2c0 .77-.65 1.36-1.42 1.28C10.2 17.7 4.3 11.8 3.27 4.77 3.19 4 3.78 3.35 4.55 3.35Z" />
 </S>;
 
 /** كاميرا الفيديو (شريط المحادثة) — بنفس شكل إنستغرام */
 export const ICamcorder = ({ size = 24, ...p }) => <S size={size} sw={1.8} {...p}>
-  <rect x="3" y="7" width="12.4" height="10" rx="3.2" />
-  <path d="M15.4 11.1 21 8.1v7.8l-5.6-3z" />
+  <rect x="2.7" y="7.1" width="13.1" height="9.8" rx="3.4" />
+  <path d="M15.8 11.35 21.2 7.9v8.2l-5.4-3.45z" />
+</S>;
+
+/** ميكروفون بخط رفيع (شريط الكتابة) */
+export const IMicSoft = ({ size = 24, ...p }) => <S size={size} sw={1.8} {...p}>
+  <rect x="9.1" y="2.8" width="5.8" height="10.2" rx="2.9" />
+  <path d="M5.7 11.2a6.3 6.3 0 0 0 12.6 0" />
+  <path d="M12 17.5v3.6" />
+</S>;
+
+/** صورة/معرض بخط رفيع (شريط الكتابة) */
+export const IPhotoSoft = ({ size = 24, ...p }) => <S size={size} sw={1.8} {...p}>
+  <rect x="3.1" y="3.1" width="17.8" height="17.8" rx="4.4" />
+  <circle cx="8.7" cy="8.7" r="1.55" />
+  <path d="m4.4 17.3 4.5-4.5 5.1 5.1" />
+  <path d="m13.3 15.5 2.5-2.5 4 4" />
+</S>;
+
+/** ملصق بشكل إنستغرام: مربع من الحواف مع وجه وثنية */
+export const IStickerSmile = ({ size = 24, ...p }) => <S size={size} sw={1.8} {...p}>
+  <path d="M9.1 3.4h5.8a5.3 5.3 0 0 1 5.3 5.3v2.9a8.4 8.4 0 0 1-8.4 8.4H8.9a5.3 5.3 0 0 1-5.3-5.3V8.7a5.3 5.3 0 0 1 5.5-5.3Z" />
+  <path d="M20.2 11.6h-3.2a5.3 5.3 0 0 0-5.3 5.3v3.1" />
+  <path d="M9.2 9.5h.01M14.8 9.5h.01" sw={2.5} />
+  <path d="M9.3 13.6a3.6 3.6 0 0 0 5.4 0" />
+</S>;
+
+/** قلم داخل مربع (رسالة جديدة) — بنفس أسلوب إنستغرام */
+export const IPencilSoft = ({ size = 24, ...p }) => <S size={size} sw={1.8} {...p}>
+  <path d="M20.6 13.1v3.3a4.2 4.2 0 0 1-4.2 4.2H7.8a4.2 4.2 0 0 1-4.2-4.2V7.8a4.2 4.2 0 0 1 4.2-4.2h3.4" />
+  <path d="M18.9 3.3a1.75 1.75 0 0 1 2.48 2.48l-8.2 8.2-3.2.72.72-3.2 8.2-8.2Z" />
+</S>;
+
+/** علامة + بخط رفيع (شريط الكتابة) */
+export const IPlusSoft = ({ size = 22, ...p }) => <S size={size} sw={1.8} {...p}>
+  <path d="M12 5.2v13.6M5.2 12h13.6" />
 </S>;

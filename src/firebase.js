@@ -42,6 +42,12 @@ function mapFirebaseError(e) {
   if (/blocked all requests|unusual activity|too many|quota/i.test(msg)) return new AuthFlowError('too_many_attempts');
   if (/network|timeout|unreachable/i.test(msg)) return new AuthFlowError('network');
   if (c.includes('popup-closed') || c.includes('cancelled') || /cancel/i.test(msg)) return new AuthFlowError('cancelled');
+  // أخطاء Google Play services على أندرويد (ApiException: 10 = بصمة التوقيع غير مسجّلة)
+  const apiCode = /ApiException:\s*(\d+)/.exec(msg)?.[1] || /\b(12500|12501|12502|10|7|16)\b/.exec(msg)?.[1];
+  if (apiCode === '10' || apiCode === '16') return new AuthFlowError('google_not_configured', msg);
+  if (apiCode === '12501' || apiCode === '12502') return new AuthFlowError('cancelled', msg);
+  if (apiCode === '7') return new AuthFlowError('network', msg);
+
   if (c.includes('network')) return new AuthFlowError('network');
   // Native Google Sign-In: DEVELOPER_ERROR (10) / no credentials when the SHA fingerprint is not registered
   if (/developer|10:|No credentials available|28444|\[16\]/i.test(msg)) return new AuthFlowError('google_not_configured', msg);

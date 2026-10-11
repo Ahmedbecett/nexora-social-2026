@@ -15,7 +15,7 @@ import { ct, fmtClock } from './callText.js';
 /* ---------------- أيقونات ---------------- */
 const Svg = ({ size = 26, children, ...rest }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-    strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" {...rest}>{children}</svg>
+    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...rest}>{children}</svg>
 );
 export const ICamOff = (p) => (
   <Svg {...p}>
@@ -81,7 +81,7 @@ export const IPhoneFill = ({ size = 26, arrow = false }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
     <path d="M6.9 10.6c1.3 2.6 3.5 4.7 6.1 6.1l2-2c.3-.3.6-.4 1-.2 1 .3 2.1.5 3.3.5.5 0 .9.4.9.9v3.3c0 .5-.4.9-.9.9-8.7 0-15.8-7.1-15.8-15.8 0-.5.4-.9.9-.9h3.3c.5 0 .9.4.9.9 0 1.2.2 2.3.5 3.3.1.4 0 .8-.2 1z" />
     {arrow && (
-      <g stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" fill="none">
+      <g stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none">
         <path d="M15.4 8.6h4.4v4.4" /><path d="M19.8 8.6l-6.2 6.2" />
       </g>
     )}

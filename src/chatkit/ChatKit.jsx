@@ -10,7 +10,7 @@ import { createPortal } from 'react-dom';
 import { t, getLang } from '../i18n.js';
 import { Spinner } from '../components.jsx';
 import { IClose, IPlus, IMic, IImage, ITrash, IArrowUp, ICheck, IMusic, ILocation, ILink, ISearch } from '../icons.jsx';
-import { ICameraSolid, IEffectsFace, IStickerPeel, IGifBox, IAiImage, IDrawSquiggle, IAiFlower, IScissors, IWand, IUndo, IEraser, INearMe, IGear, ISpark } from './icons2.jsx';
+import { ICameraSolid, IEffectsFace, IStickerPeel, IStickerSmile, IGifBox, IAiImage, IDrawSquiggle, IAiFlower, IScissors, IWand, IUndo, IEraser, INearMe, IGear, ISpark, IMicSoft, IPhotoSoft, IPlusSoft } from './icons2.jsx';
 import * as K from './lib.js';
 import './kit.css';
 
@@ -178,15 +178,15 @@ export function ChatComposer({
             </button>
           ) : (
             <>
-              <button className="ck-ic" onClick={onStartRec} aria-label={t('msgVoice')}><IMic size={24} /></button>
-              <button className="ck-ic" onClick={onPickMedia} aria-label={t('msgPhoto')}><IImage size={24} /></button>
-              <button className="ck-ic" onClick={onOpenStickers} aria-label={t('ckStickers')}><IStickerPeel size={24} /></button>
+              <button className="ck-ic" onClick={onStartRec} aria-label={t('msgVoice')}><IMicSoft size={25} /></button>
+              <button className="ck-ic" onClick={onPickMedia} aria-label={t('msgPhoto')}><IPhotoSoft size={25} /></button>
+              <button className="ck-ic" onClick={onOpenStickers} aria-label={t('ckStickers')}><IStickerSmile size={25} /></button>
               <Press
                 className={`ck-plus ${drawerOpen ? 'open' : ''}`}
                 aria-label={drawerOpen ? t('close') : t('ckMore')}
                 onPress={onToggleDrawer} onLong={onOpenAi}
               >
-                {drawerOpen ? <IClose size={20} /> : <IPlus size={22} />}
+                {drawerOpen ? <IClose size={21} /> : <IPlusSoft size={23} />}
               </Press>
             </>
           )}

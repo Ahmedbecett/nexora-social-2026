@@ -4,7 +4,7 @@ import { api, uploadMedia, uploadBlob } from '../api.js';
 import { t, timeAgo, errText, getLang } from '../i18n.js';
 import { useApp, Avatar, UserName, TopBar, Loading, Empty, ErrorBox, Sheet, Spinner, Confirm, ActionSheet, useAsync } from '../components.jsx';
 import { IEdit, ISend, IImage, IComment, IReply, ICopy, IPin, IUnsend, ITrash, IPlus, IClose, IMic, IPlay, IPause, IArrowUp, ICamera, IPhone } from '../icons.jsx';
-import { IScissors, IHandset, ICamcorder } from '../chatkit/icons2.jsx';
+import { IScissors, IHandset, ICamcorder, IPencilSoft } from '../chatkit/icons2.jsx';
 import { tapHaptic } from '../theme.js';
 import {
   ChatComposer, ChatDrawer, AiMenu, LocationSheet, AiImageSheet, DrawSheet, AiChatSheet,
@@ -52,7 +52,7 @@ export function Inbox({ isTab = false, active = true }) {
   };
   return (
     <div className="screen">
-      <TopBar left={isTab ? <span /> : undefined} className={isTab ? 'start-title' : ''} title={<b>{me.username}</b>} right={<button className="icon-btn" onClick={() => setNewOpen(true)}><IEdit size={24} /></button>} />
+      <TopBar left={isTab ? <span /> : undefined} className={isTab ? 'start-title' : ''} title={<b>{me.username}</b>} right={<button className="icon-btn" onClick={() => setNewOpen(true)} aria-label={t('newMessage')}><IPencilSoft size={25} /></button>} />
       <div className="scroll">
         <div className="search-box pad"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('searchPh')} dir="auto" /></div>
         <div className="section-head pad"><b>{t('messages')}</b></div>

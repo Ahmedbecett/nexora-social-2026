@@ -22,7 +22,7 @@
 .ck-ic:active { opacity: .6; }
 .ck-plus {
   flex: none; width: 30px; height: 30px; border-radius: 50%;
-  border: 1.9px solid var(--text); color: var(--text);
+  border: 1.8px solid var(--text); color: var(--text);
   display: flex; align-items: center; justify-content: center;
   transition: transform .15s ease, background .15s ease;
 }
