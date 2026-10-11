@@ -1,0 +1,14 @@
+{
+  "appId": "com.ahmedbecetti.nexora",
+  "appName": "Nexora",
+  "webDir": "dist",
+  "android": {
+    "adjustMarginsForEdgeToEdge": "force",
+    "allowMixedContent": false,
+    "backgroundColor": "#ffffff"
+  },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 900, "launchAutoHide": true, "backgroundColor": "#ffffff", "showSpinner": false, "androidScaleType": "CENTER_INSIDE" },
+    "StatusBar": { "style": "LIGHT", "backgroundColor": "#ffffff", "overlaysWebView": false }
+  }
+}

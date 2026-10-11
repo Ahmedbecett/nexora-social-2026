@@ -1,15 +1,38 @@
 {
-  "name": "nexora-storage-api",
-  "version": "1.0.0",
+  "name": "nexora",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=20"
   },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "api:local": "node scripts/local-api.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:seed": "node scripts/seed.mjs",
+    "android:sync": "vite build && rm -rf dist/download && npx cap sync android"
+  },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.850.0",
-    "@aws-sdk/s3-request-presigner": "^3.850.0",
-    "firebase-admin": "^13.4.0",
-    "dotenv": "^16.6.1"
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/app": "^7.1.0",
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/share": "^7.0.2",
+    "@capacitor/status-bar": "^7.0.3",
+    "@capacitor/splash-screen": "^7.0.3",
+    "@fontsource-variable/cairo": "^5.2.6",
+    "@fontsource/grand-hotel": "^5.2.6",
+    "@neondatabase/serverless": "^1.0.1",
+    "@vercel/blob": "^1.1.1",
+    "bcryptjs": "^3.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "vite": "^6.3.6"
   }
 }
