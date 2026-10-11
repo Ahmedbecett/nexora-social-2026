@@ -136,6 +136,7 @@ class MainActivity : Activity() {
             "Reels" -> showReels()
             "Activity" -> showActivity()
             "Profile" -> showProfile()
+            "Settings" -> showSettings()
             "Messages" -> showMessages()
             "Create" -> showCreate()
             "CreateStory" -> showCreate()
@@ -997,11 +998,125 @@ class MainActivity : Activity() {
                 }
             }
             .addOnFailureListener { grid.addView(emptyState("Posts unavailable", "Check Firestore permissions and connection.")) }
+        body.addView(padded(secondaryButton("⚙  Settings and activity") {
+            selectedTab = "Settings"
+            render()
+        }))
         body.addView(padded(secondaryButton("Sign out") {
             auth.signOut()
             selectedTab = "Home"
             render()
         }))
+    }
+
+    private fun showSettings() {
+        body.addView(sectionTitle("Settings and activity"))
+        val search = EditText(this).apply {
+            hint = "⌕  Search settings"
+            textSize = 15f
+            setSingleLine(true)
+            setTextColor(ink)
+            setPadding(dp(16), dp(13), dp(16), dp(13))
+            background = shape(soft, 14)
+        }
+        body.addView(padded(search))
+        body.addView(sectionTitle("Your account"))
+        settingsRow("👤", "Account details", "Email, profile and personal information") {
+            selectedTab = "Profile"; render()
+        }
+        settingsRow("🔔", "Notifications", "Likes, comments and new followers") {
+            selectedTab = "Activity"; render()
+        }
+        settingsRow("🔖", "Saved posts", "Posts you have bookmarked") {
+            showSavedPosts()
+        }
+        body.addView(sectionTitle("How others can interact with you"))
+        settingsRow("✉", "Messages", "Open your conversations") {
+            selectedTab = "Messages"; render()
+        }
+        settingsRow("＠", "Tags and mentions", "Manage how people find you") {
+            AlertDialog.Builder(this).setTitle("Tags and mentions")
+                .setMessage("NEXORA interaction controls are being expanded. Your account and posts remain available.")
+                .setPositiveButton("OK", null).show()
+        }
+        settingsRow("♡", "Likes and comments", "Review recent activity") {
+            selectedTab = "Activity"; render()
+        }
+        settingsRow("🔒", "Account privacy", "Privacy options") {
+            AlertDialog.Builder(this).setTitle("Account privacy")
+                .setMessage("Privacy controls depend on the account settings currently supported by NEXORA.")
+                .setPositiveButton("OK", null).show()
+        }
+        body.addView(sectionTitle("Support"))
+        settingsRow("ⓘ", "Help", "NEXORA account and app help") {
+            AlertDialog.Builder(this).setTitle("NEXORA Help")
+                .setMessage("For account access, check your email and connection. Password reset emails may appear in Spam or Junk.")
+                .setPositiveButton("OK", null).show()
+        }
+        settingsRow("◉", "About NEXORA", "Version and project information") {
+            AlertDialog.Builder(this).setTitle("NEXORA")
+                .setMessage("NEXORA Social\nA social network by Ahmedbecetti.")
+                .setPositiveButton("OK", null).show()
+        }
+        body.addView(sectionTitle("Login"))
+        body.addView(padded(secondaryButton("Add account / Log in to another account") {
+            auth.signOut()
+            selectedTab = "Home"
+            render()
+        }))
+        body.addView(padded(secondaryButton("Log out") {
+            AlertDialog.Builder(this).setTitle("Log out?")
+                .setMessage("You will need to sign in again to access this account.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Log out") { _, _ ->
+                    auth.signOut()
+                    selectedTab = "Home"
+                    render()
+                }.show()
+        }))
+    }
+
+    private fun settingsRow(symbol: String, title: String, subtitle: String, action: () -> Unit) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(18), dp(13), dp(16), dp(13))
+            setOnClickListener { action() }
+            isClickable = true
+            background = android.util.TypedValue().let { shape(paper, 0) }
+        }
+        row.addView(text(symbol, 23, ink, true).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(38), dp(42)))
+        val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(4), 0) }
+        labels.addView(text(title, 15, ink))
+        labels.addView(text(subtitle, 12, gray).apply { setPadding(0, dp(3), 0, 0) })
+        row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(text("›", 28, gray))
+        body.addView(row)
+        body.addView(divider())
+    }
+
+    private fun showSavedPosts() {
+        val user = auth.currentUser ?: return
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(8), dp(14), dp(8)) }
+        val scroll = ScrollView(this).apply { addView(list) }
+        val dialog = AlertDialog.Builder(this).setTitle("Saved posts").setView(scroll)
+            .setPositiveButton("Close", null).create()
+        db.collection("users").document(user.uid).collection("savedPosts").limit(80).get()
+            .addOnSuccessListener { saved ->
+                if (saved.isEmpty) list.addView(emptyState("No saved posts", "Bookmark a post to find it here."))
+                saved.documents.forEach { entry ->
+                    val postId = entry.getString("postId") ?: entry.id
+                    db.collection("posts").document(postId).get().addOnSuccessListener { post ->
+                        if (post.exists()) {
+                            list.addView(postCard(post.id, post.getString("uid") ?: "",
+                                post.getString("authorName") ?: "NEXORA member",
+                                post.getString("text") ?: "", post.getLong("createdAt") ?: 0L,
+                                post.getString("mediaKey"), post.getString("mediaType")))
+                        }
+                    }
+                }
+            }.addOnFailureListener { list.addView(emptyState("Saved posts unavailable", "Check connection and Firestore rules.")) }
+        dialog.show()
     }
 
     private fun authArabic(): Boolean =
