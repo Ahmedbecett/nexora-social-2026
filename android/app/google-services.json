@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "549843291889-1ulbmj9r7a87efhl6bsel2fvronjot67.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ahmedbecetti.nexora",
+            "certificate_hash": "44f33ff1e78fe91925e39599689ac93803b09581"
+          }
+        },
+        {
           "client_id": "549843291889-r62avhn7b93ojh01rocklpu653q7e503.apps.googleusercontent.com",
           "client_type": 3
         }
