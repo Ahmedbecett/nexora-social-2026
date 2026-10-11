@@ -7,11 +7,12 @@ import { useApp, Avatar, UserName, FollowButton, Spinner, RichText, ActionSheet,
 import { IHeart, IComment, ISend, IBookmark, IMoreH, ICamera, IMusic, IVolume, IFlag, ITrash, IReels, IGlobe, ILink, IEyeOff } from '../icons.jsx';
 import { CommentsSheet, ShareSheet, shareLink } from './Post.jsx';
 import { openUrl } from '../native.js';
+import { fetchWorld } from '../world.js';
 
 export const TOPICS = ['mix', 'nature', 'animals', 'space', 'ocean', 'city', 'sports', 'dance', 'music', 'food', 'travel'];
 export const topicLabel = (id) => (id === 'mix' ? t('forYou') : t('topic_' + id));
 export const newSeed = () => Math.random().toString(36).slice(2, 10);
-export const fetchWorld = (topic, seed, offset = 0, limit = 8) => api(`world/reels?topic=${topic}&seed=${seed}&offset=${offset}&limit=${limit}`);
+export { fetchWorld } from '../world.js';
 
 /** Thin progress bar at the bottom of a reel; drag / tap to seek. */
 function ReelProgress({ vRef }) {
@@ -64,6 +65,7 @@ function ReelItem({ post: initial, active, near, muted, setMuted, onDeleted }) {
   useEffect(() => { if (!active && vRef.current) vRef.current.currentTime = 0; }, [active]);
 
   const like = async (force) => {
+    if (world && !post.wid) return;
     const val = force ? true : !post.liked;
     if (force && post.liked) return;
     if (val) tapHaptic();
@@ -83,7 +85,7 @@ function ReelItem({ post: initial, active, near, muted, setMuted, onDeleted }) {
     lastTap.current = now;
   };
   const mine = !world && post.user.id === me.id;
-  const hide = async () => { onDeleted(post.id); api(`world/${post.wid}/hide`, { method: 'POST' }).catch(() => {}); };
+  const hide = async () => { onDeleted(post.id); if (post.wid) api(`world/${post.wid}/hide`, { method: 'POST' }).catch(() => {}); };
   const shareIt = async () => { if (!world) { setShare(true); return; } const ok = await shareLink(post.source.url, post.caption); if (!ok) toast(t('linkCopied')); };
   return (
     <section className="reel" onClick={tap}
@@ -96,7 +98,7 @@ function ReelItem({ post: initial, active, near, muted, setMuted, onDeleted }) {
       {showMute > 0 && <span key={'m' + showMute} className="mute-flash"><IVolume muted={muted} size={30} /></span>}
       <div className="reel-shade" />
       <div className="reel-side reel-ui">
-        <button onClick={() => like()}><IHeart filled={post.liked} size={30} /><span>{fmtNum(post.likeCount)}</span></button>
+        {(!world || post.wid) && <button onClick={() => like()}><IHeart filled={post.liked} size={30} /><span>{fmtNum(post.likeCount)}</span></button>}
         {!world && <button onClick={() => setComments(true)}><IComment size={29} /><span>{fmtNum(post.commentCount)}</span></button>}
         <button onClick={shareIt}><ISend size={28} /><span>{t('share')}</span></button>
         {!world && <button onClick={save}><IBookmark filled={post.saved} size={28} /></button>}
