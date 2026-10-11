@@ -3,36 +3,7 @@ import { api } from '../api.js';
 import { t } from '../i18n.js';
 import { useApp, Avatar, Wordmark, Spinner, Empty, ErrorBox, Sheet } from '../components.jsx';
 import { IHeart, ISend, IPlus, ICheck, IDown, IUsers, IStar } from '../icons.jsx';
-import { PostCard, SuggestedUsers, WorldPostCard } from './Post.jsx';
-import { fetchWorld, newSeed } from './Reels.jsx';
-import { IGlobe } from '../icons.jsx';
-
-/** Horizontal row of real, freely-licensed reels from around the world (Wikimedia Commons). */
-export function WorldStrip({ reloadKey }) {
-  const { nav } = useApp();
-  const [items, setItems] = useState([]);
-  const seed = useRef(newSeed());
-  useEffect(() => {
-    seed.current = newSeed();
-    fetchWorld('mix', seed.current, 0, 12).then((r) => setItems(r.posts)).catch(() => {});
-  }, [reloadKey]);
-  if (!items.length) return null;
-  const open = (i) => nav.push('reelsViewer', { posts: items, startIndex: i, world: { topic: 'mix', seed: seed.current, offset: items.length } });
-  return (
-    <div className="world-strip">
-      <div className="world-strip-head"><b>{t('worldReels')}</b><button className="text-link" onClick={() => nav.tab('reels')}>{t('seeAll')}</button></div>
-      <div className="world-strip-row">
-        {items.map((p, i) => (
-          <div className="world-card" key={p.id} onClick={() => open(i)}>
-            <img src={p.media[0].poster} alt="" loading="lazy" />
-            <span className="grid-badge"><IGlobe size={16} /></span>
-            <span className="world-card-cap">{p.caption}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+import { PostCard, SuggestedUsers } from './Post.jsx';
 
 export function usePullToRefresh(ref, onRefresh) {
   const [pull, setPull] = useState(0);
@@ -89,21 +60,6 @@ export default function Feed({ active, refreshKey }) {
   const [filter, setFilter] = useState('following');
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef(filter); filterRef.current = filter;
-  // After the posts of people you follow, the feed continues vertically with real videos from around the world.
-  const [world, setWorld] = useState([]);
-  const wpage = useRef({ seed: newSeed(), offset: 0, done: false, busy: false });
-  const loadWorld = useCallback(async (reset) => {
-    const pg = wpage.current;
-    if (reset) { pg.seed = newSeed(); pg.offset = 0; pg.done = false; pg.busy = false; }
-    if (pg.done || pg.busy) return;
-    pg.busy = true;
-    try {
-      const r = await fetchWorld('mix', pg.seed, pg.offset, 6);
-      setWorld((w) => { const base = reset ? [] : w; const have = new Set(base.map((x) => x.id)); return [...base, ...r.posts.filter((x) => !have.has(x.id))]; });
-      pg.offset = r.nextOffset ?? pg.offset; if (!r.posts.length) pg.done = true;
-    } catch { /* offline */ } finally { pg.busy = false; }
-  }, []);
-  const openWorld = (p) => nav.push('reelsViewer', { posts: world, startIndex: world.indexOf(p), world: { topic: 'mix', seed: wpage.current.seed, offset: wpage.current.offset } });
   const feedPath = (cur) => `feed?${filterRef.current === 'favorites' ? 'filter=favorites&' : ''}${cur ? `cursor=${cur}` : ''}`;
 
   const load = useCallback(async () => {
@@ -111,7 +67,7 @@ export default function Feed({ active, refreshKey }) {
     try {
       const [f, s, sg] = await Promise.all([api(feedPath()), api('stories'), api('suggestions').catch(() => ({ users: [] }))]);
       setPosts(f.posts); setCursor(f.nextCursor); setTray(s.tray); setSuggestions(sg.users);
-      if (!f.nextCursor) loadWorld(true);
+
       if (!f.nextCursor) api('explore?suggested=1').then((r) => setSuggestedPosts(r.posts.slice(0, 12))).catch(() => {});
     } catch (e) { setError(e); }
   }, []);
@@ -126,13 +82,13 @@ export default function Feed({ active, refreshKey }) {
   }, [load]);
 
   const loadMore = async () => {
-    if (!cursor) { if (posts) loadWorld(false); return; }
+    if (!cursor) return;
     if (loadingMore) return;
     setLoadingMore(true);
     try {
       const f = await api(feedPath(cursor));
       setPosts((p) => [...p, ...f.posts]); setCursor(f.nextCursor);
-      if (!f.nextCursor) loadWorld(true);
+
       if (!f.nextCursor) api('explore?suggested=1').then((r) => setSuggestedPosts(r.posts.slice(0, 12))).catch(() => {});
     } catch { /* ignore */ }
     setLoadingMore(false);
@@ -182,13 +138,6 @@ export default function Feed({ active, refreshKey }) {
                   <>
                     <div className="section-head pad"><b>{t('suggestedPosts')}</b></div>
                     {suggestedPosts.map((p) => <PostCard key={'s' + p.id} post={p} />)}
-                  </>
-                )}
-                {!cursor && world.length > 0 && (
-                  <>
-                    <div className="section-head pad"><b>{t('worldReels')}</b></div>
-                    {world.map((p) => <WorldPostCard key={p.id} post={p} onOpen={() => openWorld(p)} onHide={(id) => setWorld((w) => w.filter((x) => x.id !== id))} />)}
-                    {!wpage.current.done && <div className="center-pad"><Spinner /></div>}
                   </>
                 )}
               </>
