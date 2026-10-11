@@ -8,7 +8,7 @@
 
 الحساب الرسمي داخل التطبيق: **[@official.nexora](https://nexora-social-2026.vercel.app)** ✔️
 
-<a href="https://nexora-social-2026.vercel.app/download/Nexora.apk"><img src="https://img.shields.io/badge/تحميل_مباشر-Nexora.apk-1a8cff?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" height="44"/></a>
+<a href="https://github.com/Ahmedbecett/nexora-social-2026/releases/latest/download/Nexora.apk"><img src="https://img.shields.io/badge/تحميل_مباشر-Nexora.apk-1a8cff?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" height="44"/></a>
 
 <a href="https://github.com/Ahmedbecett/nexora-social-2026/releases/latest/download/Nexora.apk"><img src="https://img.shields.io/badge/GitHub_Release-Nexora.apk-24292f?style=for-the-badge&logo=github" alt="GitHub Release" height="32"/></a>
 <a href="https://nexora-social-2026.vercel.app"><img src="https://img.shields.io/badge/نسخة_الويب-افتح-d62976?style=for-the-badge&logo=vercel" alt="Web" height="32"/></a>
