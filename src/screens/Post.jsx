@@ -6,7 +6,7 @@ import { Capacitor } from '@capacitor/core';
 import { api, WEB_URL } from '../api.js';
 import { t, errText, fmtNum, timeAgo } from '../i18n.js';
 import { useApp, Avatar, UserName, RichText, AutoVideo, Sheet, ActionSheet, Confirm, Spinner, TopBar, Loading, ErrorBox, useAsync, FollowButton } from '../components.jsx';
-import { IMusic, IHeart, IComment, ISend, IBookmark, IMoreV, ITrash, IFlag, ILink, IVolume, IEdit, IUser, IHeart as IH } from '../icons.jsx';
+import { IMusic, IHeart, IComment, ISend, IBookmark, IMoreV, ITrash, IFlag, ILink, IVolume, IEdit, IUser, IRepost, IHeart as IH } from '../icons.jsx';
 
 export async function shareLink(url, title) {
   try {
@@ -86,6 +86,11 @@ export function PostCard({ post: initial, onDeleted }) {
       setPost((p) => ({ ...p, liked: r.liked, likeCount: r.likeCount }));
     } catch (e) { setPost((p) => ({ ...p, liked: !like, likeCount: p.likeCount + (like ? -1 : 1) })); toast(errText(e.code)); }
   };
+  const toggleRepost = async () => {
+    const val = !post.reposted; setPost((p) => ({ ...p, reposted: val }));
+    try { await api(`posts/${post.id}/repost`, { method: val ? 'POST' : 'DELETE' }); toast(val ? t('reposted') : t('repostRemoved')); }
+    catch (e) { setPost((p) => ({ ...p, reposted: !val })); toast(errText(e.code)); }
+  };
   const toggleSave = async () => {
     const save = !post.saved;
     setPost((p) => ({ ...p, saved: save }));
@@ -117,6 +122,7 @@ export function PostCard({ post: initial, onDeleted }) {
       <div className="post-actions">
         <button className={`icon-btn ${post.liked ? 'pop' : ''}`} onClick={() => toggleLike()} aria-label="like"><IHeart filled={post.liked} size={27} /></button>
         <button className="icon-btn" onClick={() => setCommentsOpen(true)} aria-label="comment"><IComment size={26} /></button>
+        {!mine && !post.user.isPrivate && <button className={`icon-btn ${post.reposted ? 'reposted' : ''}`} onClick={toggleRepost} aria-label={t('repost')}><IRepost size={26} /></button>}
         <button className="icon-btn" onClick={() => setShareOpen(true)} aria-label="share"><ISend size={25} /></button>
         <span className="flex1" />
         <button className="icon-btn" onClick={toggleSave} aria-label="save"><IBookmark filled={post.saved} size={26} /></button>

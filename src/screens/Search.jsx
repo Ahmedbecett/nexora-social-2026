@@ -2,32 +2,38 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { t, fmtNum } from '../i18n.js';
 import { useApp, Avatar, UserName, Loading, Empty, Tabs, Thumb, TopBar, useAsync, ErrorBox, FollowButton } from '../components.jsx';
-import { ISearch, IBack, IClose } from '../icons.jsx';
+import { ISearch, IBack, IClose, IBookmark, IPrefs, IEye } from '../icons.jsx';
 import { usePullToRefresh } from './Feed.jsx';
-import { TopicChips, fetchWorld, newSeed } from './Reels.jsx';
+import { TOPICS, topicLabel, TopicSheet, fetchWorld, newSeed } from './Reels.jsx';
+import { searchReels } from '../world.js';
 
-const REEL_BADGE = <span className="grid-badge"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm2.6 7.5v7l5.5-3.5Z" /></svg></span>;
-export function WorldThumb({ post, tall, onClick }) {
+/** Instagram-style view counter shown on explore / profile tiles. */
+export const ViewCount = ({ n }) => (n > 0 ? <span className="grid-views"><IEye size={15} sw={2.2} /><b>{fmtNum(n)}</b></span> : null);
+export function WorldThumb({ post, onClick }) {
   return (
-    <div className={`grid-item ${tall ? 'tall' : ''}`} onClick={onClick}>
+    <div className="grid-item" onClick={onClick}>
       <img src={post.media[0].poster} alt={post.caption} loading="lazy" />
-      {REEL_BADGE}
+      <ViewCount n={post.viewCount} />
     </div>
   );
 }
 
 const RECENT_KEY = 'nx_recent_search';
+const norm = (s) => String(s || '').trim().replace(/^@+/, '');
 
 export default function Search({ active }) {
-  const { nav } = useApp();
+  const { nav, me } = useApp();
   const [explore, setExplore] = useState(null);
   const [cursor, setCursor] = useState(null);
   const [focused, setFocused] = useState(false);
   const [q, setQ] = useState('');
   const [tab, setTab] = useState('accounts');
   const [users, setUsers] = useState(null);
+  const [reels, setReels] = useState(null);
+  const [prefs, setPrefs] = useState(false);
   const [recent, setRecent] = useState(() => { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } });
   const scrollRef = useRef();
+  const inputRef = useRef();
   const [topic, setTopic] = useState('mix');
   const [world, setWorld] = useState([]);
   const wpage = useRef({ seed: newSeed(), offset: 0, done: false, busy: false });
@@ -53,23 +59,44 @@ export default function Search({ active }) {
   useEffect(() => { setExplore(null); setWorld([]); loadExplore(); }, [topic]); // eslint-disable-line
   const { pull } = usePullToRefresh(scrollRef, loadExplore);
 
+  // Accounts: server search (username / name, ignoring dots, underscores and spaces) +
+  // an exact-username lookup so a typed handle is always found.
   useEffect(() => {
-    if (!q.trim()) { setUsers(null); return; }
-    const tm = setTimeout(() => api(`search/users?q=${encodeURIComponent(q)}`).then((r) => setUsers(r.users)).catch(() => setUsers([])), 250);
-    return () => clearTimeout(tm);
+    const term = norm(q);
+    if (!term) { setUsers(null); return undefined; }
+    setUsers(null);
+    let off = false;
+    const tm = setTimeout(async () => {
+      const [list, exact] = await Promise.all([
+        api(`search/users?q=${encodeURIComponent(term)}`).then((r) => r.users).catch(() => []),
+        /^[a-z0-9._]{3,30}$/i.test(term) ? api(`users/${encodeURIComponent(term.toLowerCase())}`).then((r) => r.user).catch(() => null) : null,
+      ]);
+      if (off) return;
+      const out = exact ? [exact, ...list.filter((u) => u.id !== exact.id)] : list;
+      setUsers(out);
+    }, 220);
+    return () => { off = true; clearTimeout(tm); };
   }, [q]);
+  useEffect(() => {
+    const term = norm(q);
+    setReels(null);
+    if (!term || tab !== 'reels') return undefined;
+    let off = false;
+    const tm = setTimeout(() => searchReels(term).then((r) => { if (!off) setReels(r); }).catch(() => { if (!off) setReels([]); }), 350);
+    return () => { off = true; clearTimeout(tm); };
+  }, [q, tab]);
 
   const tags = useMemo(() => {
     const counts = {};
     (explore || []).forEach((p) => (p.caption.match(/#[\p{L}\p{N}_]+/gu) || []).forEach((h) => { counts[h] = (counts[h] || 0) + 1; }));
     const term = q.trim().replace(/^#/, '').toLowerCase();
-    return Object.entries(counts).filter(([h]) => !term || h.toLowerCase().includes(term)).sort((a, b) => b[1] - a[1]);
+    const list = Object.entries(counts).filter(([h]) => !term || h.toLowerCase().includes(term)).sort((a, b) => b[1] - a[1]);
+    if (term && /^[\p{L}\p{N}_]+$/u.test(term) && !list.some(([h]) => h.toLowerCase() === '#' + term)) list.unshift(['#' + term, null]);
+    return list;
   }, [explore, q]);
 
-  const remember = (u) => {
-    const list = [u, ...recent.filter((x) => x.id !== u.id)].slice(0, 12);
-    setRecent(list); localStorage.setItem(RECENT_KEY, JSON.stringify(list));
-  };
+  const saveRecent = (list) => { setRecent(list); localStorage.setItem(RECENT_KEY, JSON.stringify(list)); };
+  const remember = (u) => saveRecent([u, ...recent.filter((x) => x.id !== u.id)].slice(0, 15));
   const openUser = (u) => { remember({ id: u.id, username: u.username, fullName: u.fullName, avatarUrl: u.avatarUrl, verified: u.verified }); nav.profile(u.username); };
   const more = async () => {
     if (!cursor) { loadWorld(false); return; }
@@ -78,73 +105,84 @@ export default function Search({ active }) {
   };
   const openWorld = (p) => nav.push('reelsViewer', { posts: world, startIndex: world.indexOf(p), world: { topic, seed: wpage.current.seed, offset: wpage.current.offset } });
   const searching = focused || q;
+  const close = () => { setFocused(false); setQ(''); inputRef.current?.blur(); };
+
+  const userRow = (u, onX) => (
+    <div className="user-row" key={u.id} onClick={() => openUser(u)}>
+      <Avatar src={u.avatarUrl} name={u.username} size={50} />
+      <div className="user-row-text"><UserName user={u} /><span>{u.fullName}{u.followers ? ` · ${fmtNum(u.followers)} ${t('followers')}` : ''}</span></div>
+      {onX ? <button className="icon-btn" onClick={(e) => { e.stopPropagation(); onX(); }} aria-label="remove"><IClose size={18} /></button>
+        : u.id !== me?.id && u.followStatus !== undefined && <FollowButton user={u} status={u.followStatus} small />}
+    </div>
+  );
 
   return (
     <div className="screen">
       <div className="search-header">
-        {searching && <button className="icon-btn" onClick={() => { setFocused(false); setQ(''); }}><IBack size={24} /></button>}
-        <div className="search-box">
-          <ISearch size={18} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} onFocus={() => setFocused(true)} placeholder={t('searchPh')} dir="auto" autoCapitalize="none" />
-          {q && <button onClick={() => setQ('')}><IClose size={16} /></button>}
+        {searching && <button className="icon-btn" onClick={close} aria-label="back"><IBack size={24} /></button>}
+        <div className="search-box ig">
+          <ISearch size={20} />
+          <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onFocus={() => setFocused(true)} placeholder={t('searchPh')} dir="auto" autoCapitalize="none" autoCorrect="off" enterKeyHint="search" />
+          {q && <button onClick={() => setQ('')} aria-label="clear"><IClose size={16} /></button>}
         </div>
+        {!searching && <button className="icon-btn" onClick={() => nav.push('settingsPage', { page: 'saved' })} aria-label={t('saved')}><IBookmark size={28} /></button>}
       </div>
       {searching ? (
         <div className="scroll">
-          <Tabs value={tab} onChange={setTab} tabs={[{ id: 'accounts', label: t('accounts') }, { id: 'tags', label: t('tags') }]} />
-          {tab === 'accounts' ? (
-            !q.trim() ? (
-              recent.length > 0 && (
-                <div className="user-list">
-                  <div className="section-head pad"><b>{t('recent')}</b></div>
-                  {recent.map((u) => (
-                    <div className="user-row" key={u.id} onClick={() => openUser(u)}>
-                      <Avatar src={u.avatarUrl} name={u.username} size={50} />
-                      <div className="user-row-text"><UserName user={u} /><span>{u.fullName}</span></div>
-                      <button className="icon-btn" onClick={(e) => { e.stopPropagation(); const l = recent.filter((x) => x.id !== u.id); setRecent(l); localStorage.setItem(RECENT_KEY, JSON.stringify(l)); }}><IClose size={18} /></button>
-                    </div>
-                  ))}
-                </div>
-              )
-            ) : users === null ? <Loading /> : users.length === 0 ? <Empty sub={t('noResults')} /> : (
+          {!norm(q) ? (
+            recent.length > 0 ? (
               <div className="user-list">
-                {users.map((u) => (
-                  <div className="user-row" key={u.id} onClick={() => openUser(u)}>
-                    <Avatar src={u.avatarUrl} name={u.username} size={50} />
-                    <div className="user-row-text"><UserName user={u} /><span>{u.fullName}{u.followers ? ` · ${fmtNum(u.followers)} ${t('followers')}` : ''}</span></div>
-                    <FollowButton user={u} status={u.followStatus} small />
-                  </div>
-                ))}
+                <div className="section-head pad"><b>{t('recent')}</b><button className="text-link strong" onClick={() => saveRecent([])}>{t('clearAll')}</button></div>
+                {recent.map((u) => userRow(u, () => saveRecent(recent.filter((x) => x.id !== u.id))))}
               </div>
-            )
+            ) : <Empty icon={<ISearch size={36} />} sub={t('searchPh')} />
           ) : (
-            tags.length === 0 ? <Empty sub={t('noResults')} /> : (
-              <div className="user-list">
-                {tags.map(([h, n]) => (
-                  <div className="user-row" key={h} onClick={() => nav.push('tag', { tag: h.slice(1) })}>
-                    <span className="tag-icon">#</span>
-                    <div className="user-row-text"><b>{h}</b><span>{n} {t('posts')}</span></div>
+            <>
+              <Tabs value={tab} onChange={setTab} tabs={[{ id: 'accounts', label: t('accounts') }, { id: 'reels', label: t('searchReels') }, { id: 'tags', label: t('tags') }]} />
+              {tab === 'accounts' ? (
+                users === null ? <Loading /> : users.length === 0 ? <Empty sub={t('noAccountsFound', { q: norm(q) })} /> : <div className="user-list">{users.map((u) => userRow(u))}</div>
+              ) : tab === 'reels' ? (
+                reels === null ? <Loading /> : reels.length === 0 ? <Empty sub={t('noResults')} /> : (
+                  <div className="grid explore-grid">
+                    {reels.map((p, i) => (p.world
+                      ? <WorldThumb key={p.id} post={p} onClick={() => nav.push('reelsViewer', { posts: reels, startIndex: i })} />
+                      : <Thumb key={p.id} post={p} onClick={() => nav.push('reelsViewer', { posts: reels, startIndex: i })} />))}
                   </div>
-                ))}
-              </div>
-            )
+                )
+              ) : (
+                tags.length === 0 ? <Empty sub={t('noResults')} /> : (
+                  <div className="user-list">
+                    {tags.map(([h, n]) => (
+                      <div className="user-row" key={h} onClick={() => nav.push('tag', { tag: h.slice(1) })}>
+                        <span className="tag-icon">#</span>
+                        <div className="user-row-text"><b>{h}</b>{n != null && <span>{n} {t('posts')}</span>}</div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </>
           )}
         </div>
       ) : (
         <div className="scroll" ref={scrollRef} onScroll={(e) => { const el = e.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 600) more(); }}>
           <div className="ptr" style={{ height: pull }} />
-          <TopicChips value={topic} onChange={setTopic} />
+          <div className="explore-chips">
+            <button className="chip-icon" onClick={() => setPrefs(true)} aria-label={t('chooseTopics')}><IPrefs size={22} /></button>
+            {TOPICS.map((id) => <button key={id} className={topic === id ? 'on' : ''} onClick={() => setTopic(id)}>{topicLabel(id)}</button>)}
+          </div>
           {explore === null && !world.length ? <Loading /> : (explore || []).length + world.length === 0 ? <Empty sub={t('noPosts')} /> : (
             <div className="grid explore-grid">
-              {(explore || []).map((p, i) => (
-                <Thumb key={p.id} post={p} tall={p.kind === 'reel' || i % 10 === 2 || i % 10 === 5}
+              {(explore || []).map((p) => (
+                <Thumb key={p.id} post={p}
                   onClick={() => p.kind === 'reel' ? nav.push('reelsViewer', { posts: explore.filter((x) => x.kind === 'reel'), startIndex: explore.filter((x) => x.kind === 'reel').indexOf(p) }) : nav.push('postList', { posts: explore.filter((x) => x.kind !== 'reel'), startId: p.id, title: t('forYou') })} />
               ))}
-              {world.map((p, i) => <WorldThumb key={p.id} post={p} tall={i % 10 === 2 || i % 10 === 5} onClick={() => openWorld(p)} />)}
+              {world.map((p) => <WorldThumb key={p.id} post={p} onClick={() => openWorld(p)} />)}
             </div>
           )}
         </div>
       )}
+      <TopicSheet open={prefs} onClose={() => setPrefs(false)} value={topic} onChange={setTopic} />
     </div>
   );
 }

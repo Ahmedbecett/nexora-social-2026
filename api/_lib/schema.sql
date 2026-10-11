@@ -195,3 +195,29 @@ create table if not exists world_hidden (
   created_at timestamptz not null default now(),
   primary key (user_id, media_id)
 );
+
+-- 2.4: profile notes & links, reposts, views
+alter table users add column if not exists note text;
+alter table users add column if not exists note_at timestamptz;
+alter table users add column if not exists links jsonb not null default '[]'::jsonb;
+create table if not exists reposts (
+  user_id    bigint not null references users(id) on delete cascade,
+  post_id    bigint not null references posts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, post_id)
+);
+create index if not exists reposts_post_idx on reposts(post_id);
+create table if not exists post_views (
+  user_id    bigint not null references users(id) on delete cascade,
+  post_id    bigint not null references posts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, post_id)
+);
+create index if not exists post_views_post_idx on post_views(post_id);
+create table if not exists world_views (
+  user_id    bigint not null references users(id) on delete cascade,
+  media_id   bigint not null references world_media(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, media_id)
+);
+create index if not exists world_views_media_idx on world_views(media_id);

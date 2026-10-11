@@ -1,5 +1,4 @@
 import { createRoot } from 'react-dom/client';
-import '@fontsource-variable/cairo';
 import '@fontsource/grand-hotel';
 import './styles.css';
 import { applyDir, getLang, setLang } from './i18n.js';

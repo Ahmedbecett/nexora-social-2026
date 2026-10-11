@@ -4,31 +4,31 @@ const S = ({ children, size = 24, fill = 'none', stroke = 'currentColor', sw = 2
 );
 
 export const IHome = ({ active, ...p }) => active
-  ? <S {...p} fill="currentColor" stroke="currentColor"><path d="M3 10.2 12 3l9 7.2V20a1 1 0 0 1-1 1h-5.5v-6.5h-5V21H4a1 1 0 0 1-1-1z" /></S>
-  : <S {...p}><path d="M3 10.2 12 3l9 7.2V20a1 1 0 0 1-1 1h-5.5v-6.5h-5V21H4a1 1 0 0 1-1-1z" /></S>;
-export const ISearch = ({ active, ...p }) => <S {...p} sw={active ? 2.8 : 2}><circle cx="10.8" cy="10.8" r="7.3" /><path d="m16.3 16.3 4.7 4.7" /></S>;
+  ? <S {...p} fill="currentColor" stroke="none"><path d="M22 23h-6.001a1 1 0 0 1-1-1v-5.455a2.997 2.997 0 1 0-5.993 0V22a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V11.543a1.002 1.002 0 0 1 .31-.724l10-9.543a1.001 1.001 0 0 1 1.38 0l10 9.543a1.002 1.002 0 0 1 .31.724V22a1 1 0 0 1-1 1Z" /></S>
+  : <S {...p}><path d="M9.005 16.545a2.997 2.997 0 0 1 2.997-2.997A2.997 2.997 0 0 1 15 16.545V22h7V11.543L12 2 2 11.543V22h7.005Z" /></S>;
+export const ISearch = ({ active, ...p }) => <S {...p} sw={active ? 3 : 2}><path d="M19 10.5A8.5 8.5 0 1 1 10.5 2a8.5 8.5 0 0 1 8.5 8.5Z" /><path d="M16.511 16.511 22 22" /></S>;
 export const IPlusSquare = (p) => <S {...p}><rect x="3" y="3" width="18" height="18" rx="5" /><path d="M12 8v8M8 12h8" /></S>;
 export const IReels = ({ active, ...p }) => active
-  ? <S {...p} fill="currentColor" stroke="none"><path d="M7 2h10a5 5 0 0 1 5 5v1H2V7a5 5 0 0 1 5-5Zm-.4 1.6L9 7.2h2.3L8.9 3.6Zm5 0L14 7.2h2.3l-2.4-3.6ZM2 9.5h20V17a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5Zm7.6 3v6.2l5.5-3.1Z" fillRule="evenodd" /></S>
-  : <S {...p}><rect x="2.5" y="2.5" width="19" height="19" rx="5" /><path d="M2.5 8h19M8.5 2.6 11 8M14 2.6 16.5 8" /><path d="M10 12v6l5-3z" /></S>;
+  ? <S {...p} fill="currentColor" stroke="none"><path fillRule="evenodd" d="M8.2 1.5h7.6c3.7 0 6.7 3 6.7 6.7v7.6c0 3.7-3 6.7-6.7 6.7H8.2c-3.7 0-6.7-3-6.7-6.7V8.2c0-3.7 3-6.7 6.7-6.7Zm1.6 6.3v8.4c0 .8.9 1.3 1.6.9l6.6-4.2c.6-.4.6-1.4 0-1.8l-6.6-4.2c-.7-.4-1.6.1-1.6.9Z" /></S>
+  : <S {...p}><rect x="2.5" y="2.5" width="19" height="19" rx="6" /><path d="M10 8.7v6.6a.7.7 0 0 0 1.07.6l5.2-3.3a.7.7 0 0 0 0-1.2l-5.2-3.3a.7.7 0 0 0-1.07.6Z" /></S>;
 export const IUser = ({ active, ...p }) => active
   ? <S {...p} fill="currentColor"><circle cx="12" cy="8" r="4.2" /><path d="M3.8 21c.8-4.2 4.2-6.5 8.2-6.5s7.4 2.3 8.2 6.5z" /></S>
   : <S {...p}><circle cx="12" cy="8" r="4.2" /><path d="M3.8 21c.8-4.2 4.2-6.5 8.2-6.5s7.4 2.3 8.2 6.5" /></S>;
-export const IHeart = ({ filled, ...p }) => (
-  <S {...p} fill={filled ? '#ff3040' : 'none'} stroke={filled ? '#ff3040' : 'currentColor'}>
-    <path d="M12 20.5s-8.5-5-8.5-11.1A4.9 4.9 0 0 1 12 6.6a4.9 4.9 0 0 1 8.5 2.8c0 6.1-8.5 11.1-8.5 11.1Z" />
-  </S>
-);
-export const IComment = (p) => <S {...p}><path d="M20.7 16.2A9 9 0 1 0 17 19.9l4 1.1z" /></S>;
-export const ISend = ({ active, ...p }) => <S {...p} sw={active ? 2.4 : 2}><path d="M21.5 3 10.2 13.8M21.5 3 15 21l-4.8-7.2L3 9.6z" fill={active ? 'currentColor' : 'none'} /></S>;
-export const IBookmark = ({ filled, ...p }) => <S {...p} fill={filled ? 'currentColor' : 'none'}><path d="M19 21 12 15.6 5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1z" /></S>;
+export const IHeart = ({ filled, ...p }) => filled
+  ? <S {...p} fill="#ff3040" stroke="#ff3040" sw={1.6}><path d="M16.792 3.904A4.989 4.989 0 0 1 21.5 9.122c0 3.072-2.652 4.959-5.197 7.222-2.512 2.243-3.865 3.469-4.303 3.752-.477-.309-2.143-1.823-4.303-3.752C5.141 14.072 2.5 12.167 2.5 9.122a4.989 4.989 0 0 1 4.708-5.218 4.21 4.21 0 0 1 3.675 1.941c.84 1.175.98 1.763 1.12 1.763s.278-.588 1.11-1.766a4.17 4.17 0 0 1 3.679-1.938Z" /></S>
+  : <S {...p} fill="currentColor" stroke="none"><path d="M16.792 3.904A4.989 4.989 0 0 1 21.5 9.122c0 3.072-2.652 4.959-5.197 7.222-2.512 2.243-3.865 3.469-4.303 3.752-.477-.309-2.143-1.823-4.303-3.752C5.141 14.072 2.5 12.167 2.5 9.122a4.989 4.989 0 0 1 4.708-5.218 4.21 4.21 0 0 1 3.675 1.941c.84 1.175.98 1.763 1.12 1.763s.278-.588 1.11-1.766a4.17 4.17 0 0 1 3.679-1.938m0-2a6.04 6.04 0 0 0-4.797 2.127 6.052 6.052 0 0 0-4.787-2.127A6.985 6.985 0 0 0 .5 9.122c0 3.61 2.55 5.827 5.015 7.97.283.246.569.494.853.747l1.027.918a44.998 44.998 0 0 0 3.518 3.018 2 2 0 0 0 2.174 0 45.263 45.263 0 0 0 3.626-3.115l.922-.824c.293-.26.59-.519.885-.774 2.334-2.025 4.98-4.32 4.98-7.94a6.985 6.985 0 0 0-6.708-7.218Z" /></S>;
+export const IComment = (p) => <S {...p}><path d="M20.656 17.008a9.993 9.993 0 1 0-3.59 3.615L22 22Z" /></S>;
+export const ISend = ({ active, ...p }) => active
+  ? <S {...p} fill="currentColor"><path d="M13.973 20.046 21.77 6.928C22.8 5.195 21.55 3 19.535 3H4.466C2.138 3 .984 5.825 2.646 7.456l4.842 4.752 1.723 7.121c.548 2.266 3.571 2.721 4.762.717Z" /><path d="M7.488 12.208 15.515 7.641" stroke="var(--bg, #000)" /></S>
+  : <S {...p}><path d="M13.973 20.046 21.77 6.928C22.8 5.195 21.55 3 19.535 3H4.466C2.138 3 .984 5.825 2.646 7.456l4.842 4.752 1.723 7.121c.548 2.266 3.571 2.721 4.762.717Z" /><path d="M7.488 12.208 15.515 7.641" /></S>;
+export const IBookmark = ({ filled, ...p }) => <S {...p} fill={filled ? 'currentColor' : 'none'}><path d="M20 21 12 13.44 4 21V3h16Z" /></S>;
 export const IMoreV = (p) => <S {...p} fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="12" cy="19" r="1.7" /></S>;
 export const IMoreH = (p) => <S {...p} fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" /></S>;
 export const IBack = (p) => <S {...p} className={'flip ' + (p.className || '')}><path d="M15 4 7 12l8 8" /></S>;
 export const IChevron = (p) => <S {...p} className={'flip ' + (p.className || '')}><path d="m9 5 7 7-7 7" /></S>;
 export const IDown = (p) => <S {...p}><path d="m6 9 6 6 6-6" /></S>;
 export const IClose = (p) => <S {...p}><path d="M5 5l14 14M19 5 5 19" /></S>;
-export const IMenu = (p) => <S {...p}><path d="M3.5 6h17M3.5 12h17M3.5 18h17" /></S>;
+export const IMenu = (p) => <S {...p}><path d="M3 4h18M3 12h18M3 20h18" /></S>;
 export const IGrid = (p) => <S {...p}><rect x="3" y="3" width="18" height="18" rx="1.5" /><path d="M9 3v18M15 3v18M3 9h18M3 15h18" /></S>;
 export const ITag = (p) => <S {...p}><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="12" cy="10" r="3" /><path d="M6.5 21c.9-3 3-4.6 5.5-4.6s4.6 1.6 5.5 4.6" /></S>;
 export const ICamera = (p) => <S {...p}><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.8l1.5-2h6.4l1.5 2h1.8A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" /><circle cx="12" cy="12.8" r="3.8" /></S>;
@@ -92,3 +92,10 @@ export const IGoogle = ({ size = 22 }) => (
 );
 export const IMoon = (p) => <S {...p}><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z" /></S>;
 export const ISun = (p) => <S {...p}><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" /></S>;
+export const IMoreLines = (p) => <S {...p}><path d="M5 9h14M8 15h11" /></S>;
+export const IPrefs = (p) => <S {...p} sw={1.8}><path d="M3 7h5.5M15.5 7H21M3 17h10M18 17h3" /><path d="M12 10.2s-3.2-1.9-3.2-4.1a1.7 1.7 0 0 1 3.2-.9 1.7 1.7 0 0 1 3.2.9c0 2.2-3.2 4.1-3.2 4.1Z" /><circle cx="15.5" cy="17" r="2.3" /></S>;
+export const ITagged = (p) => <S {...p}><rect x="3" y="3" width="18" height="18" rx="4.5" /><circle cx="12" cy="10" r="3.2" /><path d="M6.5 20.5c.9-2.8 3-4.2 5.5-4.2s4.6 1.4 5.5 4.2" /></S>;
+export const IRepost = (p) => <S {...p}><path d="M19.5 12v1.5a4 4 0 0 1-4 4H5.5" /><path d="m8.5 20.5-3-3 3-3" /><path d="M4.5 12v-1.5a4 4 0 0 1 4-4h10" /><path d="m15.5 3.5 3 3-3 3" /></S>;
+export const IGrid9 = (p) => <S {...p} fill="currentColor" stroke="none"><rect x="3" y="3" width="5" height="5" rx="1.2" /><rect x="9.5" y="3" width="5" height="5" rx="1.2" /><rect x="16" y="3" width="5" height="5" rx="1.2" /><rect x="3" y="9.5" width="5" height="5" rx="1.2" /><rect x="9.5" y="9.5" width="5" height="5" rx="1.2" /><rect x="16" y="9.5" width="5" height="5" rx="1.2" /><rect x="3" y="16" width="5" height="5" rx="1.2" /><rect x="9.5" y="16" width="5" height="5" rx="1.2" /><rect x="16" y="16" width="5" height="5" rx="1.2" /></S>;
+export const IWhatsApp = (p) => <S {...p} sw={1.8}><path d="M3.5 20.5 4.8 16A8.5 8.5 0 1 1 8 19.3Z" /><path d="M9 8.5c0 3.3 3.2 6.5 6.5 6.5l1-1.5-2-1-1 .8c-1-.4-2-1.4-2.4-2.4l.8-1-1-2Z" fill="currentColor" sw={1} /></S>;
+export const IFacebook = (p) => <S {...p} sw={1.8}><circle cx="12" cy="12" r="9.5" /><path d="M13 21.4V13.5h2.6l.4-3H13V8.8c0-.9.3-1.5 1.5-1.5H16V4.7a19 19 0 0 0-2.3-.1c-2.2 0-3.7 1.4-3.7 3.9v2h-2.5v3H10v7.9" /></S>;

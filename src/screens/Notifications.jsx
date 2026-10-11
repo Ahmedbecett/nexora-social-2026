@@ -71,6 +71,7 @@ export default function Notifications() {
       case 'follow': return t('nFollow');
       case 'follow_request': return t('nRequest');
       case 'follow_accepted': return t('nAccepted');
+      case 'repost': return t('nRepost');
       default: return '';
     }
   };

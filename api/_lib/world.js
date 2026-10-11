@@ -79,7 +79,7 @@ export function mapWorld(r) {
     media: [{ type: 'video', url: r.url, poster: r.poster, width: r.width, height: r.height }],
     caption: r.title, description: r.description, duration: r.duration,
     source: { name: 'Wikimedia Commons', author: r.author, license: r.license, url: r.page_url },
-    likeCount: r.like_count || 0, liked: !!r.liked, commentCount: 0,
+    likeCount: r.like_count || 0, liked: !!r.liked, commentCount: 0, viewCount: r.view_count || 0,
     user: { id: 0, username: r.author, fullName: 'Wikimedia Commons', avatarUrl: null, verified: false },
   };
 }
@@ -91,11 +91,28 @@ export async function listWorld(userId, { topic = 'mix', seed = '', offset = 0, 
   if (topic !== 'mix') { args.push(topic); where += ` and w.topic=$5`; }
   const rows = await q(`select w.*,
       (select count(*) from world_likes l where l.media_id=w.id)::int as like_count,
-      exists(select 1 from world_likes l where l.media_id=w.id and l.user_id=$1) as liked
+      exists(select 1 from world_likes l where l.media_id=w.id and l.user_id=$1) as liked,
+      (select count(*) from world_views v where v.media_id=w.id)::int as view_count
     from world_media w where ${where}
     order by (('x' || substr(md5(w.id::text || $2), 1, 8))::bit(32)::bigint / 4294967296.0)
              - case when w.height > w.width then 0.35 else 0 end
     offset $3 limit $4`, args);
+  return rows.map(mapWorld);
+}
+
+/** Keyword search over the stored world videos (title / description / topic). */
+export async function searchWorld(userId, term, limit = 30) {
+  const words = String(term).toLowerCase().replace(/[%_#@]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 4);
+  if (!words.length) return [];
+  const args = [userId, Math.min(60, limit)];
+  const conds = words.map((w) => { args.push(`%${w}%`); const i = args.length; return `(w.title ilike $${i} or w.description ilike $${i} or w.topic ilike $${i})`; });
+  const rows = await q(`select w.*,
+      (select count(*) from world_likes l where l.media_id=w.id)::int as like_count,
+      exists(select 1 from world_likes l where l.media_id=w.id and l.user_id=$1) as liked,
+      (select count(*) from world_views v where v.media_id=w.id)::int as view_count
+    from world_media w
+    where not exists (select 1 from world_hidden h where h.user_id=$1 and h.media_id=w.id) and ${conds.join(' and ')}
+    order by (w.title ilike $3) desc, (w.height > w.width) desc, w.id desc limit $2`, args);
   return rows.map(mapWorld);
 }
 

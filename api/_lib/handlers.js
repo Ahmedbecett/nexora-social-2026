@@ -5,7 +5,7 @@ import { del as blobDel } from '@vercel/blob';
 import crypto from 'node:crypto';
 import { q, one } from './db.js';
 import { smsProvider, sendSms } from './sms.js';
-import { ensure as worldEnsure, listWorld, likeWorld, hideWorld, isTopic } from './world.js';
+import { ensure as worldEnsure, listWorld, likeWorld, hideWorld, isTopic, searchWorld } from './world.js';
 import { fbSignUp, fbSignIn, fbUpdate, fbDelete, fbSendVerify, fbSendReset, fbSignInWithGoogle, verifyFirebaseIdToken } from './firebase.js';
 
 export class HttpError extends Error {
@@ -33,8 +33,10 @@ function publicUser(u) {
     verified: !!u.verified, isPrivate: !!u.is_private,
   };
 }
+const noteOf = (u) => (u.note && u.note_at && Date.now() - new Date(u.note_at).getTime() < 24 * 3600e3 ? u.note : null);
+const linksOf = (u) => (Array.isArray(u.links) ? u.links : []).filter((l) => l && typeof l.url === 'string').slice(0, 5);
 function selfUser(u) {
-  return { ...publicUser(u), bio: u.bio, website: u.website, email: u.email, phone: u.phone, createdAt: u.created_at, linked: !!u.firebase_uid, hasPassword: !!u.email || !!u.password_hash };
+  return { ...publicUser(u), bio: u.bio, website: u.website, note: noteOf(u), links: linksOf(u), email: u.email, phone: u.phone, createdAt: u.created_at, linked: !!u.firebase_uid, hasPassword: !!u.email || !!u.password_hash };
 }
 function sign(user) {
   return jwt.sign({ sub: String(user.id), v: user.token_version || 0 }, JWT_SECRET(), { expiresIn: '180d' });
@@ -67,6 +69,8 @@ const POST_SELECT = `
          (select count(*) from comments c where c.post_id=p.id)::int as comment_count,
          exists(select 1 from likes l where l.post_id=p.id and l.user_id=$1) as liked,
          exists(select 1 from saves s where s.post_id=p.id and s.user_id=$1) as saved,
+         (select count(*) from post_views v where v.post_id=p.id)::int as view_count,
+         exists(select 1 from reposts rp where rp.post_id=p.id and rp.user_id=$1) as reposted,
          exists(select 1 from follows f where f.follower_id=$1 and f.following_id=u.id and f.status='accepted') as following,
          (select json_build_object('username', lu.username, 'avatarUrl', lu.avatar_url)
             from likes l2 join users lu on lu.id=l2.user_id
@@ -80,15 +84,16 @@ function mapPost(r) {
   return {
     id: Number(r.id), kind: r.kind, media: r.media || [], caption: r.caption, location: r.location,
     audio: r.audio, createdAt: r.created_at,
-    user: { id: Number(r.uid), username: r.username, fullName: r.full_name, avatarUrl: r.avatar_url, verified: !!r.verified },
+    user: { id: Number(r.uid), username: r.username, fullName: r.full_name, avatarUrl: r.avatar_url, verified: !!r.verified, isPrivate: !!r.is_private },
     likeCount: r.like_count, commentCount: r.comment_count, liked: r.liked, saved: r.saved,
     following: r.following, lastLiker: r.last_liker, lastComment: r.last_comment,
+    viewCount: r.view_count || 0, reposted: !!r.reposted,
   };
 }
 function cursorClause(cursor, idx) {
   return cursor ? ` and p.id < $${idx}` : '';
 }
-const NOTIF_PREF = { like: 'likes', comment: 'comments', mention: 'mentions', follow: 'follows', follow_accepted: 'follows', follow_request: 'requests' };
+const NOTIF_PREF = { like: 'likes', repost: 'likes', comment: 'comments', mention: 'mentions', follow: 'follows', follow_accepted: 'follows', follow_request: 'requests' };
 async function notify(userId, actorId, type, postId = null, text = '') {
   if (Number(userId) === Number(actorId)) return;
   const r = await one(`select settings,
@@ -446,8 +451,21 @@ route('PATCH', 'me', async ({ req, body }) => {
     if (!USERNAME_RE.test(username)) throw bad('invalid_username');
     if (await one('select 1 from users where username=$1', [username])) throw new HttpError(409, 'username_taken');
   }
-  const nu = await one('update users set full_name=$2, bio=$3, website=$4, is_private=$5, avatar_url=$6, username=$7 where id=$1 returning *',
-    [u.id, fullName, bio, website, isPrivate, avatarUrl, username]);
+  let note = u.note, noteAt = u.note_at;
+  if (body.note !== undefined) { note = cleanText(body.note, 60) || null; noteAt = note ? new Date() : null; }
+  let links = linksOf(u);
+  if (body.links !== undefined) {
+    if (!Array.isArray(body.links)) throw bad('invalid_link');
+    links = body.links.slice(0, 5).map((l) => {
+      let url = cleanText(l?.url, 300);
+      if (!url) throw bad('invalid_link');
+      if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+      try { const x = new URL(url); if (!/^https?:$/.test(x.protocol) || !x.hostname.includes('.')) throw new Error(); } catch { throw bad('invalid_link'); }
+      return { title: cleanText(l?.title, 40), url };
+    });
+  }
+  const nu = await one('update users set full_name=$2, bio=$3, website=$4, is_private=$5, avatar_url=$6, username=$7, note=$8, note_at=$9, links=$10::jsonb where id=$1 returning *',
+    [u.id, fullName, bio, website, isPrivate, avatarUrl, username, note, noteAt, JSON.stringify(links)]);
   if (u.is_private && !isPrivate) {
     await q(`update follows set status='accepted' where following_id=$1 and status='pending'`, [u.id]);
   }
@@ -663,7 +681,7 @@ route('GET', 'users/:username', async ({ req, params }) => {
          from (select x.username, x.avatar_url from follows a join follows b on b.follower_id=a.following_id and b.following_id=$2 and b.status='accepted'
                join users x on x.id=a.following_id where a.follower_id=$1 and a.status='accepted' limit 3) mu) as mutuals`, [me.id, u.id]);
   return {
-    user: { ...publicUser(u), bio: u.bio, website: u.website },
+    user: { ...publicUser(u), bio: u.bio, website: u.website, note: noteOf(u), links: linksOf(u) },
     stats: { posts: r.posts, followers: r.followers, following: r.following },
     followStatus: r.my_status || 'none', followsYou: r.follows_you, hasStory: r.has_story,
     isMe: Number(u.id) === Number(me.id), canView: await canSee(me.id, u), mutuals: r.mutuals || [], relation: rel,
@@ -752,8 +770,11 @@ route('GET', 'search/users', async ({ req, query }) => {
   if (!term) return { users: [] };
   const rows = await q(`select u.*, (select status from follows x where x.follower_id=$1 and x.following_id=u.id) as my_status,
       (select count(*) from follows f where f.following_id=u.id and f.status='accepted')::int as followers
-    from users u where (u.username ilike $2 or u.full_name ilike $2) and ${NOT_BLOCKED}
-    order by (u.username ilike $3) desc, followers desc limit 30`, [me.id, `%${term}%`, `${term}%`]);
+    from users u where (u.username ilike $2 or u.full_name ilike $2
+        or regexp_replace(lower(u.username), '[._]', '', 'g') like $4
+        or regexp_replace(lower(coalesce(u.full_name,'')), '[\s._-]', '', 'g') like $4) and ${NOT_BLOCKED}
+    order by (lower(u.username) = $5) desc, (u.username ilike $3) desc, (u.full_name ilike $3) desc, u.verified desc, followers desc limit 30`,
+    [me.id, `%${term}%`, `${term}%`, `%${term.replace(/[\s._-]/g, '')}%`, term]);
   return { users: rows.map((r) => ({ ...publicUser(r), followStatus: r.my_status || 'none', followers: r.followers })) };
 });
 
@@ -803,7 +824,8 @@ route('GET', 'reels', async ({ req, query }) => {
   const args = [me.id];
   let cur = '';
   if (query.cursor) { args.push(query.cursor); cur = ` and p.id < $2`; }
-  const rows = await q(`${POST_SELECT} where p.kind='reel' and ${VISIBLE} and (u.id=$1 or ${NOT_MUTED}) ${cur} order by p.id desc limit 10`, args);
+  const friends = query.following ? ` and exists (select 1 from follows ff where ff.follower_id=$1 and ff.following_id=u.id and ff.status='accepted')` : '';
+  const rows = await q(`${POST_SELECT} where p.kind='reel' and ${VISIBLE} and (u.id=$1 or ${NOT_MUTED}) ${friends} ${cur} order by p.id desc limit 10`, args);
   return { posts: rows.map(mapPost), nextCursor: rows.length === 10 ? Number(rows[rows.length - 1].id) : null };
 });
 
@@ -829,6 +851,56 @@ route('DELETE', 'world/:id/like', async ({ req, params }) => {
 route('POST', 'world/:id/hide', async ({ req, params }) => {
   const me = await authUser(req);
   return hideWorld(me.id, Number(params.id));
+});
+
+/* ---------- reposts, tagged, views ---------- */
+route('POST', 'posts/:id/repost', async ({ req, params }) => {
+  const me = await authUser(req);
+  const p = await one('select p.*, u.is_private from posts p join users u on u.id=p.user_id where p.id=$1', [params.id]);
+  if (!p) throw new HttpError(404, 'post_not_found');
+  if (p.is_private || !(await canSee(me.id, { id: p.user_id, is_private: p.is_private }))) throw new HttpError(403, 'forbidden');
+  await q('insert into reposts(user_id, post_id) values ($1,$2) on conflict do nothing', [me.id, p.id]);
+  notify(p.user_id, me.id, 'repost', p.id).catch(() => {});
+  return { reposted: true };
+});
+route('DELETE', 'posts/:id/repost', async ({ req, params }) => {
+  const me = await authUser(req);
+  await q('delete from reposts where user_id=$1 and post_id=$2', [me.id, params.id]);
+  return { reposted: false };
+});
+route('GET', 'users/:username/reposts', async ({ req, params }) => {
+  const me = await authUser(req);
+  const u = await getUserByName(params.username);
+  if (!(await canSee(me.id, u))) return { posts: [], private: true };
+  const rows = await q(`${POST_SELECT} join reposts r on r.post_id=p.id and r.user_id=$2 where ${VISIBLE} order by r.created_at desc limit 60`, [me.id, u.id]);
+  return { posts: rows.map(mapPost) };
+});
+route('GET', 'users/:username/tagged', async ({ req, params }) => {
+  const me = await authUser(req);
+  const u = await getUserByName(params.username);
+  if (!(await canSee(me.id, u))) return { posts: [], private: true };
+  const re = `@${u.username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9._]|$)`;
+  const rows = await q(`${POST_SELECT} where p.user_id <> $2 and p.caption ~* $3 and ${VISIBLE} order by p.id desc limit 60`, [me.id, u.id, re]);
+  return { posts: rows.map(mapPost) };
+});
+route('POST', 'posts/:id/view', async ({ req, params }) => {
+  const me = await authUser(req);
+  await q('insert into post_views(user_id, post_id) select $1, id from posts where id=$2 on conflict do nothing', [me.id, params.id]);
+  return { ok: true };
+});
+route('POST', 'world/:id/view', async ({ req, params }) => {
+  const me = await authUser(req);
+  await q('insert into world_views(user_id, media_id) select $1, id from world_media where id=$2 on conflict do nothing', [me.id, params.id]);
+  return { ok: true };
+});
+route('GET', 'search/reels', async ({ req, query }) => {
+  const me = await authUser(req);
+  const term = cleanText(query.q, 60);
+  if (!term) return { posts: [] };
+  const like = `%${term.replace(/[%_]/g, '')}%`;
+  const own = await q(`${POST_SELECT} where p.kind='reel' and u.is_private=false and ${NOT_BLOCKED} and p.caption ilike $2 order by p.id desc limit 15`, [me.id, like]);
+  const world = await searchWorld(me.id, term, 45);
+  return { posts: [...own.map(mapPost), ...world] };
 });
 
 route('POST', 'posts', async ({ req, body }) => {

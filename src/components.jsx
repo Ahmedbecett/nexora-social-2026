@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from './api.js';
-import { t, errText } from './i18n.js';
+import { t, errText, fmtNum } from './i18n.js';
 import { IBack, IVerified, ISun, IMoon } from './icons.jsx';
 import { useMedia, playSafe } from './media.js';
 import { onThemeChange, resolvedTheme, setThemePref, tapHaptic } from './theme.js';
@@ -253,6 +253,7 @@ export function Thumb({ post, onClick, tall }) {
     <div className={`grid-item ${tall ? 'tall' : ''}`} onClick={onClick}>
       {th.isVideo ? <video disableRemotePlayback src={th.src + '#t=0.5'} muted playsInline preload="metadata" /> : <img src={th.src} alt="" loading="lazy" />}
       {post.kind === 'reel' && <span className="grid-badge"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm2.6 7.5v7l5.5-3.5Z" /></svg></span>}
+      {post.viewCount > 0 && th.video && <span className="grid-views"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M1.5 12S5.5 4.5 12 4.5 22.5 12 22.5 12 18.5 19.5 12 19.5 1.5 12 1.5 12Z" /><circle cx="12" cy="12" r="3.2" /></svg><b>{fmtNum(post.viewCount)}</b></span>}
       {post.kind !== 'reel' && post.media.length > 1 && <span className="grid-badge"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M8 2h11a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3Zm-6 5v12a3 3 0 0 0 3 3h12v-2H5a1 1 0 0 1-1-1V7Z" /></svg></span>}
     </div>
   );

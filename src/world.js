@@ -56,3 +56,22 @@ export async function fetchWorld(topic, seed, offset = 0, limit = 8) {
   const posts = await direct(topic, seed, limit);
   return { posts, nextOffset: posts.length ? offset + posts.length : null };
 }
+
+/** Keyword search for reels: our API (own reels + stored world videos), else Commons directly. */
+export async function searchReels(q) {
+  const term = String(q || '').replace(/["\\]/g, ' ').trim().replace(/^[#@]/, '');
+  if (!term) return [];
+  try {
+    const r = await api(`search/reels?q=${encodeURIComponent(term)}`);
+    if (r.posts.length) return r.posts;
+  } catch (e) {
+    if (!(e?.status === 404 || e?.status >= 500)) throw e;
+  }
+  try {
+    const qs = new URLSearchParams({ ...commonsParams(term, 40), origin: '*' });
+    const r = await fetch(`${COMMONS_API}?${qs}`);
+    if (!r.ok) return [];
+    const d = await r.json();
+    return (d?.query?.pages || []).map((p) => toItem(p, 'mix')).filter(Boolean).map(toPost);
+  } catch { return []; }
+}

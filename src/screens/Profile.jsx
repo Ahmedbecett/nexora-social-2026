@@ -3,7 +3,7 @@ import { openUrl } from '../native.js';
 import { api, uploadMedia, WEB_URL, getAccounts } from '../api.js';
 import { t, fmtNum, errText } from '../i18n.js';
 import { useApp, Avatar, UserName, FollowButton, Loading, ErrorBox, Empty, TopBar, Tabs, Thumb, Sheet, Spinner, useAsync, ActionSheet, Confirm, ThemeToggle } from '../components.jsx';
-import { IGrid, IReels, IBookmark, IPlusSquare, IMenu, IPlus, ILock, IDown, IUserPlus, ICamera, ILink, ICheck, IFlag, IBlock, IBellOff, IRestrict, IStar, IStarCircle } from '../icons.jsx';
+import { IGrid9, IReels, IRepost, ITagged, IMenu, IPlus, ILock, IDown, IUserPlus, ICamera, ILink, ICheck, IFlag, IBlock, IBellOff, IRestrict, IStar, IStarCircle, IWhatsApp, IFacebook, ITrash } from '../icons.jsx';
 import { shareLink, SuggestedUsers } from './Post.jsx';
 import { usePullToRefresh } from './Feed.jsx';
 
@@ -21,6 +21,8 @@ export default function Profile({ username, isTab, active, refreshKey }) {
   const [menu, setMenu] = useState(false);
   const [switcher, setSwitcher] = useState(false);
   const [confirmBlock, setConfirmBlock] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [linksOpen, setLinksOpen] = useState(false);
   const scrollRef = useRef();
 
   const load = async () => {
@@ -34,8 +36,9 @@ export default function Profile({ username, isTab, active, refreshKey }) {
   const loadPosts = async (which = tab) => {
     setPosts(null);
     try {
-      if (which === 'saved') { const r = await api('me/saved'); setPosts(r.posts); }
-      else { const r = await api(`users/${encodeURIComponent(uname)}/posts${which === 'reels' ? '?kind=reel' : ''}`); setPosts(r.posts); }
+      const base = `users/${encodeURIComponent(uname)}`;
+      const path = which === 'reposts' ? `${base}/reposts` : which === 'tagged' ? `${base}/tagged` : `${base}/posts${which === 'reels' ? '?kind=reel' : ''}`;
+      const r = await api(path); setPosts(r.posts || []);
     } catch { setPosts([]); }
   };
   useEffect(() => { if (uname) { load(); loadPosts(); } }, [uname, refreshKey]); // eslint-disable-line
@@ -49,7 +52,7 @@ export default function Profile({ username, isTab, active, refreshKey }) {
   const switchTab = (k) => { setTab(k); loadPosts(k); };
   const openPost = (p) => {
     if (tab === 'reels') nav.push('reelsViewer', { posts, startIndex: posts.indexOf(p) });
-    else nav.push('postList', { posts, startId: p.id, title: tab === 'saved' ? t('saved') : t('posts') });
+    else nav.push('postList', { posts, startId: p.id, title: tab === 'reposts' ? t('reposts') : tab === 'tagged' ? t('tagged') : t('posts') });
   };
   const openStory = async () => {
     try {
@@ -79,14 +82,14 @@ export default function Profile({ username, isTab, active, refreshKey }) {
   };
 
   const header = isTab ? (
-    <header className="profile-header">
+    <header className="profile-header ig">
+      <button className="icon-btn" onClick={() => nav.push('create')} aria-label={t('create')}><IPlus size={28} sw={2} /></button>
       <button className="profile-uname" onClick={() => setSwitcher(true)}>
-        {user.isPrivate && <ILock size={16} />}<span>{user.username}</span><IDown size={18} />
+        {user.isPrivate && <ILock size={18} />}<span>{user.username}</span><IDown size={18} />
       </button>
       <div className="feed-header-actions">
         <ThemeToggle />
-        <button className="icon-btn" onClick={() => nav.push('create')} aria-label="create"><IPlusSquare size={27} /></button>
-        <button className="icon-btn" onClick={() => nav.push('settings')} aria-label="settings"><IMenu size={27} /></button>
+        <button className="icon-btn" onClick={() => nav.push('settings')} aria-label={t('settings')}><IMenu size={28} /></button>
       </div>
     </header>
   ) : <TopBar title={<span className="tb-uname">{user.isPrivate && <ILock size={14} />}<UserName user={user} /></span>} right={!isMe && <button className="icon-btn" onClick={() => setMenu(true)}>⋯</button>} />;
@@ -96,21 +99,33 @@ export default function Profile({ username, isTab, active, refreshKey }) {
       {header}
       <div className="scroll" ref={scrollRef}>
         <div className="ptr" style={{ height: pull }}>{pull > 20 && <Spinner size={22} />}</div>
-        <div className="profile-top">
+        <div className="profile-top ig">
           <div className="profile-avatar" onClick={data.hasStory ? openStory : isMe ? () => nav.push('editProfile') : undefined}>
-            <Avatar src={user.avatarUrl} name={user.username} size={86} ring={data.hasStory ? 'story' : null} />
+            {(user.note || isMe) && (
+              <button className={`note-bubble ${user.note ? '' : 'empty'}`} onClick={(e) => { e.stopPropagation(); if (isMe) setNoteOpen(true); }} dir="auto">
+                {user.note || t('notePh')}
+              </button>
+            )}
+            <Avatar src={user.avatarUrl} name={user.username} size={88} ring={data.hasStory ? 'story' : null} />
             {isMe && !data.hasStory && <span className="story-plus big" onClick={(e) => { e.stopPropagation(); nav.push('create', { mode: 'story' }); }}><IPlus size={16} sw={3} /></span>}
           </div>
-          <div className="profile-stats">
-            <div><b>{fmtNum(stats.posts)}</b><span>{t('posts')}</span></div>
-            <button onClick={() => canView && nav.push('userList', { kind: 'followers', username: user.username, title: t('followers') })}><b>{fmtNum(stats.followers)}</b><span>{t('followers')}</span></button>
-            <button onClick={() => canView && nav.push('userList', { kind: 'following', username: user.username, title: t('following') })}><b>{fmtNum(stats.following)}</b><span>{t('following')}</span></button>
+          <div className="profile-right">
+            <b className="profile-name" dir="auto">{user.fullName || user.username}</b>
+            <div className="profile-stats">
+              <div><b>{fmtNum(stats.posts)}</b><span>{t('posts')}</span></div>
+              <button onClick={() => canView && nav.push('userList', { kind: 'followers', username: user.username, title: t('followers') })}><b>{fmtNum(stats.followers)}</b><span>{t('followers')}</span></button>
+              <button onClick={() => canView && nav.push('userList', { kind: 'following', username: user.username, title: t('following') })}><b>{fmtNum(stats.following)}</b><span>{t('following')}</span></button>
+            </div>
           </div>
         </div>
         <div className="profile-bio">
-          <b className="profile-name">{user.fullName}</b>
           {user.bio && <p dir="auto">{user.bio}</p>}
-          {user.website && <a className="profile-link" href={user.website.startsWith('http') ? user.website : `https://${user.website}`} onClick={(e) => { e.preventDefault(); openUrl(e.currentTarget.href); }}><ILink size={14} /> {user.website.replace(/^https?:\/\//, '')}</a>}
+          {(allLinks(user).length > 0 || isMe) && (
+            <div className="link-chips">
+              {allLinks(user).map((l, i) => <LinkChip key={i} link={l} />)}
+              {isMe && allLinks(user).length < 5 && <button className="link-chip add" onClick={() => setLinksOpen(true)}><IPlus size={18} /><span>{t('add')}</span></button>}
+            </div>
+          )}
           {!isMe && data.mutuals?.length > 0 && (
             <div className="mutuals">
               <span className="mutual-avatars">{data.mutuals.map((m) => <Avatar key={m.username} src={m.avatarUrl} name={m.username} size={20} />)}</span>
@@ -154,16 +169,18 @@ export default function Profile({ username, isTab, active, refreshKey }) {
         {canView ? (
           <>
             <Tabs icons value={tab} onChange={switchTab} tabs={[
-              { id: 'grid', icon: <IGrid size={24} /> },
-              { id: 'reels', icon: <IReels size={24} /> },
-              ...(isMe ? [{ id: 'saved', icon: <IBookmark size={24} /> }] : []),
+              { id: 'grid', icon: <IGrid9 size={26} /> },
+              { id: 'reels', icon: <IReels size={27} /> },
+              { id: 'reposts', icon: <IRepost size={27} /> },
+              { id: 'tagged', icon: <ITagged size={27} /> },
             ]} />
             {posts === null ? <Loading /> : posts.length === 0 ? (
-              tab === 'saved' ? <Empty icon={<IBookmark size={36} />} title={t('saved')} sub={t('noSaved')} />
+              tab === 'reposts' ? <Empty icon={<IRepost size={36} />} title={t('reposts')} sub={t('noReposts')} />
+                : tab === 'tagged' ? <Empty icon={<ITagged size={36} />} title={t('noTagged')} sub={t('noTaggedSub')} />
                 : <Empty icon={<ICamera size={36} />} title={t('noPosts')} sub={isMe ? t('noPostsSub') : ''}
                   action={isMe && <button className="text-link strong" onClick={() => nav.push('create', { mode: tab === 'reels' ? 'reel' : 'post' })}>{t('sharePhotos')}</button>} />
             ) : (
-              <div className={`grid ${tab === 'reels' ? 'reels-grid' : ''}`}>
+              <div className={`grid profile-grid ${tab === 'reels' ? 'reels-grid' : ''}`}>
                 {posts.map((p) => <Thumb key={p.id} post={p} onClick={() => openPost(p)} />)}
               </div>
             )}
@@ -178,6 +195,8 @@ export default function Profile({ username, isTab, active, refreshKey }) {
       <Confirm open={confirmBlock} title={t('blockQ', { u: user.username })} text={t('blockDesc')} okLabel={t('block')} danger
         onOk={() => toggleRel('block', t('blockedToast'), '')} onClose={() => setConfirmBlock(false)} />
       {isTab && <AccountSwitcher open={switcher} onClose={() => setSwitcher(false)} />}
+      {isMe && <NoteSheet open={noteOpen} onClose={() => setNoteOpen(false)} user={user} onSaved={load} />}
+      {isMe && <LinksSheet open={linksOpen} onClose={() => setLinksOpen(false)} user={user} onSaved={load} />}
       {isMe && <NewHighlight open={hlOpen} onClose={() => setHlOpen(false)} onCreated={() => api(`users/${uname}/highlights`).then((r) => setHighlights(r.highlights))} />}
       <ActionSheet open={menu} onClose={() => setMenu(false)} actions={[
         { label: t('shareProfile'), icon: <ILink size={22} />, onClick: shareProfile },
@@ -189,6 +208,95 @@ export default function Profile({ username, isTab, active, refreshKey }) {
         { label: t('report'), icon: <IFlag size={22} />, danger: true, onClick: async () => { await api('reports', { method: 'POST', body: { userId: user.id } }).catch(() => {}); toast(t('reported')); } },
       ]} />
     </div>
+  );
+}
+
+/* ---------- profile links (IG-style chips) ---------- */
+const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } };
+const kindOf = (url) => {
+  const h = hostOf(url);
+  if (/(^|\.)(wa\.me|whatsapp\.com)$/.test(h)) return 'whatsapp';
+  if (/(^|\.)(facebook\.com|fb\.com|fb\.me|m\.me)$/.test(h)) return 'facebook';
+  return 'link';
+};
+export function allLinks(user) {
+  const list = [...(user.links || [])];
+  if (user.website) {
+    const url = /^https?:\/\//i.test(user.website) ? user.website : `https://${user.website}`;
+    if (!list.some((l) => l.url === url)) list.unshift({ title: '', url });
+  }
+  return list.slice(0, 5);
+}
+function LinkChip({ link }) {
+  const kind = kindOf(link.url);
+  const label = link.title || (kind === 'whatsapp' ? 'WhatsApp' : kind === 'facebook' ? 'Facebook' : hostOf(link.url));
+  return (
+    <a className="link-chip" href={link.url} onClick={(e) => { e.preventDefault(); openUrl(link.url); }}>
+      {kind === 'whatsapp' ? <IWhatsApp size={18} /> : kind === 'facebook' ? <IFacebook size={18} /> : <ILink size={18} />}
+      <span dir="auto">{label}</span>
+    </a>
+  );
+}
+
+function NoteSheet({ open, onClose, user, onSaved }) {
+  const { updateMe, toast } = useApp();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open) setText(user.note || ''); }, [open]); // eslint-disable-line
+  const save = async (note) => {
+    setBusy(true);
+    try { const r = await api('me', { method: 'PATCH', body: { note } }); updateMe(r.user); onSaved(); onClose(); }
+    catch (e) { toast(errText(e.code)); }
+    setBusy(false);
+  };
+  return (
+    <Sheet open={open} onClose={onClose} title={t('note')}>
+      <div className="form-pad note-edit">
+        <Avatar src={user.avatarUrl} name={user.username} size={72} />
+        <textarea value={text} onChange={(e) => setText(e.target.value.slice(0, 60))} placeholder={t('notePh')} rows={2} dir="auto" autoFocus />
+        <div className="muted small">{t('noteHint')} · {text.length}/60</div>
+        <button className="btn btn-primary btn-lg btn-block" disabled={busy || !text.trim()} onClick={() => save(text.trim())}>{t('shareNote')}</button>
+        {user.note && <button className="btn btn-secondary btn-lg btn-block danger-text" disabled={busy} onClick={() => save('')}>{t('deleteNote')}</button>}
+      </div>
+    </Sheet>
+  );
+}
+
+function LinksSheet({ open, onClose, user, onSaved }) {
+  const { updateMe, toast } = useApp();
+  const [links, setLinks] = useState([]);
+  const [title, setTitle] = useState('');
+  const [url, setUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open) { setLinks(user.links || []); setTitle(''); setUrl(''); } }, [open]); // eslint-disable-line
+  const push = async (next) => {
+    setBusy(true);
+    try { const r = await api('me', { method: 'PATCH', body: { links: next } }); updateMe(r.user); setLinks(r.user.links || next); onSaved(); return true; }
+    catch (e) { toast(errText(e.code)); return false; } finally { setBusy(false); }
+  };
+  const add = async () => {
+    if (!url.trim()) return;
+    if (links.length >= 5) { toast(t('linksMax')); return; }
+    if (await push([...links, { title: title.trim(), url: url.trim() }])) { setTitle(''); setUrl(''); }
+  };
+  return (
+    <Sheet open={open} onClose={onClose} title={t('links')} full>
+      <div className="form-pad">
+        {links.map((l, i) => (
+          <div className="link-row" key={i}>
+            <LinkChip link={l} />
+            <button className="icon-btn" disabled={busy} onClick={() => push(links.filter((_, j) => j !== i))} aria-label={t('removeLink')}><ITrash size={20} /></button>
+          </div>
+        ))}
+        {links.length < 5 ? (
+          <>
+            <div className="field"><input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t('linkUrl')} dir="ltr" inputMode="url" autoCapitalize="none" /></div>
+            <div className="field"><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('linkTitle')} dir="auto" maxLength={40} /></div>
+            <button className="btn btn-primary btn-lg btn-block" disabled={busy || !url.trim()} onClick={add}>{busy ? <Spinner size={18} light /> : t('addLink')}</button>
+          </>
+        ) : <div className="muted small">{t('linksMax')}</div>}
+      </div>
+    </Sheet>
   );
 }
 

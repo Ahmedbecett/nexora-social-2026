@@ -3,8 +3,8 @@ import { useMedia, setReelsMuted, playSafe } from '../media.js';
 import { tapHaptic } from '../theme.js';
 import { api } from '../api.js';
 import { t, fmtNum, errText } from '../i18n.js';
-import { useApp, Avatar, UserName, FollowButton, Spinner, RichText, ActionSheet, Confirm, TopBar } from '../components.jsx';
-import { IHeart, IComment, ISend, IBookmark, IMoreH, ICamera, IMusic, IVolume, IFlag, ITrash, IReels, IGlobe, ILink, IEyeOff } from '../icons.jsx';
+import { useApp, Avatar, UserName, FollowButton, Spinner, RichText, ActionSheet, Confirm, TopBar, Sheet } from '../components.jsx';
+import { IHeart, IComment, ISend, IBookmark, IMoreLines, IPlus, IPrefs, IVolume, IFlag, ITrash, IReels, IGlobe, ILink, IEyeOff, IRepost, ICheck } from '../icons.jsx';
 import { CommentsSheet, ShareSheet, shareLink } from './Post.jsx';
 import { openUrl } from '../native.js';
 import { fetchWorld } from '../world.js';
@@ -63,6 +63,18 @@ function ReelItem({ post: initial, active, near, muted, setMuted, onDeleted }) {
     if (active && !paused && appActive) { v.muted = muted; playSafe(v, () => setMuted(true)); } else v.pause();
   }, [active, paused, appActive]); // eslint-disable-line
   useEffect(() => { if (!active && vRef.current) vRef.current.currentTime = 0; }, [active]);
+  // count a view after 2s of watching (once per item)
+  const viewed = useRef(false);
+  useEffect(() => {
+    if (!active || viewed.current || (world && !post.wid)) return undefined;
+    const tm = setTimeout(() => { viewed.current = true; api(world ? `world/${post.wid}/view` : `posts/${post.id}/view`, { method: 'POST' }).catch(() => {}); }, 2000);
+    return () => clearTimeout(tm);
+  }, [active]); // eslint-disable-line
+  const repost = async () => {
+    const val = !post.reposted; setPost((p) => ({ ...p, reposted: val }));
+    try { await api(`posts/${post.id}/repost`, { method: val ? 'POST' : 'DELETE' }); toast(val ? t('reposted') : t('repostRemoved')); }
+    catch (e) { setPost((p) => ({ ...p, reposted: !val })); toast(errText(e.code)); }
+  };
 
   const like = async (force) => {
     if (world && !post.wid) return;
@@ -91,48 +103,51 @@ function ReelItem({ post: initial, active, near, muted, setMuted, onDeleted }) {
     <section className="reel" onClick={tap}
       onPointerDown={(e) => { if (!e.target.closest('.reel-ui')) { const tm = setTimeout(() => setPaused(true), 250); e.currentTarget.dataset.tm = tm; } }}
       onPointerUp={(e) => { clearTimeout(Number(e.currentTarget.dataset.tm)); setPaused(false); }}>
-      {wide && m.poster && <img className="reel-backdrop" src={m.poster} alt="" />}
       <video disableRemotePlayback ref={vRef} src={m.url} poster={m.poster || undefined} loop playsInline muted={muted} preload={active ? 'auto' : near ? 'metadata' : 'none'}
         className={`reel-video ${wide ? 'contain' : ''}`} onError={() => { if (world && active) hide(); }} />
       {heart > 0 && <span key={heart} className="big-heart"><IHeart filled size={110} /></span>}
       {showMute > 0 && <span key={'m' + showMute} className="mute-flash"><IVolume muted={muted} size={30} /></span>}
       <div className="reel-shade" />
       <div className="reel-side reel-ui">
-        {(!world || post.wid) && <button onClick={() => like()}><IHeart filled={post.liked} size={30} /><span>{fmtNum(post.likeCount)}</span></button>}
-        {!world && <button onClick={() => setComments(true)}><IComment size={29} /><span>{fmtNum(post.commentCount)}</span></button>}
-        <button onClick={shareIt}><ISend size={28} /><span>{t('share')}</span></button>
-        {!world && <button onClick={save}><IBookmark filled={post.saved} size={28} /></button>}
-        <button onClick={() => setMenu(true)}><IMoreH size={26} /></button>
-        {world ? <span className="reel-disc world"><IGlobe size={18} /></span> : <span className="reel-disc"><Avatar src={post.user.avatarUrl} name={post.user.username} size={26} /></span>}
+        {(!world || post.wid) && <button onClick={() => like()} aria-label="like"><IHeart filled={post.liked} size={28} />{post.likeCount > 0 && <span>{fmtNum(post.likeCount)}</span>}</button>}
+        {!world && <button onClick={() => setComments(true)} aria-label="comment"><IComment size={28} />{post.commentCount > 0 && <span>{fmtNum(post.commentCount)}</span>}</button>}
+        <button onClick={shareIt} aria-label="share"><ISend size={28} /></button>
+        {!world && <button onClick={save} aria-label="save"><IBookmark filled={post.saved} size={28} /></button>}
+        <button onClick={() => setMenu(true)} aria-label="more"><IMoreLines size={28} /></button>
       </div>
       <div className="reel-info reel-ui">
         {world ? (
           <div className="reel-user" onClick={() => openUrl(post.source.url)}>
-            <span className="world-avatar"><IGlobe size={20} /></span>
-            <div className="world-credit"><b>{post.source.author}</b><span>{t('worldSource')} · {post.source.license}</span></div>
+            <span className="world-avatar"><IGlobe size={22} /></span>
+            <span className="uname"><bdi>{post.source.author}</bdi></span>
           </div>
         ) : (
-        <div className="reel-user">
-          <Avatar src={post.user.avatarUrl} name={post.user.username} size={36} onClick={() => nav.profile(post.user.username)} />
-          <UserName user={post.user} onClick={() => nav.profile(post.user.username)} />
-          {!mine && !post.following && <FollowButton user={post.user} status="none" small className="btn-outline-light" onChange={(s) => setPost((p) => ({ ...p, following: s === 'accepted' }))} />}
-        </div>
-        )}
-        {post.caption && (
-          <div className={`reel-caption ${expanded ? 'open' : ''}`} onClick={() => setExpanded(!expanded)}>
-            <RichText text={post.caption} onTag={(tg) => nav.push('tag', { tag: tg })} onMention={(u) => nav.profile(u)} />
+          <div className="reel-user">
+            <Avatar src={post.user.avatarUrl} name={post.user.username} size={40} onClick={() => nav.profile(post.user.username)} />
+            <UserName user={post.user} onClick={() => nav.profile(post.user.username)} />
+            {!mine && !post.following && <FollowButton user={post.user} status="none" small className="reel-follow" onChange={(s) => setPost((p) => ({ ...p, following: s === 'accepted' }))} />}
           </div>
         )}
-        <div className="reel-audio"><IMusic size={14} /><span className="marquee"><span>{world ? `${post.source.author} · ${t('original')}` : post.audio || `${post.user.username} · ${t('original')}`}</span></span></div>
+        {(post.caption || world) && (
+          <div className={`reel-caption ${expanded ? 'open' : ''}`} onClick={() => setExpanded(!expanded)}>
+            {post.caption ? <RichText text={post.caption} onTag={(tg) => nav.push('tag', { tag: tg })} onMention={(u) => nav.profile(u)} /> : null}
+            {world && expanded && <div className="reel-credit">{t('worldSource')} · {post.source.license}</div>}
+            {!expanded && <span className="reel-more">{t('seeMore')}</span>}
+          </div>
+        )}
       </div>
       <ReelProgress vRef={vRef} />
       {!world && <CommentsSheet open={comments} post={post} onClose={() => setComments(false)} onCount={(n) => setPost((p) => ({ ...p, commentCount: n }))} />}
       {!world && <ShareSheet open={share} post={post} onClose={() => setShare(false)} />}
       <ActionSheet open={menu} onClose={() => setMenu(false)} actions={world ? [
+        { label: muted ? t('unmute') : t('mute'), icon: <IVolume muted={!muted} size={22} />, onClick: () => setMuted(!muted) },
         { label: t('viewSource'), icon: <IGlobe size={22} />, onClick: () => openUrl(post.source.url) },
         { label: t('copyLink'), icon: <ILink size={22} />, onClick: shareIt },
         { label: t('notInterested'), icon: <IEyeOff size={22} />, onClick: () => { hide(); toast(t('notInterestedDone')); } },
       ] : [
+        !mine && !post.user.isPrivate && { label: post.reposted ? t('removeRepost') : t('repost'), icon: <IRepost size={22} />, onClick: repost },
+        { label: t('copyLink'), icon: <ILink size={22} />, onClick: () => setShare(true) },
+        { label: muted ? t('unmute') : t('mute'), icon: <IVolume muted={!muted} size={22} />, onClick: () => setMuted(!muted) },
         mine && { label: t('deletePost'), icon: <ITrash size={22} />, danger: true, onClick: () => setConfirmDel(true) },
         !mine && { label: t('report'), icon: <IFlag size={22} />, danger: true, onClick: async () => { await api('reports', { method: 'POST', body: { postId: post.id } }).catch(() => {}); toast(t('reported')); } },
       ]} />
@@ -142,7 +157,8 @@ function ReelItem({ post: initial, active, near, muted, setMuted, onDeleted }) {
   );
 }
 
-export function ReelsFeed({ initial, startIndex = 0, active = true, fetchMore = true, topic = 'mix', world: worldInit }) {
+export function ReelsFeed({ initial, startIndex = 0, active = true, fetchMore = true, topic = 'mix', world: worldInit, friends = false }) {
+  const { nav } = useApp();
   const [posts, setPosts] = useState(initial || null);
   const [current, setCurrent] = useState(startIndex);
   const { reelsMuted: muted } = useMedia();
@@ -161,16 +177,19 @@ export function ReelsFeed({ initial, startIndex = 0, active = true, fetchMore = 
     pg.busy = true;
     try {
       if (!pg.ownDone) {
-        const r = await api(`reels${pg.cursor ? `?cursor=${pg.cursor}` : ''}`);
-        add(r.posts); pg.cursor = r.nextCursor; if (!r.nextCursor) pg.ownDone = true;
+        const qs = new URLSearchParams(); if (pg.cursor) qs.set('cursor', pg.cursor); if (friends) qs.set('following', '1');
+        const r = await api(`reels${qs.toString() ? `?${qs}` : ''}`);
+        // friends tab: older servers ignore ?following, so filter on the client too
+        add(friends ? r.posts.filter((x) => x.following) : r.posts); pg.cursor = r.nextCursor; if (!r.nextCursor) pg.ownDone = true;
+        if (friends) { if (!pg.ownDone && r.posts.length && !r.posts.some((x) => x.following)) { pg.busy = false; return next(); } return; }
         if (r.posts.length >= 3) return;
       }
-      if (!pg.worldDone) {
+      if (!pg.worldDone && !friends) {
         const r = await fetchWorld(topic, pg.seed, pg.offset);
         add(r.posts); pg.offset = r.nextOffset ?? pg.offset; if (!r.posts.length) pg.worldDone = true;
       }
     } finally { pg.busy = false; }
-  }, [topic]);
+  }, [topic, friends]);
 
   useEffect(() => {
     if (initial) return;
@@ -188,7 +207,10 @@ export function ReelsFeed({ initial, startIndex = 0, active = true, fetchMore = 
     if (fetchMore && posts && i >= posts.length - 3) next().catch(() => {});
   };
   if (posts === null) return <div className="reels-loading"><Spinner light /></div>;
-  if (!posts.length) return <div className="reels-loading"><IReels size={48} /><p>{t('noReels')}</p></div>;
+  if (!posts.length) return friends ? (
+    <div className="reels-loading friends-empty"><IReels size={48} /><h3>{t('friendsEmptyTitle')}</h3><p>{t('friendsEmpty')}</p>
+      <button className="btn btn-primary" onClick={() => nav.tab('search')}>{t('findPeople')}</button></div>
+  ) : <div className="reels-loading"><IReels size={48} /><p>{t('noReels')}</p></div>;
   return (
     <div className="reels" ref={ref} onScroll={onScroll}>
       {posts.map((p, i) => (
@@ -209,17 +231,46 @@ export function TopicChips({ value, onChange, dark }) {
   );
 }
 
+/** Topic picker (the "preferences" button in the Reels / Explore header). */
+export function TopicSheet({ open, onClose, value, onChange }) {
+  return (
+    <Sheet open={open} onClose={onClose} title={t('chooseTopics')}>
+      <div className="topic-list">
+        {TOPICS.map((id) => (
+          <button key={id} className={`topic-row ${value === id ? 'on' : ''}`} onClick={() => { onChange(id); onClose(); }}>
+            <span>{topicLabel(id)}</span>{value === id && <span className="blue-check"><ICheck size={14} sw={3} /></span>}
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+
 export default function Reels({ active }) {
-  const { nav } = useApp();
+  const { nav, me } = useApp();
   const [topic, setTopic] = useState('mix');
+  const [tab, setTab] = useState('reels');
+  const [prefs, setPrefs] = useState(false);
+  const [faces, setFaces] = useState([]);
+  useEffect(() => {
+    if (!me?.username) return;
+    api(`users/${encodeURIComponent(me.username)}/following`).then((r) => setFaces((r.users || []).slice(0, 3))).catch(() => {});
+  }, [me?.username]);
   return (
     <div className="screen dark">
       <header className="reels-header">
-        <h1>{t('reels')}</h1>
-        <button className="icon-btn light" onClick={() => nav.push('create', { mode: 'reel' })} aria-label="camera"><ICamera size={28} /></button>
-        <TopicChips value={topic} onChange={setTopic} dark />
+        <button className="icon-btn light" onClick={() => nav.push('create', { mode: 'reel' })} aria-label={t('newReel')}><IPlus size={28} sw={2} /></button>
+        <div className="reels-tabs">
+          <button className={tab === 'reels' ? 'on' : ''} onClick={() => setTab('reels')}>{t('reels')}</button>
+          <button className={tab === 'friends' ? 'on' : ''} onClick={() => setTab('friends')}>
+            {t('friends')}
+            {faces.length > 0 && <span className="face-stack">{faces.map((u) => <Avatar key={u.id} src={u.avatarUrl} name={u.username} size={24} />)}</span>}
+          </button>
+        </div>
+        <button className="icon-btn light" onClick={() => setPrefs(true)} aria-label={t('chooseTopics')}><IPrefs size={28} /></button>
       </header>
-      <ReelsFeed key={topic} active={active} topic={topic} />
+      <ReelsFeed key={tab + topic} active={active} topic={tab === 'friends' ? 'mix' : topic} friends={tab === 'friends'} />
+      <TopicSheet open={prefs} onClose={() => setPrefs(false)} value={topic} onChange={(v) => { setTopic(v); setTab('reels'); }} />
     </div>
   );
 }

@@ -59,8 +59,8 @@ html[data-theme='dark'] {
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
 html, body, #root { margin: 0; height: 100%; background: var(--bg); color: var(--text); overscroll-behavior: none; }
-html { font-family: Roboto, system-ui, -apple-system, 'Segoe UI', 'Cairo Variable', sans-serif; font-size: 15px; }
-html[lang='ar'] { font-family: 'Cairo Variable', Roboto, system-ui, sans-serif; }
+/* Same as the Instagram Android app: the device UI font (Roboto + the system Arabic font) */
+html { font-family: Roboto, system-ui, -apple-system, 'Segoe UI', 'Noto Sans Arabic', 'Noto Sans', Tahoma, sans-serif; font-size: 15px; -webkit-font-smoothing: antialiased; }
 body { -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; }
 input, textarea { user-select: text; -webkit-user-select: text; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
@@ -738,3 +738,85 @@ html[data-theme='dark'] .wordmark.grad.auto { background: none; -webkit-text-fil
 .theme-toggle { position: relative; }
 .auth-theme { position: absolute; top: calc(var(--safe-top) + 10px); inset-inline-end: 12px; z-index: 5; }
 .world-card .grid-badge { color: #fff; display: flex; }
+
+/* ---------- 2.4: Instagram-exact Reels / Explore / Profile ---------- */
+/* Reels header: + · [Reels | Friends ◉◉◉] · prefs */
+.reels-header { flex-wrap: nowrap !important; height: 56px; padding: 0 8px !important; background: linear-gradient(rgba(0,0,0,.45), transparent); }
+.reels-tabs { flex: 1; display: flex; justify-content: center; align-items: center; gap: 28px; }
+.reels-tabs button { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; color: rgba(255,255,255,.62); text-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.reels-tabs button.on { color: #fff; }
+.face-stack { display: inline-flex; }
+.face-stack .avatar { border: 1.5px solid #000; margin-inline-start: -8px; }
+.face-stack .avatar:first-child { margin-inline-start: 0; }
+.reel { background: #000; }
+.reel-shade { height: 34%; background: linear-gradient(transparent, rgba(0,0,0,.5)); }
+.reel-side { bottom: 22px; inset-inline-end: 6px; gap: 20px; }
+.reel-side button { width: 48px; gap: 3px; font-size: 12.5px; font-weight: 500; }
+.reel-side button svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+.reel-info { bottom: 22px; inset-inline-start: 16px; inset-inline-end: 70px; gap: 6px; }
+.reel-user { gap: 12px; min-width: 0; }
+.reel-user .uname { font-size: 14.5px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reel-user .world-avatar { width: 40px; height: 40px; }
+.reel-follow, .reel-follow.btn { background: transparent !important; border: 1px solid rgba(255,255,255,.85) !important; color: #fff !important; border-radius: 9px !important; height: 32px !important; padding: 0 14px !important; font-size: 14px !important; font-weight: 600 !important; flex: none; }
+.reel-caption { display: flex; gap: 6px; font-size: 14px; line-height: 1.4; max-height: none; color: rgba(255,255,255,.92); }
+.reel-caption > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reel-caption.open { flex-direction: column; gap: 4px; }
+.reel-caption.open > :first-child { white-space: pre-wrap; max-height: 36vh; overflow-y: auto; }
+.reel-more { flex: none; color: rgba(255,255,255,.65); }
+.reel-credit { font-size: 12.5px; color: rgba(255,255,255,.7); }
+.reel-progress-track { height: 3px; background: rgba(255,255,255,.28); }
+.friends-empty h3 { margin: 6px 0 0; color: #fff; font-size: 18px; }
+.friends-empty p { max-width: 290px; text-align: center; margin: 0 0 8px; line-height: 1.4; }
+.topic-list { display: flex; flex-direction: column; padding: 4px 0 12px; }
+.topic-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; font-size: 16px; text-align: start; }
+.topic-row.on { font-weight: 700; }
+.topic-row .blue-check, .topic-list .blue-check { width: 22px; height: 22px; border-radius: 50%; background: var(--blue); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Explore */
+.search-header { gap: 14px; padding: 10px 14px 12px; }
+.search-box.ig { height: 46px; border-radius: 12px; background: var(--chip); gap: 12px; padding: 0 14px; color: var(--text); }
+.search-box.ig input { font-size: 16px; }
+.search-box.ig input::placeholder { color: var(--muted); }
+.search-header > .icon-btn { flex: none; }
+.explore-chips { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding: 2px 14px 12px; }
+.explore-chips::-webkit-scrollbar { display: none; }
+.explore-chips button { flex: none; height: 42px; padding: 0 18px; border-radius: 21px; border: 1px solid var(--border); font-size: 15px; font-weight: 600; color: var(--text); background: transparent; white-space: nowrap; }
+.explore-chips button.on { background: var(--chip); border-color: var(--chip); }
+.explore-chips .chip-icon { width: 66px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.explore-grid .grid-item, .explore-grid .grid-item.tall { aspect-ratio: 3/4; grid-row: auto; }
+.explore-grid .grid-badge { display: none; }
+.grid-views { position: absolute; bottom: 8px; inset-inline-start: 10px; display: inline-flex; align-items: center; gap: 5px; color: #fff; font-size: 13.5px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.7)); z-index: 1; }
+.grid-views b { font-weight: 600; }
+.grid-views svg { stroke: #fff; }
+
+/* Profile */
+.profile-header.ig { display: grid; grid-template-columns: 1fr auto 1fr; padding: 0 8px !important; height: 60px; }
+.profile-header.ig > .icon-btn { justify-self: start; }
+.profile-header.ig .feed-header-actions { justify-self: end; display: flex; align-items: center; gap: 2px; }
+.profile-header.ig .profile-uname { font-size: 21px; font-weight: 700; gap: 6px; max-width: 58vw; }
+.profile-header.ig .profile-uname span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-top.ig { align-items: center; gap: 24px; padding: 46px 16px 8px; }
+.profile-right { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.profile-right .profile-name { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-top.ig .profile-stats { justify-content: flex-start; gap: 0; text-align: start; }
+.profile-top.ig .profile-stats > * { flex: 1; align-items: flex-start; line-height: 1.3; }
+.profile-top.ig .profile-stats b { font-size: 17px; font-weight: 700; }
+.profile-top.ig .profile-stats span { font-size: 15px; color: var(--text); }
+.note-bubble { position: absolute; bottom: calc(100% - 20px); inset-inline-start: -6px; z-index: 2; min-width: 84px; max-width: 132px; padding: 8px 12px; border-radius: 18px; background: var(--chip); color: var(--text); font-size: 13px; line-height: 1.3; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.25); word-break: break-word; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.note-bubble.empty { color: var(--muted); }
+.profile-bio { padding: 6px 16px 0; font-size: 15px; }
+.link-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 2px; }
+.link-chip { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid var(--border); color: var(--text); font-size: 14.5px; font-weight: 600; text-decoration: none; background: transparent; }
+.link-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+.link-chip.add { color: var(--muted); font-weight: 400; }
+.profile-buttons { gap: 8px; padding: 14px 16px 10px; }
+.profile-buttons .btn { height: 42px; border-radius: 11px; font-size: 15.5px; font-weight: 600; }
+.profile-buttons .btn-square { width: 46px; flex: none; }
+.profile-grid .grid-item, .profile-grid.reels-grid .grid-item { aspect-ratio: 3/4; }
+.note-edit { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.note-edit textarea { width: 100%; border: 0; outline: 0; resize: none; background: var(--chip); color: var(--text); border-radius: 16px; padding: 12px 14px; font: inherit; font-size: 16px; text-align: center; }
+.danger-text { color: var(--red) !important; }
+.link-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.post-actions .icon-btn.reposted { color: #3ccb7f; }
+.profile-buttons .btn { min-width: 0; padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[lang='ar'] .profile-buttons .btn, html[lang='fa'] .profile-buttons .btn, html[lang='ur'] .profile-buttons .btn { font-size: 14px; }
