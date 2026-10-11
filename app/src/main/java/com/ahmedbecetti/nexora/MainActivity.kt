@@ -149,9 +149,17 @@ class MainActivity : Activity() {
             setPadding(dp(16), dp(9), dp(14), dp(9))
             setBackgroundColor(paper)
         }
-        val logo = text("Nexora", 29, ink, true).apply {
-            typeface = Typeface.create("cursive", Typeface.BOLD)
-            letterSpacing = -0.035f
+        val logo = text("NEXORA", 27, ink, true).apply {
+            typeface = Typeface.create("sans-serif-black", Typeface.BOLD_ITALIC)
+            letterSpacing = -0.06f
+            post {
+                paint.shader = android.graphics.LinearGradient(
+                    0f, 0f, width.toFloat().coerceAtLeast(1f), 0f,
+                    intArrayOf(Color.rgb(255, 154, 0), Color.rgb(255, 35, 85), Color.rgb(190, 0, 210)),
+                    null, android.graphics.Shader.TileMode.CLAMP
+                )
+                invalidate()
+            }
             setOnClickListener { selectedTab = "Home"; render() }
         }
         bar.addView(logo, LinearLayout.LayoutParams(0, -2, 1f))
@@ -1071,7 +1079,12 @@ class MainActivity : Activity() {
                     message.text = authText("أدخل بريدًا إلكترونيًا صحيحًا أولاً.", "Enter a valid email address first.")
                 } else {
                     auth.sendPasswordResetEmail(address)
-                        .addOnSuccessListener { message.text = authText("أرسلنا رابط إعادة تعيين كلمة السر إلى بريدك.", "Password reset link sent. Check your email.") }
+                        .addOnSuccessListener {
+                            message.text = authText(
+                                "أرسلنا رابط إعادة تعيين كلمة السر. افحص البريد الوارد ومجلد الرسائل غير المرغوب فيها (Spam/Junk)، وتأكد من كتابة البريد الصحيح.",
+                                "Password reset email sent. Check your inbox and Spam/Junk folder, and make sure the email address is correct."
+                            )
+                        }
                         .addOnFailureListener { message.text = authErrorMessage(it) }
                 }
             }
