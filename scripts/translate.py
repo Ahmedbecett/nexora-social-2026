@@ -43,15 +43,20 @@ def translate_many(items, tl):
             out[k] = r if r and all(p in r for p in phs) else v
     return out
 
+FORCE = set(os.environ.get('FORCE_KEYS', '').split(',')) - {''}
+
 def do_lang(tl):
+    """Translate missing keys (and FORCE_KEYS) into src/locales/<tl>.json, keeping existing ones."""
     path = f'src/locales/{tl}.json'
-    if os.path.exists(path): return tl, 'skip'
-    flat = [(k, v) for k, v in EN.items() if isinstance(v, str)]
-    errs = [(k, v) for k, v in EN['errors'].items()]
-    d = translate_many(flat, tl)
-    d['errors'] = translate_many(errs, tl)
-    json.dump(d, open(path, 'w', encoding='utf8'), ensure_ascii=False, indent=0)
-    return tl, len(d)
+    d = json.load(open(path, encoding='utf8')) if os.path.exists(path) else {}
+    d.setdefault('errors', {})
+    flat = [(k, v) for k, v in EN.items() if isinstance(v, str) and (k not in d or k in FORCE)]
+    errs = [(k, v) for k, v in EN['errors'].items() if k not in d['errors'] or ('errors.' + k) in FORCE]
+    if not flat and not errs: return tl, 'up to date'
+    d.update(translate_many(flat, tl)) if flat else None
+    d['errors'].update(translate_many(errs, tl)) if errs else None
+    json.dump(d, open(path, 'w', encoding='utf8'), ensure_ascii=False, separators=(',', ':'))
+    return tl, f'+{len(flat)} keys, +{len(errs)} errors'
 
 with cf.ThreadPoolExecutor(6) as ex:
     for f in cf.as_completed([ex.submit(do_lang, c) for c in CODES]):

@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { api, WEB_URL } from '../api.js';
 import { t, errText, fmtNum, timeAgo } from '../i18n.js';
 import { useApp, Avatar, UserName, RichText, AutoVideo, Sheet, ActionSheet, Confirm, Spinner, TopBar, Loading, ErrorBox, useAsync, FollowButton } from '../components.jsx';
-import { IHeart, IComment, ISend, IBookmark, IMoreV, ITrash, IFlag, ILink, IVolume, IEdit, IUser, IHeart as IH } from '../icons.jsx';
+import { IMusic, IHeart, IComment, ISend, IBookmark, IMoreV, ITrash, IFlag, ILink, IVolume, IEdit, IUser, IHeart as IH } from '../icons.jsx';
 
 export async function shareLink(url, title) {
   try {
@@ -103,7 +103,9 @@ export function PostCard({ post: initial, onDeleted }) {
         <Avatar src={post.user.avatarUrl} name={post.user.username} size={34} onClick={() => nav.profile(post.user.username)} />
         <div className="post-head-text" onClick={() => nav.profile(post.user.username)}>
           <UserName user={post.user} />
-          {post.location && <span className="post-loc">{post.location}</span>}
+          {post.audio || post.kind === 'reel'
+            ? <span className="post-audio"><IMusic size={13} /><span>{post.audio || `${post.user.username} · ${t('original')}`}</span></span>
+            : post.location && <span className="post-loc">{post.location}</span>}
         </div>
         <button className="icon-btn" onClick={() => setMenu(true)} aria-label="more"><IMoreV size={22} /></button>
       </div>

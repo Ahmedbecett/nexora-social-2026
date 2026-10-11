@@ -223,10 +223,11 @@ export function Tabs({ tabs, value, onChange, icons }) {
 
 export function useAsync(fn, deps) {
   const [state, setState] = useState({ loading: true, data: null, error: null });
-  const load = async () => {
-    setState((s) => ({ ...s, loading: true, error: null }));
+  const load = async (silent) => {
+    const quiet = silent === true;
+    if (!quiet) setState((s) => ({ ...s, loading: true, error: null }));
     try { const data = await fn(); setState({ loading: false, data, error: null }); }
-    catch (error) { setState({ loading: false, data: null, error }); }
+    catch (error) { if (!quiet) setState({ loading: false, data: null, error }); }
   };
   useEffect(() => { load(); }, deps); // eslint-disable-line
   return { ...state, reload: load, setData: (d) => setState((s) => ({ ...s, data: typeof d === 'function' ? d(s.data) : d })) };

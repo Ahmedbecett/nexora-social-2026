@@ -20,7 +20,7 @@ export const IHeart = ({ filled, ...p }) => (
   </S>
 );
 export const IComment = (p) => <S {...p}><path d="M20.7 16.2A9 9 0 1 0 17 19.9l4 1.1z" /></S>;
-export const ISend = (p) => <S {...p}><path d="M21.5 3 10.2 13.8M21.5 3 15 21l-4.8-7.2L3 9.6z" /></S>;
+export const ISend = ({ active, ...p }) => <S {...p} sw={active ? 2.4 : 2}><path d="M21.5 3 10.2 13.8M21.5 3 15 21l-4.8-7.2L3 9.6z" fill={active ? 'currentColor' : 'none'} /></S>;
 export const IBookmark = ({ filled, ...p }) => <S {...p} fill={filled ? 'currentColor' : 'none'}><path d="M19 21 12 15.6 5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1z" /></S>;
 export const IMoreV = (p) => <S {...p} fill="currentColor" stroke="none"><circle cx="12" cy="5" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="12" cy="19" r="1.7" /></S>;
 export const IMoreH = (p) => <S {...p} fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" /></S>;
@@ -90,3 +90,4 @@ export const IGoogle = ({ size = 22 }) => (
     <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
   </svg>
 );
+export const IMoon = (p) => <S {...p}><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z" /></S>;

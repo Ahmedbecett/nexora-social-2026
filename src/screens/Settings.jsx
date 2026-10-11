@@ -5,13 +5,14 @@ import { useApp, TopBar, Confirm, Spinner, Avatar, UserName, Loading, Empty, Tab
 import {
   IUserPlus, IBell, ILock, IAccount, IChevron, IGlobe, IBookmark, IArchive, ISearch, ICheck, IActivity, IClock, IStar, IStarCircle,
   IPaperPlane, IAt, IComment, IRepeat, IRestrict, ILimit, IAa, IBellOff, ILifebuoy, IShieldStar, IPerson, IInfo, IBlock, IKey, IPhone,
-  IMail, IDoc, IHeart, ICheckCircle, ITrash, IUsers, IClose,
+  IMail, IDoc, IHeart, ICheckCircle, ITrash, IUsers, IClose, IMoon,
 } from '../icons.jsx';
+import { getThemePref, setThemePref } from '../theme.js';
 import { shareLink, SuggestedUsers } from './Post.jsx';
 import { LanguageList } from './Auth.jsx';
 import { usageDays, getDailyLimit, setDailyLimit } from '../usage.js';
 
-export const APP_VERSION = '2.1.0';
+export const APP_VERSION = '2.2.0';
 export const OFFICIAL_USERNAME = 'official.nexora';
 
 /* ------------------------------------------------------------------ */
@@ -117,6 +118,7 @@ export default function Settings() {
     ] },
     { title: t('yourAppMedia'), items: [
       { id: 'language', icon: <IGlobe size={26} />, label: t('languageSetting'), value: curLang?.[1] },
+      { id: 'theme', icon: <IMoon size={26} />, label: t('theme'), value: t({ dark: 'themeDark', light: 'themeLight', system: 'themeSystem' }[getThemePref()]) },
     ] },
     { title: t('moreInfoSupport'), items: [
       { id: 'help', icon: <ILifebuoy size={26} />, label: t('help') },
@@ -172,7 +174,7 @@ const TITLES = () => ({
   close: t('closeFriends'), blocked: t('blocked'), messagesPriv: t('messagesStoryReplies'), mentions: t('tagsMentions'),
   comments: t('commentsSetting'), sharing: t('sharing'), restricted: t('restricted'), limit: t('limitInteractions'),
   hiddenWords: t('hiddenWords'), invite: t('inviteFriends'), favorites: t('favorites'), muted: t('mutedAccounts'),
-  language: t('languageSetting'), help: t('help'), privacyCenter: t('privacyCenter'), status: t('accountStatus'), about: t('about'),
+  language: t('languageSetting'), theme: t('theme'), help: t('help'), privacyCenter: t('privacyCenter'), status: t('accountStatus'), about: t('about'),
   archive: t('archive'), saved: t('saved'), terms: t('termsOfUse'), policy: t('privacyPolicy'),
 });
 
@@ -563,6 +565,11 @@ function Language() {
   const { setLang } = useApp();
   return <LanguageList onPick={(k) => setLang(k)} />;
 }
+function Theme() {
+  const [v, setV] = useState(getThemePref());
+  const pick = (x) => { setV(x); setThemePref(x); };
+  return <Radio value={v} onChange={pick} desc={t('themeDesc')} options={[['dark', t('themeDark')], ['light', t('themeLight')], ['system', t('themeSystem')]]} />;
+}
 function Help() {
   const { nav, toast } = useApp();
   const [text, setText] = useState('');
@@ -685,7 +692,7 @@ const PAGES = {
   favorites: () => <UserListPage kind="favorite" empty={t('noFavorites')} actionLabel={t('remove')} desc={t('favoritesDesc')} addFrom />,
   muted: () => <UserListPage kind="mute" empty={t('noMuted')} actionLabel={t('unmute')} desc={t('mutedDesc')} />,
   messagesPriv: MessagesPrivacy, mentions: Mentions, comments: CommentsSettings, sharing: Sharing, limit: Limit, hiddenWords: HiddenWords,
-  invite: Invite, language: Language, help: Help, privacyCenter: PrivacyCenter, status: Status, about: About, saved: Saved, archive: Archive,
+  invite: Invite, language: Language, theme: Theme, help: Help, privacyCenter: PrivacyCenter, status: Status, about: About, saved: Saved, archive: Archive,
   policy: Policy, terms: Terms,
 };
 void useMemo;

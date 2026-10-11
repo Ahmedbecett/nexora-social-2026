@@ -42,7 +42,7 @@ for name in ('ic_launcher.xml', 'ic_launcher_round.xml'):
 # legacy (< Android 12) full-screen splash: white, centred glyph, "from Nexora" at the bottom
 for f in glob.glob(f'{R}/drawable*/splash.png'):
     w, h = Image.open(f).size
-    sp = Image.new('RGB', (w, h), (255, 255, 255))
+    sp = Image.new('RGB', (w, h), (12, 16, 20))
     s = int(min(w, h) * 0.24); gi = glyph.resize((s, s), Image.LANCZOS)
     sp.paste(gi, ((w - s) // 2, (h - s) // 2), gi)
     bw = int(min(w, h) * 0.42); bh = int(bw * 0.4); bi = brand.resize((bw, bh), Image.LANCZOS)
@@ -53,7 +53,7 @@ os.makedirs(f'{R}/values-v31', exist_ok=True)
 open(f'{R}/values-v31/styles.xml', 'w').write('''<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#FFFFFF</item>
+        <item name="windowSplashScreenBackground">#0C1014</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
         <item name="android:windowSplashScreenBrandingImage">@drawable/splash_brand</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>

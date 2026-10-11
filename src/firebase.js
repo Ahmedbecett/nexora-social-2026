@@ -34,7 +34,13 @@ function mapFirebaseError(e) {
   if (c.includes('code-expired')) return new AuthFlowError('code_expired');
   if (c.includes('too-many-requests') || c.includes('quota')) return new AuthFlowError('too_many_attempts');
   if (c.includes('operation-not-allowed')) return new AuthFlowError('provider_disabled');
-  if (c.includes('unauthorized-domain') || c.includes('invalid-app-credential') || c.includes('app-not-authorized')) return new AuthFlowError('domain_not_authorized');
+  if (/not authorized to use Firebase Authentication|SHA-1|SHA-256|app-not-authorized|missing-client-identifier|Invalid PlayIntegrity|app not Recognized/i.test(c + ' ' + msg)) return new AuthFlowError('app_not_authorized', msg);
+  if (c.includes('unauthorized-domain') || c.includes('invalid-app-credential')) return new AuthFlowError('domain_not_authorized');
+  if (/invalid format|TOO_SHORT|TOO_LONG|INVALID_PHONE/i.test(msg)) return new AuthFlowError('invalid_phone');
+  if (/verification code.*invalid|invalid-verification-code|INVALID_CODE/i.test(msg)) return new AuthFlowError('invalid_code');
+  if (/expired/i.test(msg)) return new AuthFlowError('code_expired');
+  if (/blocked all requests|unusual activity|too many|quota/i.test(msg)) return new AuthFlowError('too_many_attempts');
+  if (/network|timeout|unreachable/i.test(msg)) return new AuthFlowError('network');
   if (c.includes('popup-closed') || c.includes('cancelled') || /cancel/i.test(msg)) return new AuthFlowError('cancelled');
   if (c.includes('network')) return new AuthFlowError('network');
   // Native Google Sign-In: DEVELOPER_ERROR (10) / no credentials when the SHA fingerprint is not registered
@@ -66,8 +72,64 @@ export async function signInWithGoogle() {
 }
 
 let verifier = null;
+let nativeHandles = [];
+function clearNative() { nativeHandles.forEach((h) => { try { h.remove(); } catch { /* */ } }); nativeHandles = []; }
+
+/**
+ * Native Android phone verification (Firebase Android SDK): uses Play Integrity
+ * instead of a web reCAPTCHA and can read the SMS automatically.
+ * Resolves with confirm(code). `onAuto(result)` fires if the SMS is detected
+ * automatically (or the number is verified instantly).
+ */
+async function nativePhoneCode(phoneNumber, { onAuto, onError, resend } = {}) {
+  const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+  clearNative();
+  const exchange = async () => {
+    const { token } = await FirebaseAuthentication.getIdToken({ forceRefresh: false });
+    FirebaseAuthentication.signOut().catch(() => {});
+    return api('auth/firebase', { method: 'POST', body: { idToken: token } });
+  };
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let verificationId = null;
+    let autoResult = null;
+    const confirm = async (code) => {
+      if (autoResult) return autoResult;
+      try {
+        await FirebaseAuthentication.confirmVerificationCode({ verificationId, verificationCode: code });
+        return await exchange();
+      } catch (e) {
+        if (e?.status || e instanceof AuthFlowError) throw e;
+        throw mapFirebaseError(e);
+      }
+    };
+    (async () => {
+      nativeHandles.push(await FirebaseAuthentication.addListener('phoneCodeSent', (ev) => {
+        verificationId = ev.verificationId;
+        if (!settled) { settled = true; resolve(confirm); }
+      }));
+      nativeHandles.push(await FirebaseAuthentication.addListener('phoneVerificationFailed', (ev) => {
+        const err = mapFirebaseError({ message: ev?.message || '' });
+        if (!settled) { settled = true; reject(err); } else onError?.(err);
+      }));
+      nativeHandles.push(await FirebaseAuthentication.addListener('phoneVerificationCompleted', async () => {
+        try {
+          autoResult = await exchange();
+          if (!settled) { settled = true; resolve(confirm); }
+          onAuto?.(autoResult);
+        } catch (e) {
+          const err = e?.status ? e : mapFirebaseError(e);
+          if (!settled) { settled = true; reject(err); } else onError?.(err);
+        }
+      }));
+      await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber, skipNativeAuth: false, resendCode: !!resend, timeout: 60 });
+    })().catch((e) => { if (!settled) { settled = true; reject(mapFirebaseError(e)); } });
+  });
+}
+
 /** Send an SMS code. Returns a confirm(code) function. */
-export async function sendPhoneCode(phoneNumber, containerId) {
+export async function sendPhoneCode(phoneNumber, containerId, opts = {}) {
+  if (Capacitor.isNativePlatform()) return nativePhoneCode(phoneNumber, opts);
   try {
     const { auth, m } = await getFbAuth();
     if (verifier) { try { verifier.clear(); } catch { /* */ } verifier = null; }

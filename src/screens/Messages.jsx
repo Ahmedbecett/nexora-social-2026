@@ -4,15 +4,16 @@ import { t, timeAgo, errText } from '../i18n.js';
 import { useApp, Avatar, UserName, TopBar, Loading, Empty, ErrorBox, Sheet, Spinner, useAsync } from '../components.jsx';
 import { IEdit, ISend, IImage, IComment } from '../icons.jsx';
 
-export function Inbox() {
+export function Inbox({ isTab = false, active = true }) {
   const { me, nav, refreshBadges } = useApp();
   const { loading, data, error, reload } = useAsync(() => api('conversations'), []);
   const [q, setQ] = useState('');
   const [newOpen, setNewOpen] = useState(false);
   useEffect(() => {
-    const iv = setInterval(() => api('conversations').then(() => {}).catch(() => {}), 15000);
+    if (!active) return undefined;
+    const iv = setInterval(() => { if (document.visibilityState === 'visible') reload(true); }, 15000);
     return () => clearInterval(iv);
-  }, []);
+  }, [active]); // eslint-disable-line
   useEffect(() => { const h = () => reload(); window.addEventListener('nx-msg', h); return () => window.removeEventListener('nx-msg', h); }); // eslint-disable-line
   const convs = (data?.conversations || []).filter((c) => !q || c.user.username.includes(q.toLowerCase()) || (c.user.fullName || '').toLowerCase().includes(q.toLowerCase()));
   const preview = (c) => {
@@ -23,7 +24,7 @@ export function Inbox() {
   };
   return (
     <div className="screen">
-      <TopBar title={<b>{me.username}</b>} right={<button className="icon-btn" onClick={() => setNewOpen(true)}><IEdit size={24} /></button>} />
+      <TopBar left={isTab ? <span /> : undefined} className={isTab ? 'start-title' : ''} title={<b>{me.username}</b>} right={<button className="icon-btn" onClick={() => setNewOpen(true)}><IEdit size={24} /></button>} />
       <div className="scroll">
         <div className="search-box pad"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('searchPh')} dir="auto" /></div>
         <div className="section-head pad"><b>{t('messages')}</b></div>

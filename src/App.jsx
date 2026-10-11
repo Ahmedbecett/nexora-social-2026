@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
-import { StatusBar, Style } from '@capacitor/status-bar';
 import { api, getToken, setToken, onUnauthorized, getAccounts, upsertAccount, forgetAccount, dropAccountToken } from './api.js';
 import { getLang, setLang as saveLang, t } from './i18n.js';
 import { AppCtx, Avatar, Splash } from './components.jsx';
-import { IHome, ISearch, IPlusSquare, IReels } from './icons.jsx';
+import { IHome, ISearch, IReels, ISend } from './icons.jsx';
+import { applyTheme, onThemeChange } from './theme.js';
 import AuthFlow from './screens/Auth.jsx';
 import { addUsage, limitReminderDue } from './usage.js';
 import Feed from './screens/Feed.jsx';
@@ -114,6 +114,14 @@ export default function App() {
     profile: (username) => setStack((s) => [...s, { name: 'profile', props: { username }, key: Date.now() }]),
   }), []);
 
+  const [themeTick, setThemeTick] = useState(0);
+  useEffect(() => onThemeChange(() => setThemeTick((n) => n + 1)), []);
+  const topName = stack[stack.length - 1]?.name;
+  useEffect(() => {
+    const immersive = (!topName && tab === 'reels') || topName === 'stories' || topName === 'reelsViewer' || (topName === 'create');
+    applyTheme({ immersive });
+  }, [tab, topName, themeTick, token, booting]);
+
   // Android hardware back button
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -123,8 +131,6 @@ export default function App() {
       if (tabRef.current !== 'home') { setTab('home'); return; }
       CapApp.exitApp();
     });
-    StatusBar.setStyle({ style: Style.Light }).catch(() => {});
-    StatusBar.setBackgroundColor?.({ color: '#ffffff' }).catch?.(() => {});
     return () => { h.then((x) => x.remove()); };
   }, []);
 
@@ -154,23 +160,26 @@ export default function App() {
   }
 
   const top = stack[stack.length - 1];
-  const darkTab = tab === 'reels' && !top;
+  const darkTab = (tab === 'reels' && !top) || top?.name === 'stories' || top?.name === 'reelsViewer';
   return (
     <AppCtx.Provider value={ctx}>
       <div className={`app ${darkTab ? 'dark-tab' : ''}`} key={`${lang}-${session}`}>
         <main className="tab-area" hidden={!!top}>
           <div className="tab-pane" hidden={tab !== 'home'}><Feed active={tab === 'home' && !top} refreshKey={refreshKey} /></div>
-          <div className="tab-pane" hidden={tab !== 'search'}>{tab === 'search' || visited.has('search') ? <Search active={tab === 'search' && !top} /> : null}</div>
           <div className="tab-pane" hidden={tab !== 'reels'}>{tab === 'reels' ? <Reels active={!top} /> : null}</div>
+          <div className="tab-pane" hidden={tab !== 'messages'}>{tab === 'messages' || visited.has('messages') ? <Inbox isTab active={tab === 'messages' && !top} /> : null}</div>
+          <div className="tab-pane" hidden={tab !== 'search'}>{tab === 'search' || visited.has('search') ? <Search active={tab === 'search' && !top} /> : null}</div>
           <div className="tab-pane" hidden={tab !== 'profile'}>{tab === 'profile' || visited.has('profile') ? <Profile username={me?.username} isTab active={tab === 'profile' && !top} refreshKey={refreshKey} /> : null}</div>
         </main>
         <nav className={`bottom-nav ${darkTab ? 'dark' : ''}`} hidden={!!top && !NAV_SCREENS.has(top.name)}>
-          <button onClick={() => nav.tab('home')} aria-label={t('home')}><IHome active={tab === 'home'} size={27} /></button>
-          <button onClick={() => { visited.add('search'); nav.tab('search'); }} aria-label={t('search')}><ISearch active={tab === 'search'} size={27} /></button>
-          <button onClick={() => nav.push('create')} aria-label={t('create')}><IPlusSquare size={27} /></button>
-          <button onClick={() => nav.tab('reels')} aria-label={t('reels')}><IReels active={tab === 'reels'} size={27} /></button>
+          <button onClick={() => nav.tab('home')} aria-label={t('home')}><IHome active={tab === 'home' && !top} size={27} /></button>
+          <button onClick={() => nav.tab('reels')} aria-label={t('reels')}><IReels active={tab === 'reels' && !top} size={27} /></button>
+          <button className="badge-wrap" onClick={() => { visited.add('messages'); nav.tab('messages'); }} aria-label={t('messages')}>
+            <ISend size={27} active={tab === 'messages' && !top} />{badges.messages > 0 && <span className="num-badge">{badges.messages}</span>}
+          </button>
+          <button onClick={() => { visited.add('search'); nav.tab('search'); }} aria-label={t('search')}><ISearch active={tab === 'search' && !top} size={27} /></button>
           <button onClick={() => { visited.add('profile'); nav.tab('profile'); }} aria-label={t('profile')}>
-            <span className={`nav-avatar ${tab === 'profile' ? 'active' : ''}`}><Avatar src={me?.avatarUrl} name={me?.username} size={27} /></span>
+            <span className={`nav-avatar ${tab === 'profile' && !top ? 'active' : ''}`}><Avatar src={me?.avatarUrl} name={me?.username} size={27} /></span>
           </button>
         </nav>
         {stack.map((s, i) => {

@@ -32,14 +32,14 @@ export function StoriesTray({ tray, onOpen }) {
     <div className="stories-tray">
       <div className="story-item" onClick={() => mine ? onOpen(tray.indexOf(mine)) : nav.push('create', { mode: 'story' })}>
         <div className="story-avatar-wrap">
-          <Avatar src={me.avatarUrl} name={me.username} size={64} ring={mine ? (mine.allSeen ? 'seen' : 'story') : 'none'} />
-          <span className="story-plus" onClick={(e) => { e.stopPropagation(); nav.push('create', { mode: 'story' }); }}><IPlus size={14} sw={3} /></span>
+          <Avatar src={me.avatarUrl} name={me.username} size={86} ring={mine ? (mine.allSeen ? 'seen' : 'story') : 'none'} />
+          <span className="story-plus" onClick={(e) => { e.stopPropagation(); nav.push('create', { mode: 'story' }); }}><IPlus size={15} sw={3} /></span>
         </div>
         <span className="story-name">{t('yourStory')}</span>
       </div>
       {others.map((g) => (
         <div className="story-item" key={g.user.id} onClick={() => onOpen(tray.indexOf(g))}>
-          <Avatar src={g.user.avatarUrl} name={g.user.username} size={64} ring={g.allSeen ? 'seen' : g.close ? 'close' : 'story'} />
+          <Avatar src={g.user.avatarUrl} name={g.user.username} size={86} ring={g.allSeen ? 'seen' : g.close ? 'close' : 'story'} />
           <span className="story-name">{g.user.username}</span>
         </div>
       ))}
@@ -100,13 +100,11 @@ export default function Feed({ active, refreshKey }) {
   return (
     <div className="screen">
       <header className="feed-header">
-        <button className="feed-logo" onClick={() => setFilterOpen(true)}><Wordmark size={34} /><IDown size={16} /></button>
+        <button className="icon-btn" onClick={() => nav.push('create')} aria-label={t('create')}><IPlus size={30} sw={1.8} /></button>
+        <button className="feed-logo" onClick={() => setFilterOpen(true)} aria-label={t('followingFeed')}><Wordmark size={36} /></button>
         <div className="feed-header-actions">
           <button className="icon-btn badge-wrap" onClick={() => nav.push('notifications')} aria-label={t('notifications')}>
-            <IHeart size={27} />{(badges.notifications > 0) && <span className="dot-badge" />}
-          </button>
-          <button className="icon-btn badge-wrap" onClick={() => nav.push('inbox')} aria-label={t('messages')}>
-            <ISend size={26} />{badges.messages > 0 && <span className="num-badge">{badges.messages}</span>}
+            <IHeart size={28} />{(badges.notifications > 0 || badges.requests > 0) && <span className="dot-badge" />}
           </button>
         </div>
       </header>

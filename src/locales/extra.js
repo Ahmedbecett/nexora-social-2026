@@ -1,5 +1,6 @@
 // Strings added in Nexora 2.1 (account center, privacy controls, Firebase auth, multi-account).
 export const extraEn = {
+  theme: 'Theme', themeDark: 'Dark', themeLight: 'Light', themeSystem: 'System default', themeDesc: 'Choose how Nexora looks on this device.',
   loginId: 'Username, email or mobile number',
   loginIdShort: 'Username or email',
   email: 'Email address',
@@ -230,7 +231,8 @@ export const extraEn = {
     comments_restricted: 'Comments on this post are limited.',
     messages_restricted: "You can't message this account.",
     sharing_disabled: "This account doesn't allow sharing its posts.",
-    phone_region_disabled: 'SMS sign-in is not enabled for this country yet.',
+    phone_region_disabled: 'SMS sign-in is not enabled for this country yet. Use Google or email for now.',
+    app_not_authorized: 'This app build is not registered with Firebase yet (SHA fingerprint missing). Use email for now.',
     phone_billing: 'SMS sign-in is temporarily unavailable.',
     invalid_phone: 'Enter a valid mobile number.',
     invalid_code: 'That code is not correct. Check it and try again.',
@@ -246,6 +248,7 @@ export const extraEn = {
 };
 
 export const extraAr = {
+  theme: 'المظهر', themeDark: 'داكن', themeLight: 'فاتح', themeSystem: 'حسب إعداد الجهاز', themeDesc: 'اختر شكل Nexora على هذا الجهاز.',
   loginId: 'اسم المستخدم أو البريد الإلكتروني أو رقم الهاتف',
   loginIdShort: 'اسم المستخدم أو البريد الإلكتروني',
   email: 'البريد الإلكتروني',
@@ -467,7 +470,8 @@ export const extraAr = {
     comments_restricted: 'التعليقات على هذا المنشور مقيّدة.',
     messages_restricted: 'لا يمكنك مراسلة هذا الحساب.',
     sharing_disabled: 'هذا الحساب لا يسمح بمشاركة منشوراته.',
-    phone_region_disabled: 'الدخول برسائل SMS غير مفعّل لهذا البلد بعد.',
+    phone_region_disabled: 'الدخول برسائل SMS غير مفعّل لهذا البلد بعد. استخدم Google أو البريد مؤقتاً.',
+    app_not_authorized: 'نسخة التطبيق هذه غير مسجّلة في Firebase بعد (بصمة SHA ناقصة). استخدم البريد مؤقتاً.',
     phone_billing: 'الدخول برسائل SMS غير متاح مؤقتاً.',
     invalid_phone: 'أدخل رقم هاتف صحيحاً.',
     invalid_code: 'الرمز غير صحيح. تحقق منه وحاول مجدداً.',

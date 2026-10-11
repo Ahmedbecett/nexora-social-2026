@@ -356,7 +356,10 @@ function PhoneAuth({ back, finish }) {
     setError(''); setBusy(true);
     try {
       const { sendPhoneCode } = await import('../firebase.js');
-      confirmRef.current = await sendPhoneCode(e164, 'recaptcha-box');
+      let done = false;
+      const onAuto = (result) => { if (done) return; done = true; finish(result); };
+      const onError = (err) => setError(errText(err.code));
+      confirmRef.current = await sendPhoneCode(e164, 'recaptcha-box', { onAuto, onError, resend: step === 'code' });
       setStep('code'); setCooldown(60);
     } catch (err) { setError(errText(err.code)); }
     setBusy(false);

@@ -5,25 +5,26 @@
   "android": {
     "adjustMarginsForEdgeToEdge": "force",
     "allowMixedContent": false,
-    "backgroundColor": "#ffffff"
+    "backgroundColor": "#0c1014"
   },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 600,
       "launchAutoHide": true,
-      "backgroundColor": "#ffffff",
+      "backgroundColor": "#0c1014",
       "showSpinner": false,
       "androidScaleType": "CENTER_INSIDE"
     },
     "StatusBar": {
-      "style": "LIGHT",
-      "backgroundColor": "#ffffff",
+      "style": "DARK",
+      "backgroundColor": "#0c1014",
       "overlaysWebView": false
     },
     "FirebaseAuthentication": {
       "skipNativeAuth": true,
       "providers": [
-        "google.com"
+        "google.com",
+        "phone"
       ]
     }
   }
