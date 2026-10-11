@@ -258,53 +258,115 @@ function EditPostSheet({ post, onClose, onSaved }) {
 }
 
 /* ---------------- comments ---------------- */
+function CommentRow({ c, post, me, onReply, onLike, onDelete, onTag, onUser }) {
+  const lastTap = useRef(0);
+  const tap = () => { const n = Date.now(); if (n - lastTap.current < 300) { if (!c.liked) onLike(c); lastTap.current = 0; } else lastTap.current = n; };
+  const small = !!c.parentId;
+  return (
+    <div className={`comment ${small ? 'reply' : ''}`} onClick={tap}>
+      <Avatar src={c.user.avatarUrl} name={c.user.username} size={small ? 26 : 34} onClick={(e) => { e.stopPropagation(); onUser(c.user.username); }} />
+      <div className="comment-body">
+        <div className="comment-meta"><UserName user={c.user} /> <span className="muted">{timeAgo(c.createdAt)}</span>
+          {c.user.id === post.user.id && <span className="muted">· {t('author')}</span>}</div>
+        <div className="comment-text"><RichText text={c.text} onTag={onTag} onMention={onUser} /></div>
+        <div className="comment-actions">
+          <button onClick={(e) => { e.stopPropagation(); onReply(c); }}>{t('reply')}</button>
+          {c.ownerLiked && c.user.id !== post.user.id && <span className="by-author"><IHeart size={11} filled /> {t('byAuthor')}</span>}
+          {(c.user.id === me.id || post.user.id === me.id) && <button onClick={(e) => { e.stopPropagation(); onDelete(c); }}>{t('delete')}</button>}
+        </div>
+      </div>
+      <button className={`comment-like ${c.liked ? 'on' : ''}`} onClick={(e) => { e.stopPropagation(); onLike(c); }} aria-label="like">
+        <IHeart size={14} filled={c.liked} />{c.likeCount > 0 && <span>{fmtNum(c.likeCount)}</span>}
+      </button>
+    </div>
+  );
+}
+
 export function CommentsSheet({ open, post, onClose, onCount }) {
   const { me, nav, toast } = useApp();
   const [list, setList] = useState(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [replyTo, setReplyTo] = useState(null);
+  const [expanded, setExpanded] = useState({});
   const inputRef = useRef();
   useEffect(() => {
     if (!open) return;
-    setList(null);
+    setList(null); setReplyTo(null); setExpanded({});
     api(`posts/${post.id}/comments`).then((r) => setList(r.comments)).catch(() => setList([]));
   }, [open, post.id]);
   const send = async () => {
     if (!text.trim() || busy) return;
     setBusy(true);
     try {
-      const r = await api(`posts/${post.id}/comments`, { method: 'POST', body: { text } });
+      const r = await api(`posts/${post.id}/comments`, { method: 'POST', body: { text, parentId: replyTo?.id || undefined } });
       const nl = [...(list || []), r.comment];
-      setList(nl); onCount?.(nl.length); setText('');
+      setList(nl); onCount?.(nl.length); setText(''); setReplyTo(null);
+      if (r.comment.parentId) setExpanded((x) => ({ ...x, [r.comment.parentId]: true }));
     } catch (e) { toast(errText(e.code)); }
     setBusy(false);
   };
-  const del = async (c) => {
-    try { await api(`comments/${c.id}`, { method: 'DELETE' }); const nl = list.filter((x) => x.id !== c.id); setList(nl); onCount?.(nl.length); }
-    catch (e) { toast(errText(e.code)); }
+  const startReply = (c) => {
+    setReplyTo(c);
+    setText(c.user.id === me.id ? '' : `@${c.user.username} `);
+    setTimeout(() => inputRef.current?.focus(), 30);
   };
+  const like = async (c) => {
+    const on = !c.liked;
+    tapHaptic();
+    const upd = (liked, likeCount) => setList((l) => l.map((x) => (x.id === c.id ? { ...x, liked, likeCount, ownerLiked: me.id === post.user.id ? liked : x.ownerLiked } : x)));
+    upd(on, Math.max(0, (c.likeCount || 0) + (on ? 1 : -1)));
+    try { const r = await api(`comments/${c.id}/like`, { method: on ? 'POST' : 'DELETE' }); upd(r.liked, r.likeCount); }
+    catch (e) { upd(c.liked, c.likeCount); toast(errText(e.code)); }
+  };
+  const del = async (c) => {
+    try {
+      await api(`comments/${c.id}`, { method: 'DELETE' });
+      const nl = list.filter((x) => x.id !== c.id && x.parentId !== c.id);
+      setList(nl); onCount?.(nl.length);
+      if (replyTo && (replyTo.id === c.id || replyTo.parentId === c.id)) setReplyTo(null);
+    } catch (e) { toast(errText(e.code)); }
+  };
+  const rowProps = {
+    post, me, onReply: startReply, onLike: like, onDelete: del,
+    onTag: (tg) => { onClose(); nav.push('tag', { tag: tg }); },
+    onUser: (u) => { onClose(); nav.profile(u); },
+  };
+  const tops = (list || []).filter((c) => !c.parentId);
   return (
     <Sheet open={open} onClose={onClose} title={t('comments')} full>
       <div className="comments">
         {list === null ? <div className="center-pad"><Spinner /></div>
           : list.length === 0 ? <div className="empty small"><h3>{t('noComments')}</h3><p>{t('startConversation')}</p></div>
-            : list.map((c) => (
-              <div className="comment" key={c.id}>
-                <Avatar src={c.user.avatarUrl} name={c.user.username} size={34} onClick={() => { onClose(); nav.profile(c.user.username); }} />
-                <div className="comment-body">
-                  <div className="comment-meta"><UserName user={c.user} /> <span className="muted">{timeAgo(c.createdAt)}</span></div>
-                  <div className="comment-text"><RichText text={c.text} onTag={(tg) => { onClose(); nav.push('tag', { tag: tg }); }} onMention={(u) => { onClose(); nav.profile(u); }} /></div>
-                  {(c.user.id === me.id || post.user.id === me.id) && <button className="muted-btn small" onClick={() => del(c)}>{t('delete')}</button>}
+            : tops.map((c) => {
+              const reps = list.filter((x) => x.parentId === c.id);
+              return (
+                <div key={c.id}>
+                  <CommentRow c={c} {...rowProps} />
+                  {reps.length > 0 && (
+                    <div className="replies">
+                      {expanded[c.id] && reps.map((r) => <CommentRow key={r.id} c={r} {...rowProps} />)}
+                      <button className="view-replies" onClick={() => setExpanded((x) => ({ ...x, [c.id]: !x[c.id] }))}>
+                        <i />{expanded[c.id] ? t('hideReplies') : reps.length === 1 ? t('viewReply') : t('viewReplies', { n: reps.length })}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
       </div>
+      {replyTo && (
+        <div className="replying-bar">
+          <span>{t('replyingTo', { u: replyTo.user.username })}</span>
+          <button className="icon-btn" onClick={() => { setReplyTo(null); setText(''); }} aria-label="close">✕</button>
+        </div>
+      )}
       <div className="quick-emojis">
         {['❤️', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'].map((e) => <button key={e} onClick={() => { setText((x) => x + e); inputRef.current?.focus(); }}>{e}</button>)}
       </div>
       <div className="composer">
         <Avatar src={me?.avatarUrl} name={me?.username} size={34} />
-        <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} placeholder={t('addComment')} dir="auto"
+        <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} placeholder={replyTo ? t('replyingTo', { u: replyTo.user.username }) : t('addComment')} dir="auto"
           onKeyDown={(e) => e.key === 'Enter' && send()} />
         <button className="text-link strong" disabled={!text.trim() || busy} onClick={send}>{t('post')}</button>
       </div>

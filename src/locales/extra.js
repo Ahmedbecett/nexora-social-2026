@@ -541,3 +541,19 @@ Object.assign(extraAr, {
   msgSlideCancel: 'اضغط سلة المهملات للإلغاء',
 });
 Object.assign(extraAr.errors, { edit_expired: 'يمكنك تعديل الرسالة خلال 15 دقيقة فقط من إرسالها.', edit_text_only: 'يمكن تعديل الرسائل النصية فقط.' });
+
+// 2.4.6 — comment replies / likes, photo filters
+Object.assign(extraEn, {
+  reply: 'Reply', author: 'Author', byAuthor: 'by author', hideReplies: 'Hide replies', viewReply: 'View 1 more reply', viewReplies: 'View {n} more replies',
+  replyingTo: 'Replying to {u}', nReply: 'replied to your comment: {t}', nCommentLike: 'liked your comment: {t}',
+  filterTab: 'Filter', editTab: 'Edit', adj_brightness: 'Brightness', adj_contrast: 'Contrast', adj_saturation: 'Saturation', adj_warmth: 'Warmth',
+  reset: 'Reset', filtersPhotosOnly: 'Filters are available for photos.',
+});
+Object.assign(extraEn.errors, { comment_not_found: 'This comment is no longer available.' });
+Object.assign(extraAr, {
+  reply: 'رد', author: 'الناشر', byAuthor: 'من الناشر', hideReplies: 'إخفاء الردود', viewReply: 'عرض رد واحد', viewReplies: 'عرض {n} ردود أخرى',
+  replyingTo: 'الرد على {u}', nReply: 'ردّ على تعليقك: {t}', nCommentLike: 'أعجب بتعليقك: {t}',
+  filterTab: 'فلتر', editTab: 'تعديل', adj_brightness: 'السطوع', adj_contrast: 'التباين', adj_saturation: 'التشبع', adj_warmth: 'الدفء',
+  reset: 'إعادة تعيين', filtersPhotosOnly: 'الفلاتر متاحة للصور.',
+});
+Object.assign(extraAr.errors, { comment_not_found: 'هذا التعليق لم يعد متاحاً.' });

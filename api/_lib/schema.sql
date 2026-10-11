@@ -251,3 +251,13 @@ create table if not exists typing (
 alter table messages add column if not exists media_type text;
 alter table messages add column if not exists media_meta jsonb;
 alter table messages add column if not exists edited_at timestamptz;
+
+-- 2.4.6 — comment replies and comment likes
+alter table comments add column if not exists parent_id bigint references comments(id) on delete cascade;
+create index if not exists comments_parent_idx on comments(parent_id);
+create table if not exists comment_likes (
+  comment_id bigint not null references comments(id) on delete cascade,
+  user_id    bigint not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (comment_id, user_id)
+);

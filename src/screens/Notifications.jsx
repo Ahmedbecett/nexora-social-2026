@@ -67,6 +67,8 @@ export default function Notifications() {
     switch (n.type) {
       case 'like': return others === 0 ? t('nLike') : others === 1 ? t('nLike2', { u: n.actors[1].username }) : t('nLikeMany', { n: others });
       case 'comment': return t('nComment', { t: n.text });
+      case 'reply': return t('nReply', { t: n.text });
+      case 'comment_like': return t('nCommentLike', { t: n.text });
       case 'mention': return t('nMention', { t: n.text });
       case 'follow': return t('nFollow');
       case 'follow_request': return t('nRequest');
