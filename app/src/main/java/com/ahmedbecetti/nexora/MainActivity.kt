@@ -917,20 +917,44 @@ class MainActivity : Activity() {
         card.addView(name, LinearLayout.LayoutParams(-1, -2))
         card.addView(bio, LinearLayout.LayoutParams(-1, -2))
         card.addView(message)
+        name.setText(user.displayName ?: user.email?.substringBefore("@") ?: "")
+        bio.setText("")
+        message.text = user.email ?: user.phoneNumber ?: "NEXORA member"
         db.collection("users").document(user.uid).get().addOnSuccessListener { doc ->
-            name.setText(doc.getString("displayName") ?: user.displayName ?: "")
-            bio.setText(doc.getString("bio") ?: "")
-            message.text = user.email ?: "NEXORA member"
-        }.addOnFailureListener { message.text = "Profile couldn't load." }
+            if (doc.exists()) {
+                name.setText(doc.getString("displayName")?.takeIf { it.isNotBlank() } ?: user.displayName ?: user.email?.substringBefore("@") ?: "")
+                bio.setText(doc.getString("bio") ?: "")
+            } else {
+                // A valid Firebase account can exist before its Firestore profile document.
+                val initialName = user.displayName ?: user.email?.substringBefore("@") ?: "NEXORA member"
+                db.collection("users").document(user.uid).set(mapOf(
+                    "uid" to user.uid, "displayName" to initialName, "email" to (user.email ?: ""),
+                    "phoneNumber" to (user.phoneNumber ?: ""), "bio" to "",
+                    "photoUrl" to (user.photoUrl?.toString() ?: ""), "createdAt" to System.currentTimeMillis()
+                ), com.google.firebase.firestore.SetOptions.merge())
+            }
+        }.addOnFailureListener {
+            // Keep the form usable with Firebase Auth data instead of leaving an empty, broken profile.
+            message.text = user.email ?: user.phoneNumber ?: "Profile details are temporarily unavailable."
+        }
         card.addView(primaryButton("Save profile") {
             val n = name.text.toString().trim()
             val b = bio.text.toString().trim()
             if (n.isBlank() || n.length > 60 || b.length > 160) {
                 message.text = "Name required (max 60); bio max 160 characters."
             } else {
-                db.collection("users").document(user.uid).update(mapOf("displayName" to n, "bio" to b))
-                    .addOnSuccessListener { message.text = "Profile saved."; toast("Profile updated.") }
-                    .addOnFailureListener { message.text = "Save failed. Check Firestore rules." }
+                val profileData = mapOf(
+                    "uid" to user.uid, "displayName" to n, "bio" to b,
+                    "email" to (user.email ?: ""), "phoneNumber" to (user.phoneNumber ?: ""),
+                    "photoUrl" to (user.photoUrl?.toString() ?: ""), "updatedAt" to System.currentTimeMillis()
+                )
+                db.collection("users").document(user.uid).set(profileData, com.google.firebase.firestore.SetOptions.merge())
+                    .addOnSuccessListener {
+                        user.updateProfile(com.google.firebase.auth.UserProfileChangeRequest.Builder().setDisplayName(n).build())
+                        message.text = "Profile saved."
+                        toast("Profile updated.")
+                    }
+                    .addOnFailureListener { message.text = "Save failed. Check Firestore rules and connection." }
             }
         })
         body.addView(card)
