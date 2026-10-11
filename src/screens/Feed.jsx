@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { t } from '../i18n.js';
 import { useApp, Avatar, Wordmark, Spinner, Empty, ErrorBox, Sheet } from '../components.jsx';
 import { IHeart, ISend, IPlus, ICheck, IDown, IUsers, IStar } from '../icons.jsx';
-import { PostCard, SuggestedUsers } from './Post.jsx';
+import { PostCard, SuggestedUsers, WorldPostCard } from './Post.jsx';
 import { fetchWorld, newSeed } from './Reels.jsx';
 import { IGlobe } from '../icons.jsx';
 
@@ -89,6 +89,21 @@ export default function Feed({ active, refreshKey }) {
   const [filter, setFilter] = useState('following');
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef(filter); filterRef.current = filter;
+  // After the posts of people you follow, the feed continues vertically with real videos from around the world.
+  const [world, setWorld] = useState([]);
+  const wpage = useRef({ seed: newSeed(), offset: 0, done: false, busy: false });
+  const loadWorld = useCallback(async (reset) => {
+    const pg = wpage.current;
+    if (reset) { pg.seed = newSeed(); pg.offset = 0; pg.done = false; pg.busy = false; }
+    if (pg.done || pg.busy) return;
+    pg.busy = true;
+    try {
+      const r = await fetchWorld('mix', pg.seed, pg.offset, 6);
+      setWorld((w) => { const base = reset ? [] : w; const have = new Set(base.map((x) => x.id)); return [...base, ...r.posts.filter((x) => !have.has(x.id))]; });
+      pg.offset = r.nextOffset ?? pg.offset; if (!r.posts.length) pg.done = true;
+    } catch { /* offline */ } finally { pg.busy = false; }
+  }, []);
+  const openWorld = (p) => nav.push('reelsViewer', { posts: world, startIndex: world.indexOf(p), world: { topic: 'mix', seed: wpage.current.seed, offset: wpage.current.offset } });
   const feedPath = (cur) => `feed?${filterRef.current === 'favorites' ? 'filter=favorites&' : ''}${cur ? `cursor=${cur}` : ''}`;
 
   const load = useCallback(async () => {
@@ -96,6 +111,7 @@ export default function Feed({ active, refreshKey }) {
     try {
       const [f, s, sg] = await Promise.all([api(feedPath()), api('stories'), api('suggestions').catch(() => ({ users: [] }))]);
       setPosts(f.posts); setCursor(f.nextCursor); setTray(s.tray); setSuggestions(sg.users);
+      if (!f.nextCursor) loadWorld(true);
       if (!f.nextCursor) api('explore?suggested=1').then((r) => setSuggestedPosts(r.posts.slice(0, 12))).catch(() => {});
     } catch (e) { setError(e); }
   }, []);
@@ -110,11 +126,13 @@ export default function Feed({ active, refreshKey }) {
   }, [load]);
 
   const loadMore = async () => {
-    if (!cursor || loadingMore) return;
+    if (!cursor) { if (posts) loadWorld(false); return; }
+    if (loadingMore) return;
     setLoadingMore(true);
     try {
       const f = await api(feedPath(cursor));
       setPosts((p) => [...p, ...f.posts]); setCursor(f.nextCursor);
+      if (!f.nextCursor) loadWorld(true);
       if (!f.nextCursor) api('explore?suggested=1').then((r) => setSuggestedPosts(r.posts.slice(0, 12))).catch(() => {});
     } catch { /* ignore */ }
     setLoadingMore(false);
@@ -146,11 +164,9 @@ export default function Feed({ active, refreshKey }) {
               <>
                 {filter === 'favorites' && <div className="feed-filter-bar"><IStar size={16} filled /> {t('favorites')}<button className="text-link" onClick={() => { setFilter('following'); filterRef.current = 'following'; setPosts(null); load(); }}>{t('backToFeed')}</button></div>}
                 {posts.length === 0 && (filter === 'favorites' ? <Empty icon={<IStar size={36} />} title={t('favorites')} sub={t('noFavoritesFeed')} /> : <Empty title={t('welcome')} sub={t('welcomeSub')} />)}
-                {posts.length < 3 && <WorldStrip reloadKey={refreshKey} />}
                 {posts.map((p, i) => (
                   <div key={p.id}>
                     <PostCard post={p} onDeleted={(id) => setPosts((l) => l.filter((x) => x.id !== id))} />
-                    {i === 2 && <WorldStrip reloadKey={refreshKey} />}
                     {i === 1 && suggestions.length > 0 && <SuggestedUsers users={suggestions} onDismiss={(id) => setSuggestions((s) => s.filter((u) => u.id !== id))} />}
                   </div>
                 ))}
@@ -166,6 +182,13 @@ export default function Feed({ active, refreshKey }) {
                   <>
                     <div className="section-head pad"><b>{t('suggestedPosts')}</b></div>
                     {suggestedPosts.map((p) => <PostCard key={'s' + p.id} post={p} />)}
+                  </>
+                )}
+                {!cursor && world.length > 0 && (
+                  <>
+                    <div className="section-head pad"><b>{t('worldReels')}</b></div>
+                    {world.map((p) => <WorldPostCard key={p.id} post={p} onOpen={() => openWorld(p)} onHide={(id) => setWorld((w) => w.filter((x) => x.id !== id))} />)}
+                    {!wpage.current.done && <div className="center-pad"><Spinner /></div>}
                   </>
                 )}
               </>

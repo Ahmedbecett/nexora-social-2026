@@ -102,7 +102,8 @@ function ReelItem({ post: initial, active, near, muted, setMuted, onDeleted }) {
   return (
     <section className="reel" onClick={tap}
       onPointerDown={(e) => { if (!e.target.closest('.reel-ui')) { const tm = setTimeout(() => setPaused(true), 250); e.currentTarget.dataset.tm = tm; } }}
-      onPointerUp={(e) => { clearTimeout(Number(e.currentTarget.dataset.tm)); setPaused(false); }}>
+      onPointerUp={(e) => { clearTimeout(Number(e.currentTarget.dataset.tm)); setPaused(false); }}
+      onPointerCancel={(e) => { clearTimeout(Number(e.currentTarget.dataset.tm)); setPaused(false); }}>
       <video disableRemotePlayback ref={vRef} src={m.url} poster={m.poster || undefined} loop playsInline muted={muted} preload={active ? 'auto' : near ? 'metadata' : 'none'}
         className={`reel-video ${wide ? 'contain' : ''}`} onError={() => { if (world && active) hide(); }} />
       {heart > 0 && <span key={heart} className="big-heart"><IHeart filled size={110} /></span>}

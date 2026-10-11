@@ -4,9 +4,10 @@ import { tapHaptic } from '../theme.js';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 import { api, WEB_URL } from '../api.js';
+import { openUrl } from '../native.js';
 import { t, errText, fmtNum, timeAgo } from '../i18n.js';
 import { useApp, Avatar, UserName, RichText, AutoVideo, Sheet, ActionSheet, Confirm, Spinner, TopBar, Loading, ErrorBox, useAsync, FollowButton } from '../components.jsx';
-import { IMusic, IHeart, IComment, ISend, IBookmark, IMoreV, ITrash, IFlag, ILink, IVolume, IEdit, IUser, IRepost, IHeart as IH } from '../icons.jsx';
+import { IMusic, IHeart, IComment, ISend, IBookmark, IMoreV, ITrash, IFlag, ILink, IVolume, IEdit, IUser, IRepost, IMoreLines, IGlobe, IEyeOff, IReels, IHeart as IH } from '../icons.jsx';
 
 export async function shareLink(url, title) {
   try {
@@ -18,7 +19,7 @@ export async function shareLink(url, title) {
 }
 
 /* ---------------- media carousel ---------------- */
-function PostMedia({ post, onDoubleTap }) {
+function PostMedia({ post, onDoubleTap, aspect: forced }) {
   const [idx, setIdx] = useState(0);
   const { feedMuted: muted } = useMedia();
   const setMuted = setFeedMuted;
@@ -28,7 +29,7 @@ function PostMedia({ post, onDoubleTap }) {
   const media = post.media;
   const first = media[0] || {};
   const ratio = Math.max(0.8, Math.min(1.91, first.w && first.h ? first.w / first.h : 1));
-  const aspect = post.kind === 'reel' ? 4 / 5 : ratio;
+  const aspect = forced || (post.kind === 'reel' ? 4 / 5 : ratio);
 
   const tap = () => {
     const now = Date.now();
@@ -116,7 +117,7 @@ export function PostCard({ post: initial, onDeleted }) {
             ? <span className="post-audio"><IMusic size={13} /><span>{post.audio || `${post.user.username} · ${t('original')}`}</span></span>
             : post.location && <span className="post-loc">{post.location}</span>}
         </div>
-        <button className="icon-btn" onClick={() => setMenu(true)} aria-label="more"><IMoreV size={22} /></button>
+        <button className="icon-btn" onClick={() => setMenu(true)} aria-label="more"><IMoreLines size={24} /></button>
       </div>
       <PostMedia post={post} onDoubleTap={() => toggleLike(true)} />
       <div className="post-actions">
@@ -163,6 +164,76 @@ export function PostCard({ post: initial, onDeleted }) {
         onCount={(n) => setPost((p) => ({ ...p, commentCount: n }))} />
       <ShareSheet open={shareOpen} post={post} onClose={() => setShareOpen(false)} />
       {editing && <EditPostSheet post={post} onClose={() => setEditing(false)} onSaved={(c, l) => setPost((p) => ({ ...p, caption: c, location: l }))} />}
+    </article>
+  );
+}
+
+/* ---------------- world video as a feed post (Instagram-style, vertical feed) ---------------- */
+export function WorldPostCard({ post: initial, onHide, onOpen }) {
+  const { toast } = useApp();
+  const [post, setPost] = useState(initial);
+  const [menu, setMenu] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const root = useRef();
+  const m = post.media[0] || {};
+  const aspect = m.width && m.height && m.width > m.height ? Math.min(1.91, m.width / m.height) : 4 / 5;
+  // count a view after the video has been on screen for 2 seconds
+  useEffect(() => {
+    if (!post.wid || !root.current) return undefined;
+    let tm = null; let done = false;
+    const io = new IntersectionObserver(([e]) => {
+      if (done) return;
+      if (e.isIntersecting && e.intersectionRatio > 0.6) tm = tm || setTimeout(() => { done = true; api(`world/${post.wid}/view`, { method: 'POST' }).catch(() => {}); }, 2000);
+      else { clearTimeout(tm); tm = null; }
+    }, { threshold: [0, 0.6] });
+    io.observe(root.current);
+    return () => { io.disconnect(); clearTimeout(tm); };
+  }, [post.wid]);
+  const like = async (force) => {
+    if (!post.wid) return;
+    const val = force ? true : !post.liked;
+    if (force && post.liked) return;
+    if (val) tapHaptic();
+    setPost((p) => ({ ...p, liked: val, likeCount: p.likeCount + (val ? 1 : -1) }));
+    try { const r = await api(`world/${post.wid}/like`, { method: val ? 'POST' : 'DELETE' }); setPost((p) => ({ ...p, likeCount: r.likeCount, liked: r.liked })); }
+    catch (e) { setPost((p) => ({ ...p, liked: !val, likeCount: p.likeCount + (val ? -1 : 1) })); toast(errText(e.code)); }
+  };
+  const share = async () => { const ok = await shareLink(post.source.url, post.caption); if (!ok) toast(t('linkCopied')); };
+  const caption = post.caption || '';
+  const long = caption.length > 110;
+  return (
+    <article className="post world-post" ref={root}>
+      <div className="post-head">
+        <span className="world-avatar sm" onClick={onOpen}><IGlobe size={18} /></span>
+        <div className="post-head-text" onClick={onOpen}>
+          <span className="uname"><bdi>{post.source.author}</bdi></span>
+          <span className="post-audio"><IMusic size={13} /><span>{t('worldSource')} · {post.source.license}</span></span>
+        </div>
+        <button className="icon-btn" onClick={() => setMenu(true)} aria-label="more"><IMoreLines size={24} /></button>
+      </div>
+      <PostMedia post={post} aspect={aspect} onDoubleTap={() => like(true)} />
+      <div className="post-actions">
+        {post.wid && <button className={`icon-btn ${post.liked ? 'pop' : ''}`} onClick={() => like()} aria-label="like"><IHeart filled={post.liked} size={27} /></button>}
+        <button className="icon-btn" onClick={onOpen} aria-label={t('reels')}><IReels size={26} /></button>
+        <button className="icon-btn" onClick={share} aria-label="share"><ISend size={25} /></button>
+        <span className="flex1" />
+      </div>
+      <div className="post-info">
+        {post.likeCount > 0 && <div className="likes">{post.likeCount === 1 ? t('like1') : `${fmtNum(post.likeCount)} ${t('likes')}`}</div>}
+        {caption && (
+          <div className={`caption ${expanded ? 'open' : ''}`}>
+            <b className="cap-user">{post.source.author}</b>{' '}
+            <span dir="auto">{expanded || !long ? caption : caption.slice(0, 100) + '…'}</span>
+            {long && !expanded && <button className="more-btn" onClick={() => setExpanded(true)}>{t('more')}</button>}
+          </div>
+        )}
+      </div>
+      <ActionSheet open={menu} onClose={() => setMenu(false)} actions={[
+        { label: t('reels'), icon: <IReels size={22} />, onClick: onOpen },
+        { label: t('viewSource'), icon: <IGlobe size={22} />, onClick: () => openUrl(post.source.url) },
+        { label: t('copyLink'), icon: <ILink size={22} />, onClick: share },
+        { label: t('notInterested'), icon: <IEyeOff size={22} />, onClick: () => { onHide?.(post.id); if (post.wid) api(`world/${post.wid}/hide`, { method: 'POST' }).catch(() => {}); toast(t('notInterestedDone')); } },
+      ]} />
     </article>
   );
 }

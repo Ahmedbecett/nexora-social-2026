@@ -820,3 +820,8 @@ html[data-theme='dark'] .wordmark.grad.auto { background: none; -webkit-text-fil
 .post-actions .icon-btn.reposted { color: #3ccb7f; }
 .profile-buttons .btn { min-width: 0; padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html[lang='ar'] .profile-buttons .btn, html[lang='fa'] .profile-buttons .btn, html[lang='ur'] .profile-buttons .btn { font-size: 14px; }
+/* home: world videos as vertical feed posts */
+.world-avatar.sm { width: 34px; height: 34px; background: var(--chip); border: 1px solid var(--border); color: var(--text); cursor: pointer; }
+.world-post .post-head .uname { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.world-post .post-media { max-height: none; background: #000; }
+.world-post .post-info .likes { font-weight: 600; font-size: 14px; }
