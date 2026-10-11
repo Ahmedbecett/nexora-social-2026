@@ -118,7 +118,7 @@ const ar = {
   // misc
   loading: 'جارٍ التحميل...', retry: 'إعادة المحاولة', error: 'حدث خطأ ما', offline: 'تعذر الاتصال بالخادم',
   original: 'الصوت الأصلي', verified: 'موثّق', mutualsFollowedBy: 'يتابعه {u}',
-  followsYou: 'يتابعك', tapToUnmute: 'اضغط لتشغيل الصوت', noReels: 'لا توجد مقاطع ريلز بعد',
+  followsYou: 'يتابعك', tapToUnmute: 'اضغط لتشغيل الصوت', noReels: 'لا توجد مقاطع ريلز بعد', noReelsSub: 'ستظهر هنا مقاطع الريلز القصيرة التي يشاركها الناس — صوّر مقطعك الأول الآن.',
   topic_nature: 'الطبيعة', topic_animals: 'الحيوانات', topic_space: 'الفضاء', topic_ocean: 'البحر', topic_city: 'المدن', topic_sports: 'الرياضة', topic_dance: 'الرقص', topic_music: 'الموسيقى', topic_food: 'الطعام', topic_travel: 'السفر',
   friends: 'الأصدقاء', friendsEmptyTitle: 'ريلز الأصدقاء', friendsEmpty: 'عندما يشارك الأشخاص الذين تتابعهم مقاطع ريلز، ستظهر هنا.', findPeople: 'ابحث عن أشخاص لمتابعتهم',
   chooseTopics: 'اختر ما تريد مشاهدته', seeMore: 'المزيد', repost: 'إعادة النشر', reposted: 'تمت إعادة النشر', repostRemoved: 'تمت إزالة إعادة النشر', removeRepost: 'إزالة إعادة النشر',
@@ -260,7 +260,7 @@ const en = {
   chooseStories: 'Choose stories', noArchive: 'No stories in your archive yet.',
   loading: 'Loading...', retry: 'Retry', error: 'Something went wrong', offline: "Couldn't reach the server",
   original: 'Original audio', verified: 'Verified', mutualsFollowedBy: 'Followed by {u}',
-  followsYou: 'Follows you', tapToUnmute: 'Tap to unmute', noReels: 'No reels yet',
+  followsYou: 'Follows you', tapToUnmute: 'Tap to unmute', noReels: 'No reels yet', noReelsSub: 'Short reels people share will appear here — record your first one now.',
   topic_nature: 'Nature', topic_animals: 'Animals', topic_space: 'Space', topic_ocean: 'Ocean', topic_city: 'Cities', topic_sports: 'Sports', topic_dance: 'Dance', topic_music: 'Music', topic_food: 'Food', topic_travel: 'Travel',
   friends: 'Friends', friendsEmptyTitle: 'Reels from friends', friendsEmpty: "When people you follow share reels, you'll see them here.", findPeople: 'Find people to follow',
   chooseTopics: 'Choose what you see', seeMore: 'See more', repost: 'Repost', reposted: 'Reposted', repostRemoved: 'Repost removed', removeRepost: 'Remove repost',

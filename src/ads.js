@@ -6,6 +6,9 @@
 import { Capacitor } from '@capacitor/core';
 import { api } from './api.js';
 
+// وحدة البانر الرسمية للتطبيق — تُستعمل إذا لم يُرجع الخادم وحدة إعلان (بلا أي شيء وهمي).
+const FALLBACK_BANNER = 'ca-app-pub-6858364141205978/9187800239';
+
 let AdMob = null, enums = null;
 let unit = null;
 let ready = false, created = false, visible = false;
@@ -21,8 +24,11 @@ function setVar() {
 export async function initAds() {
   if (!Capacitor.isNativePlatform() || ready) return;
   try {
-    const cfg = await api('app/config');
-    unit = cfg?.ads?.enabled ? (cfg.ads.androidBanner || '').trim() : '';
+    let cfg = null;
+    try { cfg = await api('app/config'); } catch { cfg = null; }
+    unit = (cfg && cfg.ads && cfg.ads.enabled === false)
+      ? ''                                                   // مُعطّلة من الخادم صراحةً
+      : ((cfg?.ads?.androidBanner || '').trim() || FALLBACK_BANNER);
     if (!/^ca-app-pub-\d+\/\d+$/.test(unit)) return; // not configured -> no ads
     const mod = await import('@capacitor-community/admob');
     AdMob = mod.AdMob; enums = mod;

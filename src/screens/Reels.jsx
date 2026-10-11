@@ -104,6 +104,7 @@ function ReelItem({ post: initial, active, near, muted, setMuted, onDeleted }) {
       onPointerDown={(e) => { if (!e.target.closest('.reel-ui')) { const tm = setTimeout(() => setPaused(true), 250); e.currentTarget.dataset.tm = tm; } }}
       onPointerUp={(e) => { clearTimeout(Number(e.currentTarget.dataset.tm)); setPaused(false); }}
       onPointerCancel={(e) => { clearTimeout(Number(e.currentTarget.dataset.tm)); setPaused(false); }}>
+      {wide && m.poster && <div className="reel-back" style={{ backgroundImage: `url(${m.poster})` }} />}
       <video disableRemotePlayback ref={vRef} src={m.url} poster={m.poster || undefined} loop playsInline muted={muted} preload={active ? 'auto' : near ? 'metadata' : 'none'}
         className={`reel-video ${wide ? 'contain' : ''}`} onError={() => { if (world && active) hide(); }} />
       {heart > 0 && <span key={heart} className="big-heart"><IHeart filled size={110} /></span>}
@@ -158,7 +159,7 @@ function ReelItem({ post: initial, active, near, muted, setMuted, onDeleted }) {
   );
 }
 
-export function ReelsFeed({ initial, startIndex = 0, active = true, fetchMore = true, topic = 'mix', world: worldInit, friends = false }) {
+export function ReelsFeed({ initial, startIndex = 0, active = true, fetchMore = true, topic = 'mix', world: worldInit, friends = false, includeWorld = false }) {
   const { nav } = useApp();
   const [posts, setPosts] = useState(initial || null);
   const [current, setCurrent] = useState(startIndex);
@@ -185,12 +186,12 @@ export function ReelsFeed({ initial, startIndex = 0, active = true, fetchMore = 
         if (friends) { if (!pg.ownDone && r.posts.length && !r.posts.some((x) => x.following)) { pg.busy = false; return next(); } return; }
         if (r.posts.length >= 3) return;
       }
-      if (!pg.worldDone && !friends) {
+      if (!pg.worldDone && !friends && includeWorld) {
         const r = await fetchWorld(topic, pg.seed, pg.offset);
         add(r.posts); pg.offset = r.nextOffset ?? pg.offset; if (!r.posts.length) pg.worldDone = true;
       }
     } finally { pg.busy = false; }
-  }, [topic, friends]);
+  }, [topic, friends, includeWorld]);
 
   useEffect(() => {
     if (initial) return;
@@ -211,7 +212,14 @@ export function ReelsFeed({ initial, startIndex = 0, active = true, fetchMore = 
   if (!posts.length) return friends ? (
     <div className="reels-loading friends-empty"><IReels size={48} /><h3>{t('friendsEmptyTitle')}</h3><p>{t('friendsEmpty')}</p>
       <button className="btn btn-primary" onClick={() => nav.tab('search')}>{t('findPeople')}</button></div>
-  ) : <div className="reels-loading"><IReels size={48} /><p>{t('noReels')}</p></div>;
+  ) : (
+    <div className="reels-loading reels-empty">
+      <IReels size={54} />
+      <h3>{t('noReels')}</h3>
+      <p>{t('noReelsSub')}</p>
+      <button className="btn btn-primary" onClick={() => nav.push('create', { mode: 'reel' })}>{t('newReel')}</button>
+    </div>
+  );
   return (
     <div className="reels" ref={ref} onScroll={onScroll}>
       {posts.map((p, i) => (
@@ -280,7 +288,8 @@ export function ReelsViewer({ posts, startIndex, world }) {
   return (
     <div className="screen dark">
       <TopBar transparent className="dark-bar" title="" />
-      <ReelsFeed initial={posts} startIndex={startIndex} fetchMore={!!world} topic={world?.topic || 'mix'} world={world} />
+      <ReelsFeed initial={posts} startIndex={startIndex} fetchMore={!!world} topic={world?.topic || 'mix'}
+        world={world} includeWorld={!!world} />
     </div>
   );
 }

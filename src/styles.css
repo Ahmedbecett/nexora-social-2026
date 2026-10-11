@@ -1028,3 +1028,16 @@ html:not([data-theme='dark']) .msg-menu-time { color: #737373; }
 .acct-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
 .acct-txt b { font-size: 15.5px; font-weight: 600; }
 .acct-txt small { font-size: 13px; }
+
+/* 2.6.0 — الريلز الحقيقية: خلفية مموّهة للمقاطع العريضة (لا فراغ أسود كالويب) */
+.reel-back {
+  position: absolute; inset: -6%;
+  background-size: cover; background-position: center;
+  filter: blur(26px) brightness(.55) saturate(1.25);
+  transform: scale(1.12); z-index: 0; pointer-events: none;
+}
+.reel-video.contain { z-index: 1; }
+.reels-empty { text-align: center; gap: 10px; }
+.reels-empty h3 { font-size: 18px; font-weight: 700; }
+.reels-empty p { max-width: 300px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.reels-empty .btn { margin-top: 6px; }

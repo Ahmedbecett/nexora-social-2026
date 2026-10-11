@@ -368,7 +368,7 @@ const SMS_TEXT = {
 
 // Ads config (served from the server so the banner unit can be changed / switched off without a new APK).
 // Set ADMOB_BANNER_ANDROID on Vercel, or edit ADS_DEFAULT below. Empty = no ads.
-const ADS_DEFAULT = { appId: 'ca-app-pub-6858364141205978~9239771129', androidBanner: '' };
+const ADS_DEFAULT = { appId: 'ca-app-pub-6858364141205978~9239771129', androidBanner: 'ca-app-pub-6858364141205978/9187800239' };
 route('GET', 'app/config', async () => ({
   ads: {
     enabled: process.env.ADS_ENABLED !== '0',
