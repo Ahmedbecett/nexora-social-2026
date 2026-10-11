@@ -85,6 +85,8 @@ const ar = {
   loading: 'جارٍ التحميل...', retry: 'إعادة المحاولة', error: 'حدث خطأ ما', offline: 'تعذر الاتصال بالخادم',
   original: 'الصوت الأصلي', verified: 'موثّق', mutualsFollowedBy: 'يتابعه {u}',
   followsYou: 'يتابعك', tapToUnmute: 'اضغط لتشغيل الصوت', noReels: 'لا توجد مقاطع ريلز بعد',
+  topic_nature: 'الطبيعة', topic_animals: 'الحيوانات', topic_space: 'الفضاء', topic_ocean: 'البحر', topic_city: 'المدن', topic_sports: 'الرياضة', topic_dance: 'الرقص', topic_music: 'الموسيقى', topic_food: 'الطعام', topic_travel: 'السفر',
+  worldReels: 'ريلز من حول العالم', worldSource: 'ويكيميديا كومنز', viewSource: 'عرض المصدر', notInterested: 'غير مهتم', notInterestedDone: 'لن نعرض لك هذا المقطع مجدداً',
   errors: {
     invalid_credentials: 'بيانات الدخول غير صحيحة. تحقق من اسم المستخدم وكلمة السر.',
     missing_credentials: 'أدخل اسم المستخدم وكلمة السر.',
@@ -180,6 +182,8 @@ const en = {
   loading: 'Loading...', retry: 'Retry', error: 'Something went wrong', offline: "Couldn't reach the server",
   original: 'Original audio', verified: 'Verified', mutualsFollowedBy: 'Followed by {u}',
   followsYou: 'Follows you', tapToUnmute: 'Tap to unmute', noReels: 'No reels yet',
+  topic_nature: 'Nature', topic_animals: 'Animals', topic_space: 'Space', topic_ocean: 'Ocean', topic_city: 'Cities', topic_sports: 'Sports', topic_dance: 'Dance', topic_music: 'Music', topic_food: 'Food', topic_travel: 'Travel',
+  worldReels: 'Reels from around the world', worldSource: 'Wikimedia Commons', viewSource: 'View source', notInterested: 'Not interested', notInterestedDone: "We won't show you this reel again",
   errors: {
     invalid_credentials: 'Incorrect username or password.',
     missing_credentials: 'Enter your username and password.',

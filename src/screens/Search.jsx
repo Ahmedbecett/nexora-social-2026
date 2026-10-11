@@ -4,6 +4,17 @@ import { t, fmtNum } from '../i18n.js';
 import { useApp, Avatar, UserName, Loading, Empty, Tabs, Thumb, TopBar, useAsync, ErrorBox, FollowButton } from '../components.jsx';
 import { ISearch, IBack, IClose } from '../icons.jsx';
 import { usePullToRefresh } from './Feed.jsx';
+import { TopicChips, fetchWorld, newSeed } from './Reels.jsx';
+
+const REEL_BADGE = <span className="grid-badge"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm2.6 7.5v7l5.5-3.5Z" /></svg></span>;
+export function WorldThumb({ post, tall, onClick }) {
+  return (
+    <div className={`grid-item ${tall ? 'tall' : ''}`} onClick={onClick}>
+      <img src={post.media[0].poster} alt={post.caption} loading="lazy" />
+      {REEL_BADGE}
+    </div>
+  );
+}
 
 const RECENT_KEY = 'nx_recent_search';
 
@@ -17,8 +28,29 @@ export default function Search({ active }) {
   const [users, setUsers] = useState(null);
   const [recent, setRecent] = useState(() => { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } });
   const scrollRef = useRef();
-  const loadExplore = async () => { try { const r = await api('explore'); setExplore(r.posts); setCursor(r.nextCursor); } catch { setExplore([]); } };
-  useEffect(() => { loadExplore(); }, []);
+  const [topic, setTopic] = useState('mix');
+  const [world, setWorld] = useState([]);
+  const wpage = useRef({ seed: newSeed(), offset: 0, done: false, busy: false });
+  const topicRef = useRef(topic); topicRef.current = topic;
+  const loadWorld = async (reset) => {
+    const pg = wpage.current;
+    if (reset) { pg.seed = newSeed(); pg.offset = 0; pg.done = false; }
+    if (pg.done || pg.busy) return;
+    pg.busy = true;
+    try {
+      const tp = topicRef.current;
+      const r = await fetchWorld(tp, pg.seed, pg.offset, 24);
+      if (tp !== topicRef.current) return;
+      setWorld((w) => { const base = reset ? [] : w; const have = new Set(base.map((x) => x.id)); return [...base, ...r.posts.filter((x) => !have.has(x.id))]; });
+      pg.offset = r.nextOffset ?? pg.offset; if (!r.posts.length) pg.done = true;
+    } catch { /* offline */ } finally { pg.busy = false; }
+  };
+  const loadExplore = async () => {
+    const own = topicRef.current === 'mix' ? api('explore').then((r) => { setExplore(r.posts); setCursor(r.nextCursor); }).catch(() => setExplore([])) : Promise.resolve(setExplore([]));
+    wpage.current.busy = false;
+    await Promise.all([own, loadWorld(true)]);
+  };
+  useEffect(() => { setExplore(null); setWorld([]); loadExplore(); }, [topic]); // eslint-disable-line
   const { pull } = usePullToRefresh(scrollRef, loadExplore);
 
   useEffect(() => {
@@ -40,10 +72,11 @@ export default function Search({ active }) {
   };
   const openUser = (u) => { remember({ id: u.id, username: u.username, fullName: u.fullName, avatarUrl: u.avatarUrl, verified: u.verified }); nav.profile(u.username); };
   const more = async () => {
-    if (!cursor) return;
+    if (!cursor) { loadWorld(false); return; }
     const c = cursor; setCursor(null);
     try { const r = await api(`explore?cursor=${c}`); setExplore((e) => [...e, ...r.posts]); setCursor(r.nextCursor); } catch { /* */ }
   };
+  const openWorld = (p) => nav.push('reelsViewer', { posts: world, startIndex: world.indexOf(p), world: { topic, seed: wpage.current.seed, offset: wpage.current.offset } });
   const searching = focused || q;
 
   return (
@@ -100,12 +133,14 @@ export default function Search({ active }) {
       ) : (
         <div className="scroll" ref={scrollRef} onScroll={(e) => { const el = e.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 600) more(); }}>
           <div className="ptr" style={{ height: pull }} />
-          {explore === null ? <Loading /> : explore.length === 0 ? <Empty sub={t('noPosts')} /> : (
+          <TopicChips value={topic} onChange={setTopic} />
+          {explore === null && !world.length ? <Loading /> : (explore || []).length + world.length === 0 ? <Empty sub={t('noPosts')} /> : (
             <div className="grid explore-grid">
-              {explore.map((p, i) => (
+              {(explore || []).map((p, i) => (
                 <Thumb key={p.id} post={p} tall={p.kind === 'reel' || i % 10 === 2 || i % 10 === 5}
                   onClick={() => p.kind === 'reel' ? nav.push('reelsViewer', { posts: explore.filter((x) => x.kind === 'reel'), startIndex: explore.filter((x) => x.kind === 'reel').indexOf(p) }) : nav.push('postList', { posts: explore.filter((x) => x.kind !== 'reel'), startId: p.id, title: t('forYou') })} />
               ))}
+              {world.map((p, i) => <WorldThumb key={p.id} post={p} tall={i % 10 === 2 || i % 10 === 5} onClick={() => openWorld(p)} />)}
             </div>
           )}
         </div>

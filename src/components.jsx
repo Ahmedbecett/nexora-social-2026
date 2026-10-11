@@ -2,8 +2,9 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from './api.js';
 import { t, errText } from './i18n.js';
-import { IBack, IVerified } from './icons.jsx';
+import { IBack, IVerified, ISun, IMoon } from './icons.jsx';
 import { useMedia, playSafe } from './media.js';
+import { onThemeChange, resolvedTheme, setThemePref, tapHaptic } from './theme.js';
 
 export const AppCtx = createContext(null);
 export const useApp = () => useContext(AppCtx);
@@ -254,5 +255,18 @@ export function Thumb({ post, onClick, tall }) {
       {post.kind === 'reel' && <span className="grid-badge"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm2.6 7.5v7l5.5-3.5Z" /></svg></span>}
       {post.kind !== 'reel' && post.media.length > 1 && <span className="grid-badge"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M8 2h11a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3Zm-6 5v12a3 3 0 0 0 3 3h12v-2H5a1 1 0 0 1-1-1V7Z" /></svg></span>}
     </div>
+  );
+}
+
+/** One-tap dark / light switch (the full choice incl. "system" lives in Settings → Theme). */
+export function ThemeToggle({ className = '' }) {
+  const [, force] = useState(0);
+  useEffect(() => onThemeChange(() => force((n) => n + 1)), []);
+  const dark = resolvedTheme() === 'dark';
+  return (
+    <button className={`icon-btn theme-toggle ${className}`} type="button" aria-label={t('theme')}
+      onClick={() => { setThemePref(dark ? 'light' : 'dark'); tapHaptic(); }}>
+      {dark ? <ISun size={26} /> : <IMoon size={25} />}
+    </button>
   );
 }

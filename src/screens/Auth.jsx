@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { api, getAccounts, forgetAccount, dropAccountToken } from '../api.js';
 import { t, errText, LANGUAGES, getLang } from '../i18n.js';
-import { useApp, Wordmark, Spinner, Sheet, Avatar, Glyph, FromBrand, ActionSheet } from '../components.jsx';
+import { useApp, Wordmark, Spinner, Sheet, Avatar, Glyph, FromBrand, ActionSheet, ThemeToggle } from '../components.jsx';
 import { IEye, IEyeOff, IDown, IBack, ICheck, IClose, IMoreH, IChevron, IGoogle, IPhone, IMail, ISearch, ITrash } from '../icons.jsx';
 
 const noAuth = { token: null };
@@ -228,7 +228,7 @@ function Login({ prefill, go, back, canBack, finish }) {
       <div className="auth-top between">
         {canBack ? <button className="icon-btn" type="button" onClick={back} aria-label="back"><IBack size={28} /></button> : <span />}
         <LangPicker />
-        <span style={{ width: 40 }} />
+        <ThemeToggle />
       </div>
       <form className="auth-body" onSubmit={submit}>
         <div className="auth-logo"><Glyph size={64} filled /><Wordmark size={52} gradient /></div>

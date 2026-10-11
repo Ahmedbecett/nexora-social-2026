@@ -156,3 +156,42 @@ create table if not exists otp_limits (
   count        int not null default 0,
   last_at      timestamptz not null default now()
 );
+
+-- world reels: freely-licensed videos from Wikimedia Commons (cached)
+create table if not exists world_media (
+  id          bigserial primary key,
+  source      text not null,
+  source_id   text not null,
+  topic       text not null,
+  url         text not null,
+  poster      text,
+  width       int,
+  height      int,
+  duration    real,
+  title       text,
+  description text,
+  author      text,
+  license     text,
+  page_url    text,
+  created_at  timestamptz not null default now(),
+  unique (source, source_id)
+);
+create index if not exists world_media_topic_idx on world_media(topic);
+create table if not exists world_fetch (
+  topic      text primary key,
+  fetched_at timestamptz,
+  runs       int not null default 0
+);
+create table if not exists world_likes (
+  user_id    bigint not null references users(id) on delete cascade,
+  media_id   bigint not null references world_media(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, media_id)
+);
+create index if not exists world_likes_media_idx on world_likes(media_id);
+create table if not exists world_hidden (
+  user_id    bigint not null references users(id) on delete cascade,
+  media_id   bigint not null references world_media(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, media_id)
+);

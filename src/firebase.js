@@ -53,7 +53,16 @@ export async function signInWithGoogle() {
   try {
     if (Capacitor.isNativePlatform()) {
       const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
-      const res = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true });
+      let res;
+      try {
+        res = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true });
+      } catch (e) {
+        const msg = String(e?.message || e?.code || '');
+        if (/cancel/i.test(msg) && !/no credentials/i.test(msg)) throw e;
+        // Credential Manager fails on some phones (no saved Google account, outdated Play services):
+        // fall back to the classic Google Sign-In screen, which also lets the user add an account.
+        res = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true, useCredentialManager: false });
+      }
       const idToken = res?.credential?.idToken;
       if (!idToken) throw new AuthFlowError('google_failed');
       return await api('auth/google', { method: 'POST', body: { idToken } });

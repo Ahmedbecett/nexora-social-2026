@@ -5,6 +5,7 @@ import { del as blobDel } from '@vercel/blob';
 import crypto from 'node:crypto';
 import { q, one } from './db.js';
 import { smsProvider, sendSms } from './sms.js';
+import { ensure as worldEnsure, listWorld, likeWorld, hideWorld, isTopic } from './world.js';
 import { fbSignUp, fbSignIn, fbUpdate, fbDelete, fbSendVerify, fbSendReset, fbSignInWithGoogle, verifyFirebaseIdToken } from './firebase.js';
 
 export class HttpError extends Error {
@@ -250,6 +251,9 @@ async function resolveIdentity({ uid, email, emailVerified, phone, name, photo }
     const tail = phone.replace(/\D/g, '').slice(-9);
     u = await one(`select * from users where firebase_uid is null and (phone=$1 or (length($2) = 9 and right(regexp_replace(phone, '\\D', '', 'g'), 9) = $2)) limit 1`, [phone, tail]);
     if (u) u = await one('update users set firebase_uid=$2 where id=$1 returning *', [u.id, uid]);
+  }
+  if (u && !u.avatar_url && typeof photo === 'string' && /^https:\/\/lh\d\.googleusercontent\.com\//.test(photo)) {
+    u = await one('update users set avatar_url=$2 where id=$1 returning *', [u.id, photo]);
   }
   if (u) return session(u);
   const suggested = (email ? email.split('@')[0] : (name || 'user')).toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 24) || 'user';
@@ -801,6 +805,30 @@ route('GET', 'reels', async ({ req, query }) => {
   if (query.cursor) { args.push(query.cursor); cur = ` and p.id < $2`; }
   const rows = await q(`${POST_SELECT} where p.kind='reel' and ${VISIBLE} and (u.id=$1 or ${NOT_MUTED}) ${cur} order by p.id desc limit 10`, args);
   return { posts: rows.map(mapPost), nextCursor: rows.length === 10 ? Number(rows[rows.length - 1].id) : null };
+});
+
+/* ---------- world reels (Wikimedia Commons, freely licensed) ---------- */
+route('GET', 'world/reels', async ({ req, query }) => {
+  const me = await authUser(req);
+  const topic = isTopic(query.topic) ? query.topic : 'mix';
+  const offset = Math.max(0, Number(query.offset) || 0);
+  const limit = Math.min(30, Math.max(1, Number(query.limit) || 8));
+  if (offset === 0 || offset % 24 === 0) await worldEnsure(topic);
+  let posts = await listWorld(me.id, { topic, seed: query.seed, offset, limit });
+  if (posts.length < limit && offset > 0) { await worldEnsure(topic); posts = await listWorld(me.id, { topic, seed: query.seed, offset, limit }); }
+  return { posts, nextOffset: posts.length ? offset + posts.length : null };
+});
+route('POST', 'world/:id/like', async ({ req, params }) => {
+  const me = await authUser(req);
+  return likeWorld(me.id, Number(params.id), true);
+});
+route('DELETE', 'world/:id/like', async ({ req, params }) => {
+  const me = await authUser(req);
+  return likeWorld(me.id, Number(params.id), false);
+});
+route('POST', 'world/:id/hide', async ({ req, params }) => {
+  const me = await authUser(req);
+  return hideWorld(me.id, Number(params.id));
 });
 
 route('POST', 'posts', async ({ req, body }) => {

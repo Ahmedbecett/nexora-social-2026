@@ -4,6 +4,35 @@ import { t } from '../i18n.js';
 import { useApp, Avatar, Wordmark, Spinner, Empty, ErrorBox, Sheet } from '../components.jsx';
 import { IHeart, ISend, IPlus, ICheck, IDown, IUsers, IStar } from '../icons.jsx';
 import { PostCard, SuggestedUsers } from './Post.jsx';
+import { fetchWorld, newSeed } from './Reels.jsx';
+import { IGlobe } from '../icons.jsx';
+
+/** Horizontal row of real, freely-licensed reels from around the world (Wikimedia Commons). */
+export function WorldStrip({ reloadKey }) {
+  const { nav } = useApp();
+  const [items, setItems] = useState([]);
+  const seed = useRef(newSeed());
+  useEffect(() => {
+    seed.current = newSeed();
+    fetchWorld('mix', seed.current, 0, 12).then((r) => setItems(r.posts)).catch(() => {});
+  }, [reloadKey]);
+  if (!items.length) return null;
+  const open = (i) => nav.push('reelsViewer', { posts: items, startIndex: i, world: { topic: 'mix', seed: seed.current, offset: items.length } });
+  return (
+    <div className="world-strip">
+      <div className="world-strip-head"><b>{t('worldReels')}</b><button className="text-link" onClick={() => nav.tab('reels')}>{t('seeAll')}</button></div>
+      <div className="world-strip-row">
+        {items.map((p, i) => (
+          <div className="world-card" key={p.id} onClick={() => open(i)}>
+            <img src={p.media[0].poster} alt="" loading="lazy" />
+            <span className="grid-badge"><IGlobe size={16} /></span>
+            <span className="world-card-cap">{p.caption}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function usePullToRefresh(ref, onRefresh) {
   const [pull, setPull] = useState(0);
@@ -117,9 +146,11 @@ export default function Feed({ active, refreshKey }) {
               <>
                 {filter === 'favorites' && <div className="feed-filter-bar"><IStar size={16} filled /> {t('favorites')}<button className="text-link" onClick={() => { setFilter('following'); filterRef.current = 'following'; setPosts(null); load(); }}>{t('backToFeed')}</button></div>}
                 {posts.length === 0 && (filter === 'favorites' ? <Empty icon={<IStar size={36} />} title={t('favorites')} sub={t('noFavoritesFeed')} /> : <Empty title={t('welcome')} sub={t('welcomeSub')} />)}
+                {posts.length < 3 && <WorldStrip reloadKey={refreshKey} />}
                 {posts.map((p, i) => (
                   <div key={p.id}>
                     <PostCard post={p} onDeleted={(id) => setPosts((l) => l.filter((x) => x.id !== id))} />
+                    {i === 2 && <WorldStrip reloadKey={refreshKey} />}
                     {i === 1 && suggestions.length > 0 && <SuggestedUsers users={suggestions} onDismiss={(id) => setSuggestions((s) => s.filter((u) => u.id !== id))} />}
                   </div>
                 ))}

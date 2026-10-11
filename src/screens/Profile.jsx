@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { openUrl } from '../native.js';
 import { api, uploadMedia, WEB_URL, getAccounts } from '../api.js';
 import { t, fmtNum, errText } from '../i18n.js';
-import { useApp, Avatar, UserName, FollowButton, Loading, ErrorBox, Empty, TopBar, Tabs, Thumb, Sheet, Spinner, useAsync, ActionSheet, Confirm } from '../components.jsx';
+import { useApp, Avatar, UserName, FollowButton, Loading, ErrorBox, Empty, TopBar, Tabs, Thumb, Sheet, Spinner, useAsync, ActionSheet, Confirm, ThemeToggle } from '../components.jsx';
 import { IGrid, IReels, IBookmark, IPlusSquare, IMenu, IPlus, ILock, IDown, IUserPlus, ICamera, ILink, ICheck, IFlag, IBlock, IBellOff, IRestrict, IStar, IStarCircle } from '../icons.jsx';
 import { shareLink, SuggestedUsers } from './Post.jsx';
 import { usePullToRefresh } from './Feed.jsx';
@@ -84,6 +84,7 @@ export default function Profile({ username, isTab, active, refreshKey }) {
         {user.isPrivate && <ILock size={16} />}<span>{user.username}</span><IDown size={18} />
       </button>
       <div className="feed-header-actions">
+        <ThemeToggle />
         <button className="icon-btn" onClick={() => nav.push('create')} aria-label="create"><IPlusSquare size={27} /></button>
         <button className="icon-btn" onClick={() => nav.push('settings')} aria-label="settings"><IMenu size={27} /></button>
       </div>
