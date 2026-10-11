@@ -151,7 +151,7 @@ b { font-weight: 700; }
 .avatar-ring-inner { display: inline-flex; border-radius: 50%; background: var(--bg); padding: 2px; overflow: hidden; width: 100%; height: 100%; align-items: center; justify-content: center; }
 .avatar-ring-inner > * { width: 100% !important; height: 100% !important; }
 .screen.dark .avatar-ring-inner { background: #000; }
-.uname { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.uname { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 14px; cursor: pointer; color: var(--text); }
 
 /* ---------- topbar ---------- */
 .topbar { flex: none; display: flex; align-items: center; height: 52px; padding: 0 6px; border-bottom: 1px solid transparent; background: var(--bg); position: relative; z-index: 5; }
@@ -329,7 +329,7 @@ b { font-weight: 700; }
 .user-row { display: flex; align-items: center; gap: 12px; padding: 8px 16px; cursor: pointer; }
 .user-row:active { background: var(--hover); }
 .user-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
-.user-row-text > span { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-row-text > span:not(.uname) { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tag-icon { width: 50px; height: 50px; border-radius: 50%; border: 1px solid var(--border); display: inline-flex; align-items: center; justify-content: center; font-size: 22px; flex: none; }
 .tag-icon.big { width: 84px; height: 84px; font-size: 38px; }
 .tag-header { display: flex; align-items: center; gap: 20px; padding: 16px 20px; }
@@ -351,7 +351,7 @@ b { font-weight: 700; }
 .reel-disc .avatar { border-radius: 4px; }
 .reel-info { position: absolute; bottom: 18px; inset-inline-start: 14px; inset-inline-end: 74px; z-index: 3; display: flex; flex-direction: column; gap: 8px; }
 .reel-user { display: flex; align-items: center; gap: 10px; }
-.reel-user .uname { font-size: 15px; text-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.reel-user .uname { font-size: 15px; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.4); }
 .reel-caption { font-size: 14px; line-height: 1.45; max-height: 2.9em; overflow: hidden; text-shadow: 0 1px 4px rgba(0,0,0,.4); }
 .reel-caption.open { max-height: 40vh; overflow-y: auto; }
 .reel-audio { display: flex; align-items: center; gap: 6px; font-size: 13px; background: rgba(255,255,255,.18); backdrop-filter: blur(6px); align-self: flex-start; padding: 5px 10px; border-radius: 14px; max-width: 80%; }

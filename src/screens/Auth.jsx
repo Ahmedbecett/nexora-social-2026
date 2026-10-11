@@ -327,8 +327,26 @@ const COUNTRIES = [
   ['NG', '234', '🇳🇬'], ['KE', '254', '🇰🇪'], ['ZA', '27', '🇿🇦'], ['SN', '221', '🇸🇳'], ['ML', '223', '🇲🇱'], ['NE', '227', '🇳🇪'],
   ['IR', '98', '🇮🇷'], ['AF', '93', '🇦🇫'], ['AZ', '994', '🇦🇿'], ['KZ', '7', '🇰🇿'], ['UZ', '998', '🇺🇿'],
 ];
+// Time zone is a better hint than the UI language (many phones in Algeria run in French or English).
+const TZ_COUNTRY = {
+  'Africa/Algiers': 'DZ', 'Africa/Casablanca': 'MA', 'Africa/Tunis': 'TN', 'Africa/Tripoli': 'LY', 'Africa/Cairo': 'EG', 'Asia/Riyadh': 'SA',
+  'Asia/Dubai': 'AE', 'Asia/Qatar': 'QA', 'Asia/Kuwait': 'KW', 'Asia/Bahrain': 'BH', 'Asia/Muscat': 'OM', 'Asia/Aden': 'YE', 'Asia/Amman': 'JO',
+  'Asia/Beirut': 'LB', 'Asia/Damascus': 'SY', 'Asia/Baghdad': 'IQ', 'Asia/Gaza': 'PS', 'Asia/Hebron': 'PS', 'Africa/Khartoum': 'SD',
+  'Africa/Nouakchott': 'MR', 'Europe/Paris': 'FR', 'Europe/Brussels': 'BE', 'Europe/Zurich': 'CH', 'Europe/Berlin': 'DE', 'Europe/Madrid': 'ES',
+  'Europe/Rome': 'IT', 'Europe/Lisbon': 'PT', 'Europe/Amsterdam': 'NL', 'Europe/London': 'GB', 'Europe/Dublin': 'IE', 'Europe/Stockholm': 'SE',
+  'Europe/Oslo': 'NO', 'Europe/Copenhagen': 'DK', 'Europe/Helsinki': 'FI', 'Europe/Warsaw': 'PL', 'Europe/Bucharest': 'RO', 'Europe/Athens': 'GR',
+  'Europe/Istanbul': 'TR', 'Europe/Moscow': 'RU', 'Europe/Kiev': 'UA', 'Europe/Kyiv': 'UA', 'Asia/Kolkata': 'IN', 'Asia/Calcutta': 'IN',
+  'Asia/Karachi': 'PK', 'Asia/Dhaka': 'BD', 'Asia/Jakarta': 'ID', 'Asia/Kuala_Lumpur': 'MY', 'Asia/Manila': 'PH', 'Asia/Ho_Chi_Minh': 'VN',
+  'Asia/Bangkok': 'TH', 'Asia/Shanghai': 'CN', 'Asia/Tokyo': 'JP', 'Asia/Seoul': 'KR', 'Africa/Lagos': 'NG', 'Africa/Nairobi': 'KE',
+  'Africa/Johannesburg': 'ZA', 'Africa/Dakar': 'SN', 'Africa/Bamako': 'ML', 'Africa/Niamey': 'NE', 'Asia/Tehran': 'IR', 'Asia/Kabul': 'AF',
+  'Asia/Baku': 'AZ', 'Asia/Almaty': 'KZ', 'Asia/Tashkent': 'UZ', 'America/Sao_Paulo': 'BR', 'America/Mexico_City': 'MX',
+  'America/Argentina/Buenos_Aires': 'AR', 'America/Bogota': 'CO', 'America/Santiago': 'CL', 'America/Lima': 'PE', 'America/Toronto': 'CA',
+  'Australia/Sydney': 'AU', 'Pacific/Auckland': 'NZ',
+};
 function guessCountry() {
-  const region = (navigator.language || '').split('-')[1];
+  let tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { /* */ }
+  const region = TZ_COUNTRY[tz] || (navigator.language || '').split('-')[1];
   return COUNTRIES.find((c) => c[0] === region) || COUNTRIES[0];
 }
 

@@ -44,3 +44,12 @@ export function applyTheme({ immersive = false } = {}) {
     StatusBar.setBackgroundColor({ color }).catch(() => {});
   });
 }
+
+/** Light haptic tap on native (likes, etc.). No-op on the web. */
+let hapticsMod = null;
+export function tapHaptic() {
+  if (!Capacitor.isNativePlatform()) return;
+  (hapticsMod ||= import('@capacitor/haptics'))
+    .then(({ Haptics, ImpactStyle }) => Haptics.impact({ style: ImpactStyle.Light }))
+    .catch(() => {});
+}

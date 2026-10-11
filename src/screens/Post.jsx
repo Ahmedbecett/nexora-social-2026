@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { tapHaptic } from '../theme.js';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 import { api, WEB_URL } from '../api.js';
@@ -76,6 +77,7 @@ export function PostCard({ post: initial, onDeleted }) {
   const toggleLike = async (force) => {
     const like = force === true ? true : !post.liked;
     if (force === true && post.liked) return;
+    if (like) tapHaptic();
     setPost((p) => ({ ...p, liked: like, likeCount: p.likeCount + (like ? 1 : -1) }));
     try {
       const r = await api(`posts/${post.id}/like`, { method: like ? 'POST' : 'DELETE' });

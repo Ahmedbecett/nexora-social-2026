@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { tapHaptic } from '../theme.js';
 import { api } from '../api.js';
 import { t, fmtNum, errText } from '../i18n.js';
 import { useApp, Avatar, UserName, FollowButton, Spinner, RichText, ActionSheet, Confirm, TopBar } from '../components.jsx';
@@ -30,6 +31,7 @@ function ReelItem({ post: initial, active, muted, setMuted, onDeleted }) {
   const like = async (force) => {
     const val = force ? true : !post.liked;
     if (force && post.liked) return;
+    if (val) tapHaptic();
     setPost((p) => ({ ...p, liked: val, likeCount: p.likeCount + (val ? 1 : -1) }));
     try { const r = await api(`posts/${post.id}/like`, { method: val ? 'POST' : 'DELETE' }); setPost((p) => ({ ...p, likeCount: r.likeCount, liked: r.liked })); }
     catch (e) { setPost((p) => ({ ...p, liked: !val, likeCount: p.likeCount + (val ? -1 : 1) })); toast(errText(e.code)); }
