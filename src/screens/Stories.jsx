@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useMedia, playSafe } from '../media.js';
 import { api } from '../api.js';
 import { t, timeAgo, errText } from '../i18n.js';
 import { useApp, Avatar, UserName, Sheet, Spinner } from '../components.jsx';
@@ -58,8 +59,11 @@ export default function StoryViewer({ tray, index = 0, onSeen, highlight }) {
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (paused) v.pause(); else v.play().catch(() => {});
+    if (paused) v.pause(); else playSafe(v);
   }, [paused, g, s]);
+  // leaving the app pauses the story (and its sound)
+  const { appActive } = useMedia();
+  useEffect(() => { if (!appActive) setPaused(true); }, [appActive]);
 
   const close = () => nav.pop();
   const next = () => {

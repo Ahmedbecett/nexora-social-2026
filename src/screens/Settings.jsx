@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { openUrl } from '../native.js';
 import { api, WEB_URL, getAccounts } from '../api.js';
 import { t, errText, LANGUAGES, timeAgo } from '../i18n.js';
 import { useApp, TopBar, Confirm, Spinner, Avatar, UserName, Loading, Empty, Tabs, Thumb, Glyph, FromBrand, Sheet } from '../components.jsx';
@@ -651,7 +652,7 @@ function About() {
       <div className="settings-list">
         <Row icon={<IDoc size={24} />} label={t('termsOfUse')} onClick={() => nav.push('settingsPage', { page: 'terms' })} />
         <Row icon={<IShieldStar size={24} />} label={t('privacyPolicy')} onClick={() => nav.push('settingsPage', { page: 'policy' })} />
-        <Row icon={<IGlobe size={24} />} label={t('website')} sub={WEB_URL.replace('https://', '')} onClick={() => window.open(WEB_URL, '_blank')} />
+        <Row icon={<IGlobe size={24} />} label={t('website')} sub={WEB_URL.replace('https://', '')} onClick={() => openUrl(WEB_URL)} />
       </div>
       <p className="muted small center">© 2026 Ahmed Becetti</p>
     </>

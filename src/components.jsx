@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { api } from './api.js';
 import { t, errText } from './i18n.js';
 import { IBack, IVerified } from './icons.jsx';
+import { useMedia, playSafe } from './media.js';
 
 export const AppCtx = createContext(null);
 export const useApp = () => useContext(AppCtx);
@@ -193,18 +194,23 @@ export function RichText({ text, onTag, onMention }) {
 }
 
 /** Autoplaying muted video when visible */
-export function AutoVideo({ src, poster, className, muted = true, loop = true, onClick, style, controlsRef }) {
+export function AutoVideo({ src, poster, className, muted = true, loop = true, onClick, style, controlsRef, onForcedMute }) {
   const ref = useRef();
+  const visible = useRef(false);
+  const { appActive } = useMedia();
   useEffect(() => {
     const v = ref.current;
     if (!v) return;
     const io = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting && e.intersectionRatio > 0.6) v.play().catch(() => {});
-      else v.pause();
+      visible.current = e.isIntersecting && e.intersectionRatio > 0.6;
+      if (visible.current) playSafe(v, onForcedMute); else v.pause();
     }, { threshold: [0, 0.6, 1] });
     io.observe(v);
     return () => io.disconnect();
-  }, []);
+  }, []); // eslint-disable-line
+  // React does not keep the DOM `muted` property in sync reliably — set it directly
+  useEffect(() => { if (ref.current) ref.current.muted = muted; }, [muted]);
+  useEffect(() => { if (appActive && visible.current) playSafe(ref.current, onForcedMute); }, [appActive]); // eslint-disable-line
   useEffect(() => { if (controlsRef) controlsRef.current = ref.current; });
   return <video disableRemotePlayback ref={ref} src={src} poster={poster || undefined} className={className} muted={muted} loop={loop} playsInline preload="metadata" onClick={onClick} style={style} />;
 }

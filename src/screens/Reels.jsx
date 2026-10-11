@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMedia, setReelsMuted, playSafe } from '../media.js';
 import { tapHaptic } from '../theme.js';
 import { api } from '../api.js';
 import { t, fmtNum, errText } from '../i18n.js';
@@ -22,10 +23,12 @@ function ReelItem({ post: initial, active, muted, setMuted, onDeleted }) {
   const tapTimer = useRef();
   const m = post.media[0];
 
+  const { appActive } = useMedia();
+  useEffect(() => { if (vRef.current) vRef.current.muted = muted; }, [muted]);
   useEffect(() => {
     const v = vRef.current; if (!v) return;
-    if (active && !paused) { v.play().catch(() => {}); } else v.pause();
-  }, [active, paused]);
+    if (active && !paused && appActive) { v.muted = muted; playSafe(v, () => setMuted(true)); } else v.pause();
+  }, [active, paused, appActive]); // eslint-disable-line
   useEffect(() => { if (!active && vRef.current) vRef.current.currentTime = 0; }, [active]);
 
   const like = async (force) => {
@@ -93,7 +96,8 @@ export function ReelsFeed({ initial, startIndex = 0, active = true, fetchMore = 
   const [posts, setPosts] = useState(initial || null);
   const [cursor, setCursor] = useState(null);
   const [current, setCurrent] = useState(startIndex);
-  const [muted, setMuted] = useState(false);
+  const { reelsMuted: muted } = useMedia();
+  const setMuted = setReelsMuted;
   const ref = useRef();
 
   const load = useCallback(async () => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { openUrl } from '../native.js';
 import { api, uploadMedia, WEB_URL, getAccounts } from '../api.js';
 import { t, fmtNum, errText } from '../i18n.js';
 import { useApp, Avatar, UserName, FollowButton, Loading, ErrorBox, Empty, TopBar, Tabs, Thumb, Sheet, Spinner, useAsync, ActionSheet, Confirm } from '../components.jsx';
@@ -108,7 +109,7 @@ export default function Profile({ username, isTab, active, refreshKey }) {
         <div className="profile-bio">
           <b className="profile-name">{user.fullName}</b>
           {user.bio && <p dir="auto">{user.bio}</p>}
-          {user.website && <a className="profile-link" href={user.website.startsWith('http') ? user.website : `https://${user.website}`} target="_blank" rel="noreferrer"><ILink size={14} /> {user.website.replace(/^https?:\/\//, '')}</a>}
+          {user.website && <a className="profile-link" href={user.website.startsWith('http') ? user.website : `https://${user.website}`} onClick={(e) => { e.preventDefault(); openUrl(e.currentTarget.href); }}><ILink size={14} /> {user.website.replace(/^https?:\/\//, '')}</a>}
           {!isMe && data.mutuals?.length > 0 && (
             <div className="mutuals">
               <span className="mutual-avatars">{data.mutuals.map((m) => <Avatar key={m.username} src={m.avatarUrl} name={m.username} size={20} />)}</span>

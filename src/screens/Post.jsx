@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useMedia, setFeedMuted } from '../media.js';
 import { tapHaptic } from '../theme.js';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
@@ -19,7 +20,8 @@ export async function shareLink(url, title) {
 /* ---------------- media carousel ---------------- */
 function PostMedia({ post, onDoubleTap }) {
   const [idx, setIdx] = useState(0);
-  const [muted, setMuted] = useState(true);
+  const { feedMuted: muted } = useMedia();
+  const setMuted = setFeedMuted;
   const [heart, setHeart] = useState(0);
   const ref = useRef();
   const lastTap = useRef(0);
@@ -44,7 +46,7 @@ function PostMedia({ post, onDoubleTap }) {
         {media.map((m, i) => (
           <div className="slide" key={i}>
             {m.type === 'video'
-              ? <AutoVideo src={m.url} poster={m.poster} muted={muted} />
+              ? <AutoVideo src={m.url} poster={m.poster} muted={muted} onForcedMute={() => setFeedMuted(true)} />
               : <img src={m.url} alt="" loading="lazy" />}
           </div>
         ))}

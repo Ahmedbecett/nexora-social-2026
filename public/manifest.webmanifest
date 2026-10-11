@@ -1,2 +1,27 @@
-{ "name": "Nexora", "short_name": "Nexora", "start_url": "/", "display": "standalone", "background_color": "#ffffff", "theme_color": "#ffffff",
-  "icons": [ { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }, { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" } ] }
+{
+ "name": "Nexora",
+ "short_name": "Nexora",
+ "description": "Share photos, reels and stories with your friends.",
+ "start_url": "/",
+ "display": "standalone",
+ "background_color": "#0c1014",
+ "theme_color": "#0c1014",
+ "lang": "ar",
+ "dir": "rtl",
+ "categories": [
+  "social"
+ ],
+ "icons": [
+  {
+   "src": "/icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any maskable"
+  }
+ ]
+}
