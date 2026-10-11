@@ -2,17 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
-import { api, getToken, setToken, onUnauthorized } from './api.js';
+import { api, getToken, setToken, onUnauthorized, getAccounts, upsertAccount, forgetAccount, dropAccountToken } from './api.js';
 import { getLang, setLang as saveLang, t } from './i18n.js';
-import { AppCtx, Avatar } from './components.jsx';
+import { AppCtx, Avatar, Splash } from './components.jsx';
 import { IHome, ISearch, IPlusSquare, IReels } from './icons.jsx';
-import { Login, Signup } from './screens/Auth.jsx';
+import AuthFlow from './screens/Auth.jsx';
+import { addUsage, limitReminderDue } from './usage.js';
 import Feed from './screens/Feed.jsx';
 import Search, { TagScreen } from './screens/Search.jsx';
 import Reels, { ReelsViewer } from './screens/Reels.jsx';
 import Profile, { EditProfile, UserList } from './screens/Profile.jsx';
 import Create from './screens/Create.jsx';
-import Notifications from './screens/Notifications.jsx';
+import Notifications, { FollowRequests } from './screens/Notifications.jsx';
 import { Inbox, Chat } from './screens/Messages.jsx';
 import Settings, { SettingsPage } from './screens/Settings.jsx';
 import { PostDetail, PostList } from './screens/Post.jsx';
@@ -21,14 +22,16 @@ import StoryViewer from './screens/Stories.jsx';
 const SCREENS = {
   profile: Profile, editProfile: EditProfile, userList: UserList, create: Create, notifications: Notifications,
   inbox: Inbox, chat: Chat, settings: Settings, settingsPage: SettingsPage, post: PostDetail, postList: PostList,
-  stories: StoryViewer, tag: TagScreen, reelsViewer: ReelsViewer,
+  stories: StoryViewer, tag: TagScreen, reelsViewer: ReelsViewer, followRequests: FollowRequests,
 };
 
 export default function App() {
   const [token, setTok] = useState(getToken());
   const [me, setMe] = useState(() => { try { return JSON.parse(localStorage.getItem('nx_me')); } catch { return null; } });
   const [lang, setLangState] = useState(getLang());
-  const [authScreen, setAuthScreen] = useState('login');
+  const [adding, setAdding] = useState(false);
+  const [booting, setBooting] = useState(true);
+  const [session, setSession] = useState(0);
   const [tab, setTab] = useState('home');
   const [stack, setStack] = useState([]);
   const [toastMsg, setToastMsg] = useState(null);
@@ -45,14 +48,45 @@ export default function App() {
 
   const login = useCallback((tk, user) => {
     setToken(tk); setTok(tk); setMe(user); localStorage.setItem('nx_me', JSON.stringify(user));
-    setTab('home'); setStack([]);
+    upsertAccount(user, tk);
+    visited.clear(); setAdding(false); setTab('home'); setStack([]); setBadges({ notifications: 0, messages: 0, requests: 0 }); setSession((n) => n + 1);
   }, []);
-  const logout = useCallback(() => {
-    setToken(null); setTok(null); setMe(null); localStorage.removeItem('nx_me'); setStack([]); setAuthScreen('login');
+  /** Log out of the current account. `remember` keeps one-tap login on this device. */
+  const logout = useCallback(({ remember = true, all = false } = {}) => {
+    const cur = JSON.parse(localStorage.getItem('nx_me') || 'null');
+    if (all) getAccounts().forEach((a) => dropAccountToken(a.id));
+    else if (cur) { if (remember) upsertAccount(cur, getToken()); else forgetAccount(cur.id); }
+    // stay signed in with another account if one is available
+    const next = all ? null : getAccounts().find((a) => a.token && a.id !== cur?.id);
+    if (next) { setToken(next.token); setTok(next.token); setMe(next); localStorage.setItem('nx_me', JSON.stringify(next)); setSession((n) => n + 1); }
+    else { setToken(null); setTok(null); setMe(null); localStorage.removeItem('nx_me'); }
+    visited.clear(); setStack([]); setTab('home'); setAdding(false);
   }, []);
-  const updateMe = useCallback((u) => { setMe(u); localStorage.setItem('nx_me', JSON.stringify(u)); }, []);
+  const switchAccount = useCallback((acc) => {
+    if (!acc?.token) return;
+    setToken(acc.token); setTok(acc.token); setMe(acc); localStorage.setItem('nx_me', JSON.stringify(acc));
+    visited.clear(); setStack([]); setTab('home'); setBadges({ notifications: 0, messages: 0, requests: 0 }); setSession((n) => n + 1);
+  }, []);
+  const updateMe = useCallback((u) => { setMe(u); localStorage.setItem('nx_me', JSON.stringify(u)); upsertAccount(u); }, []);
 
-  useEffect(() => onUnauthorized(logout), [logout]);
+  useEffect(() => onUnauthorized(() => {
+    const cur = JSON.parse(localStorage.getItem('nx_me') || 'null');
+    if (cur) dropAccountToken(cur.id);
+    setToken(null); setTok(null); setMe(null); localStorage.removeItem('nx_me'); setStack([]); setAdding(false);
+  }), []);
+
+  useEffect(() => { const tm = setTimeout(() => setBooting(false), 1100); return () => clearTimeout(tm); }, []);
+
+  // on-device time tracking + daily limit reminder (Settings → Time management)
+  useEffect(() => {
+    if (!token) return;
+    const iv = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      const mins = addUsage(30);
+      if (limitReminderDue(mins)) toast(t('limitReached'));
+    }, 30000);
+    return () => clearInterval(iv);
+  }, [token, toast]);
 
   // refresh profile on start
   useEffect(() => {
@@ -104,14 +138,15 @@ export default function App() {
     if (u || p) history.replaceState(null, '', location.pathname);
   }, [token, nav]);
 
-  const setLang = (l) => { saveLang(l); setLangState(l); };
-  const ctx = { me, updateMe, login, logout, nav, toast, lang, setLang, badges, refreshBadges, setBadges, tab, refreshKey };
+  const setLang = async (l) => { await saveLang(l); setLangState(l); };
+  const ctx = { me, updateMe, login, logout, switchAccount, addAccount: () => setAdding(true), nav, toast, lang, setLang, badges, refreshBadges, setBadges, tab, refreshKey };
 
-  if (!token) {
+  if (booting) return <Splash />;
+  if (!token || adding) {
     return (
       <AppCtx.Provider value={ctx}>
         <div className="app" key={lang}>
-          {authScreen === 'login' ? <Login goSignup={() => setAuthScreen('signup')} /> : <Signup goLogin={() => setAuthScreen('login')} />}
+          <AuthFlow onCancel={token ? () => setAdding(false) : null} key={`auth-${session}-${adding}`} />
           {toastMsg && <div className="toast">{toastMsg}</div>}
         </div>
       </AppCtx.Provider>
@@ -122,7 +157,7 @@ export default function App() {
   const darkTab = tab === 'reels' && !top;
   return (
     <AppCtx.Provider value={ctx}>
-      <div className={`app ${darkTab ? 'dark-tab' : ''}`} key={lang}>
+      <div className={`app ${darkTab ? 'dark-tab' : ''}`} key={`${lang}-${session}`}>
         <main className="tab-area" hidden={!!top}>
           <div className="tab-pane" hidden={tab !== 'home'}><Feed active={tab === 'home' && !top} refreshKey={refreshKey} /></div>
           <div className="tab-pane" hidden={tab !== 'search'}>{tab === 'search' || visited.has('search') ? <Search active={tab === 'search' && !top} /> : null}</div>

@@ -117,3 +117,28 @@ create table if not exists reports (
   reason      text not null default '',
   created_at  timestamptz not null default now()
 );
+
+-- ---------------------------------------------------------------- v2.1
+alter table users add column if not exists firebase_uid text unique;
+alter table users alter column password_hash drop not null;
+alter table users add column if not exists settings jsonb not null default '{}';
+alter table users add column if not exists token_version int not null default 0;
+alter table stories add column if not exists audience text not null default 'all';
+
+create table if not exists blocks (
+  blocker_id bigint not null references users(id) on delete cascade,
+  blocked_id bigint not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker_id, blocked_id)
+);
+create index if not exists blocks_blocked_idx on blocks(blocked_id);
+
+-- per-user relationship lists: mute, restrict, favorite, close friend
+create table if not exists user_lists (
+  owner_id   bigint not null references users(id) on delete cascade,
+  target_id  bigint not null references users(id) on delete cascade,
+  kind       text not null check (kind in ('mute','restrict','favorite','close')),
+  created_at timestamptz not null default now(),
+  primary key (owner_id, target_id, kind)
+);
+create index if not exists user_lists_target_idx on user_lists(target_id, kind);

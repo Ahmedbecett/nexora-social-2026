@@ -1,7 +1,9 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client';
+import { del as blobDel } from '@vercel/blob';
 import { q, one } from './db.js';
+import { fbSignUp, fbSignIn, fbUpdate, fbDelete, fbSendVerify, fbSendReset, fbSignInWithGoogle, verifyFirebaseIdToken } from './firebase.js';
 
 export class HttpError extends Error {
   constructor(status, message, code) { super(message); this.status = status; this.code = code || message; }
@@ -29,10 +31,10 @@ function publicUser(u) {
   };
 }
 function selfUser(u) {
-  return { ...publicUser(u), bio: u.bio, website: u.website, email: u.email, phone: u.phone, createdAt: u.created_at };
+  return { ...publicUser(u), bio: u.bio, website: u.website, email: u.email, phone: u.phone, createdAt: u.created_at, linked: !!u.firebase_uid, hasPassword: !!u.email || !!u.password_hash };
 }
 function sign(user) {
-  return jwt.sign({ sub: String(user.id) }, JWT_SECRET(), { expiresIn: '180d' });
+  return jwt.sign({ sub: String(user.id), v: user.token_version || 0 }, JWT_SECRET(), { expiresIn: '180d' });
 }
 async function authUser(req, required = true) {
   const h = req.headers['authorization'] || '';
@@ -40,8 +42,9 @@ async function authUser(req, required = true) {
   if (!m) { if (required) throw new HttpError(401, 'unauthorized'); return null; }
   let payload;
   try { payload = jwt.verify(m[1], JWT_SECRET()); } catch { throw new HttpError(401, 'unauthorized'); }
+  if (payload.typ === 'pending') throw new HttpError(401, 'unauthorized');
   const u = await one('select * from users where id=$1', [payload.sub]);
-  if (!u) throw new HttpError(401, 'unauthorized');
+  if (!u || (payload.v || 0) !== (u.token_version || 0)) throw new HttpError(401, 'unauthorized');
   return u;
 }
 function cleanText(s, max) { return String(s ?? '').replace(/\u0000/g, '').trim().slice(0, max); }
@@ -50,7 +53,9 @@ function isMediaUrl(url) {
 }
 
 // Visibility rule for posts / stories owned by user alias `u` for viewer $1
-const VISIBLE = `(u.is_private = false or u.id = $1 or exists (select 1 from follows f where f.follower_id=$1 and f.following_id=u.id and f.status='accepted'))`;
+const NOT_BLOCKED = `not exists (select 1 from blocks bk where (bk.blocker_id=$1 and bk.blocked_id=u.id) or (bk.blocker_id=u.id and bk.blocked_id=$1))`;
+const NOT_MUTED = `not exists (select 1 from user_lists ml where ml.owner_id=$1 and ml.target_id=u.id and ml.kind='mute')`;
+const VISIBLE = `((u.is_private = false or u.id = $1 or exists (select 1 from follows f where f.follower_id=$1 and f.following_id=u.id and f.status='accepted')) and ${NOT_BLOCKED})`;
 
 const POST_SELECT = `
   select p.id, p.kind, p.media, p.caption, p.location, p.audio, p.created_at,
@@ -80,15 +85,54 @@ function mapPost(r) {
 function cursorClause(cursor, idx) {
   return cursor ? ` and p.id < $${idx}` : '';
 }
+const NOTIF_PREF = { like: 'likes', comment: 'comments', mention: 'mentions', follow: 'follows', follow_accepted: 'follows', follow_request: 'requests' };
 async function notify(userId, actorId, type, postId = null, text = '') {
   if (Number(userId) === Number(actorId)) return;
+  const r = await one(`select settings,
+      exists(select 1 from blocks where (blocker_id=$1 and blocked_id=$2) or (blocker_id=$2 and blocked_id=$1)) as blocked,
+      exists(select 1 from user_lists where owner_id=$1 and target_id=$2 and kind='restrict') as restricted
+    from users where id=$1`, [userId, actorId]);
+  if (!r || r.blocked || (r.restricted && type !== 'follow_request')) return;
+  const s = settingsOf(r);
+  const pref = NOTIF_PREF[type];
+  if (type !== 'follow_request' && (s.pauseAll || (pref && !s.notif[pref]))) return;
   await q('insert into notifications(user_id, actor_id, type, post_id, text) values ($1,$2,$3,$4,$5)', [userId, actorId, type, postId, text.slice(0, 200)]);
 }
-async function notifyMentions(text, actorId, postId) {
+/* ---------- blob cleanup (never fails the request) ---------- */
+const isOurBlob = (u) => typeof u === 'string' && /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\//i.test(u);
+function mediaUrls(media) {
+  const out = [];
+  for (const m of Array.isArray(media) ? media : []) for (const k of ['url', 'thumb', 'poster']) if (m && isOurBlob(m[k])) out.push(m[k]);
+  return out;
+}
+async function removeBlobs(urls) {
+  const list = [...new Set(urls.filter(isOurBlob))];
+  if (!list.length || !process.env.BLOB_READ_WRITE_TOKEN) return;
+  try { await blobDel(list); } catch (e) { console.warn('blob cleanup failed', e.message); }
+}
+async function stillUsed(urls) {
+  if (!urls.length) return new Set();
+  const rows = await q(`select media_url u from stories where media_url = any($1)
+    union select avatar_url from users where avatar_url = any($1)
+    union select media_url from messages where media_url = any($1)
+    union select e->>'url' from posts, jsonb_array_elements(media) e where e->>'url' = any($1)`, [urls]);
+  return new Set(rows.map((r) => r.u));
+}
+async function cleanupUnused(urls) {
+  urls = [...new Set(urls.filter(isOurBlob))];
+  if (!urls.length) return;
+  const used = await stillUsed(urls);
+  await removeBlobs(urls.filter((u) => !used.has(u)));
+}
+async function notifyMentions(text, actorId, postId, skipId = null) {
   const names = [...new Set((text.match(/@([a-z0-9._]{3,30})/gi) || []).map((m) => m.slice(1).toLowerCase()))].slice(0, 10);
   if (!names.length) return;
-  const users = await q('select id from users where username = any($1)', [names]);
-  for (const u of users) await notify(u.id, actorId, 'mention', postId, text);
+  const users = await q('select * from users where username = any($1)', [names]);
+  for (const u of users) {
+    if (String(u.id) === String(skipId) || String(u.id) === String(actorId)) continue;
+    if (!(await audienceAllows(settingsOf(u).mentions, u, actorId)) || !(await limitAllows(u, actorId))) continue;
+    await notify(u.id, actorId, 'mention', postId, text);
+  }
 }
 async function getUserByName(username) {
   const u = await one('select * from users where username=$1', [String(username).toLowerCase()]);
@@ -96,7 +140,9 @@ async function getUserByName(username) {
   return u;
 }
 async function canSee(viewerId, owner) {
-  if (!owner.is_private || Number(owner.id) === Number(viewerId)) return true;
+  if (Number(owner.id) === Number(viewerId)) return true;
+  if (await isBlockedEither(viewerId, owner.id)) return false;
+  if (!owner.is_private) return true;
   const f = await one(`select 1 from follows where follower_id=$1 and following_id=$2 and status='accepted'`, [viewerId, owner.id]);
   return !!f;
 }
@@ -127,34 +173,180 @@ route('GET', 'health', async () => {
   return { ok: true, users: r.users, blob: !!process.env.BLOB_READ_WRITE_TOKEN, time: new Date().toISOString() };
 });
 
+/* ---------- settings ---------- */
+export const DEFAULT_SETTINGS = {
+  notif: { likes: true, comments: true, follows: true, mentions: true, messages: true, requests: true },
+  pauseAll: false,
+  messages: 'everyone',      // everyone | following | none
+  storyReplies: 'everyone',  // everyone | following | none
+  mentions: 'everyone',      // everyone | following | none
+  comments: 'everyone',      // everyone | followers | none
+  allowSharing: true,
+  hiddenWords: { enabled: false, custom: [] },
+  limit: { enabled: false },
+};
+function settingsOf(u) {
+  const s = u?.settings || {};
+  return { ...DEFAULT_SETTINGS, ...s, notif: { ...DEFAULT_SETTINGS.notif, ...(s.notif || {}) }, hiddenWords: { ...DEFAULT_SETTINGS.hiddenWords, ...(s.hiddenWords || {}) }, limit: { ...DEFAULT_SETTINGS.limit, ...(s.limit || {}) } };
+}
+const OFFENSIVE = ['fuck', 'shit', 'bitch', 'asshole', 'bastard', 'slut', 'whore', 'nigger', 'faggot', 'كلب', 'حمار', 'زبي', 'نيك', 'شرموط', 'قحبة', 'عاهرة', 'منيوك', 'puta', 'mierda', 'putain', 'salope', 'connard', 'merde'];
+function hiddenWordList(s) {
+  if (!s.hiddenWords?.enabled) return [];
+  return [...OFFENSIVE, ...(s.hiddenWords.custom || [])].map((w) => String(w).toLowerCase().trim()).filter(Boolean);
+}
+function containsHidden(text, words) {
+  const low = String(text).toLowerCase();
+  return words.some((w) => low.includes(w));
+}
+async function isBlockedEither(a, b) {
+  return !!(await one('select 1 from blocks where (blocker_id=$1 and blocked_id=$2) or (blocker_id=$2 and blocked_id=$1)', [a, b]));
+}
+async function inList(owner, target, kind) {
+  return !!(await one('select 1 from user_lists where owner_id=$1 and target_id=$2 and kind=$3', [owner, target, kind]));
+}
+/** Can `actor` interact with `owner` under an audience rule? */
+async function audienceAllows(rule, owner, actorId) {
+  if (Number(owner.id) === Number(actorId)) return true;
+  if (rule === 'none') return false;
+  if (rule === 'following') return !!(await one(`select 1 from follows where follower_id=$1 and following_id=$2 and status='accepted'`, [owner.id, actorId]));
+  if (rule === 'followers') return !!(await one(`select 1 from follows where follower_id=$1 and following_id=$2 and status='accepted'`, [actorId, owner.id]));
+  return true;
+}
+/** "Limit interactions": only accounts that have followed you for 7+ days. */
+async function limitAllows(owner, actorId) {
+  const s = settingsOf(owner);
+  if (!s.limit.enabled || Number(owner.id) === Number(actorId)) return true;
+  return !!(await one(`select 1 from follows where follower_id=$1 and following_id=$2 and status='accepted' and created_at < now() - interval '7 days'`, [actorId, owner.id]));
+}
+
 /* ---------- auth ---------- */
+const fbErr = (e) => {
+  const map = {
+    EMAIL_EXISTS: [409, 'email_taken'], INVALID_LOGIN_CREDENTIALS: [401, 'invalid_credentials'], INVALID_PASSWORD: [401, 'invalid_credentials'],
+    EMAIL_NOT_FOUND: [401, 'invalid_credentials'], USER_DISABLED: [403, 'user_disabled'], TOO_MANY_ATTEMPTS_TRY_LATER: [429, 'too_many_attempts'],
+    WEAK_PASSWORD: [400, 'weak_password'], INVALID_EMAIL: [400, 'invalid_contact'], INVALID_ID_TOKEN: [401, 'session_expired'],
+    TOKEN_EXPIRED: [401, 'session_expired'], CREDENTIAL_TOO_OLD_LOGIN_AGAIN: [401, 'session_expired'], INVALID_IDP_RESPONSE: [401, 'google_failed'],
+    OPERATION_NOT_ALLOWED: [400, 'provider_disabled'],
+  };
+  const [s, c] = map[e.code] || [502, 'auth_provider_error'];
+  return new HttpError(s, c);
+};
+function pendingToken(info) {
+  return jwt.sign({ typ: 'pending', ...info }, JWT_SECRET(), { expiresIn: '30m' });
+}
+function session(u) { return { token: sign(u), user: selfUser(u) }; }
+
+/** Map a verified Firebase identity to an app user (link by uid, then verified email / phone). */
+async function resolveIdentity({ uid, email, emailVerified, phone, name, photo }, { trustEmail = false } = {}) {
+  let u = await one('select * from users where firebase_uid=$1', [uid]);
+  if (!u && email && (emailVerified || trustEmail)) {
+    u = await one('select * from users where email=$1', [email.toLowerCase()]);
+    if (u && u.firebase_uid && u.firebase_uid !== uid) u = null;
+    if (u) u = await one('update users set firebase_uid=$2 where id=$1 returning *', [u.id, uid]);
+  }
+  if (!u && phone) {
+    const tail = phone.replace(/\D/g, '').slice(-9);
+    u = await one(`select * from users where firebase_uid is null and (phone=$1 or (length($2) = 9 and right(regexp_replace(phone, '\\D', '', 'g'), 9) = $2)) limit 1`, [phone, tail]);
+    if (u) u = await one('update users set firebase_uid=$2 where id=$1 returning *', [u.id, uid]);
+  }
+  if (u) return session(u);
+  const suggested = (email ? email.split('@')[0] : (name || 'user')).toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 24) || 'user';
+  return { needsProfile: true, pending: pendingToken({ uid, email: email || null, phone: phone || null, name: name || '', photo: photo || null }), suggested: { fullName: name || '', username: suggested, email, phone } };
+}
+
 route('POST', 'auth/register', async ({ body }) => {
   const fullName = cleanText(body.fullName, 60);
   const username = cleanText(body.username, 30).toLowerCase().replace(/^@/, '');
-  const contact = cleanText(body.contact, 120).toLowerCase();
+  const email = cleanText(body.email ?? body.contact, 120).toLowerCase();
   const password = String(body.password || '');
   if (!fullName) throw bad('full_name_required');
   if (!USERNAME_RE.test(username)) throw bad('invalid_username');
-  let email = null, phone = null;
-  if (EMAIL_RE.test(contact)) email = contact;
-  else if (PHONE_RE.test(contact)) phone = contact.replace(/\s/g, '');
-  else throw bad('invalid_contact');
+  if (!EMAIL_RE.test(email)) throw bad('invalid_contact');
   if (password.length < 6) throw bad('weak_password');
   if (await one('select 1 from users where username=$1', [username])) throw new HttpError(409, 'username_taken');
-  if (email && await one('select 1 from users where email=$1', [email])) throw new HttpError(409, 'email_taken');
-  if (phone && await one('select 1 from users where phone=$1', [phone])) throw new HttpError(409, 'phone_taken');
-  const hash = await bcrypt.hash(password, 10);
-  const u = await one('insert into users(username, full_name, email, phone, password_hash) values ($1,$2,$3,$4,$5) returning *', [username, fullName, email, phone, hash]);
-  return { token: sign(u), user: selfUser(u) };
+  if (await one('select 1 from users where email=$1', [email])) throw new HttpError(409, 'email_taken');
+  let fb;
+  try { fb = await fbSignUp(email, password); } catch (e) {
+    if (e.code !== 'EMAIL_EXISTS') throw fbErr(e);
+    // A Firebase account already exists for this email (e.g. created by an older app version):
+    // adopt it only if the password matches.
+    try { fb = await fbSignIn(email, password); } catch { throw new HttpError(409, 'email_taken'); }
+  }
+  const u = await one('insert into users(username, full_name, email, firebase_uid) values ($1,$2,$3,$4) returning *', [username, fullName, email, fb.localId]);
+  fbSendVerify(fb.idToken).catch(() => {});
+  return session(u);
 });
 
 route('POST', 'auth/login', async ({ body }) => {
   const id = cleanText(body.identifier, 120).toLowerCase().replace(/^@/, '');
   const password = String(body.password || '');
   if (!id || !password) throw bad('missing_credentials');
-  const u = await one('select * from users where username=$1 or email=$1 or phone=$2', [id, id.replace(/\s/g, '')]);
-  if (!u || !(await bcrypt.compare(password, u.password_hash))) throw new HttpError(401, 'invalid_credentials');
-  return { token: sign(u), user: selfUser(u) };
+  const u = await one('select * from users where username=$1 or email=$1 or phone=$2', [id, id.replace(/[\s-]/g, '')]);
+  const email = u?.email || (EMAIL_RE.test(id) ? id : null);
+  if (!email) {
+    // legacy phone + password accounts created before Firebase sign-in
+    if (u && !u.firebase_uid && u.password_hash) {
+      if (await bcrypt.compare(password, u.password_hash)) return session(u);
+      throw new HttpError(401, 'invalid_credentials');
+    }
+    if (u?.phone) throw new HttpError(400, 'use_phone_login');
+    throw new HttpError(401, 'invalid_credentials');
+  }
+  let fb;
+  try { fb = await fbSignIn(email, password); } catch (e) {
+    // legacy accounts (bcrypt hash, no Firebase user yet) are migrated on first login
+    if (u && !u.firebase_uid && u.password_hash && ['EMAIL_NOT_FOUND', 'INVALID_LOGIN_CREDENTIALS'].includes(e.code) && await bcrypt.compare(password, u.password_hash)) {
+      try { fb = await fbSignUp(email, password); } catch (e2) { throw fbErr(e2); }
+      const nu = await one('update users set firebase_uid=$2, password_hash=null where id=$1 returning *', [u.id, fb.localId]);
+      return session(nu);
+    }
+    throw fbErr(e);
+  }
+  return resolveIdentity({ uid: fb.localId, email: fb.email, emailVerified: true, name: fb.displayName }, { trustEmail: true });
+});
+
+route('POST', 'auth/google', async ({ body }) => {
+  const idToken = String(body.idToken || '');
+  if (!idToken) throw bad('missing_credentials');
+  let fb;
+  try { fb = await fbSignInWithGoogle(idToken); } catch (e) { throw fbErr(e); }
+  return resolveIdentity({ uid: fb.localId, email: fb.email, emailVerified: !!fb.emailVerified, name: fb.displayName || fb.fullName, photo: fb.photoUrl });
+});
+
+route('POST', 'auth/firebase', async ({ body }) => {
+  let claims;
+  try { claims = await verifyFirebaseIdToken(String(body.idToken || '')); } catch (e) { throw fbErr(e); }
+  return resolveIdentity({ uid: claims.sub, email: claims.email, emailVerified: !!claims.email_verified, phone: claims.phone_number, name: claims.name, photo: claims.picture });
+});
+
+route('POST', 'auth/complete', async ({ body }) => {
+  let p;
+  try { p = jwt.verify(String(body.pending || ''), JWT_SECRET()); } catch { throw new HttpError(401, 'session_expired'); }
+  if (p.typ !== 'pending') throw new HttpError(401, 'session_expired');
+  const fullName = cleanText(body.fullName, 60);
+  const username = cleanText(body.username, 30).toLowerCase().replace(/^@/, '');
+  if (!fullName) throw bad('full_name_required');
+  if (!USERNAME_RE.test(username)) throw bad('invalid_username');
+  const existing = await one('select * from users where firebase_uid=$1', [p.uid]);
+  if (existing) return session(existing);
+  if (await one('select 1 from users where username=$1', [username])) throw new HttpError(409, 'username_taken');
+  if (p.email && await one('select 1 from users where email=$1', [p.email])) throw new HttpError(409, 'email_taken');
+  if (p.phone && await one('select 1 from users where phone=$1', [p.phone])) throw new HttpError(409, 'phone_taken');
+  const photo = typeof p.photo === 'string' && /^https:\/\/lh\d\.googleusercontent\.com\//.test(p.photo) ? p.photo : null;
+  const u = await one('insert into users(username, full_name, email, phone, firebase_uid, avatar_url) values ($1,$2,$3,$4,$5,$6) returning *',
+    [username, fullName, p.email ? p.email.toLowerCase() : null, p.phone || null, p.uid, photo]);
+  return session(u);
+});
+
+route('POST', 'auth/reset', async ({ body }) => {
+  const id = cleanText(body.identifier, 120).toLowerCase().replace(/^@/, '');
+  if (!id) throw bad('missing_credentials');
+  const u = await one('select email, phone from users where username=$1 or email=$1 or phone=$2', [id, id.replace(/[\s-]/g, '')]);
+  const email = u?.email || (EMAIL_RE.test(id) ? id : null);
+  if (!email) { if (u?.phone) throw new HttpError(400, 'use_phone_login'); throw new HttpError(404, 'user_not_found'); }
+  try { await fbSendReset(email); } catch (e) { if (e.code !== 'EMAIL_NOT_FOUND') throw fbErr(e); }
+  const [name, dom] = email.split('@');
+  return { ok: true, sentTo: `${name.slice(0, 2)}${'*'.repeat(Math.max(2, name.length - 2))}@${dom}` };
 });
 
 route('GET', 'auth/check-username', async ({ query }) => {
@@ -173,6 +365,7 @@ route('GET', 'me', async ({ req }) => {
 route('PATCH', 'me', async ({ req, body }) => {
   const u = await authUser(req);
   const fullName = body.fullName !== undefined ? cleanText(body.fullName, 60) : u.full_name;
+  if (!fullName) throw bad('full_name_required');
   const bio = body.bio !== undefined ? cleanText(body.bio, 300) : u.bio;
   const website = body.website !== undefined ? cleanText(body.website, 120) : u.website;
   const isPrivate = body.isPrivate !== undefined ? !!body.isPrivate : u.is_private;
@@ -192,21 +385,152 @@ route('PATCH', 'me', async ({ req, body }) => {
   if (u.is_private && !isPrivate) {
     await q(`update follows set status='accepted' where following_id=$1 and status='pending'`, [u.id]);
   }
+  if (u.avatar_url && u.avatar_url !== nu.avatar_url) await cleanupUnused([u.avatar_url]);
   return { user: selfUser(nu) };
+});
+
+route('GET', 'me/settings', async ({ req }) => {
+  const u = await authUser(req);
+  const counts = await one(`select
+      (select count(*) from blocks where blocker_id=$1)::int as blocked,
+      (select count(*) from user_lists where owner_id=$1 and kind='mute')::int as muted,
+      (select count(*) from user_lists where owner_id=$1 and kind='restrict')::int as restricted,
+      (select count(*) from user_lists where owner_id=$1 and kind='favorite')::int as favorites,
+      (select count(*) from user_lists where owner_id=$1 and kind='close')::int as close`, [u.id]);
+  return { settings: settingsOf(u), counts };
+});
+route('PATCH', 'me/settings', async ({ req, body }) => {
+  const u = await authUser(req);
+  const cur = settingsOf(u);
+  const aud = (v, opts, d) => (opts.includes(v) ? v : d);
+  const n = body || {};
+  const next = {
+    notif: Object.fromEntries(Object.keys(DEFAULT_SETTINGS.notif).map((k) => [k, n.notif && k in n.notif ? !!n.notif[k] : cur.notif[k]])),
+    pauseAll: 'pauseAll' in n ? !!n.pauseAll : cur.pauseAll,
+    messages: aud(n.messages, ['everyone', 'following', 'none'], cur.messages),
+    storyReplies: aud(n.storyReplies, ['everyone', 'following', 'none'], cur.storyReplies),
+    mentions: aud(n.mentions, ['everyone', 'following', 'none'], cur.mentions),
+    comments: aud(n.comments, ['everyone', 'followers', 'none'], cur.comments),
+    allowSharing: 'allowSharing' in n ? !!n.allowSharing : cur.allowSharing,
+    hiddenWords: n.hiddenWords ? {
+      enabled: !!n.hiddenWords.enabled,
+      custom: (Array.isArray(n.hiddenWords.custom) ? n.hiddenWords.custom : cur.hiddenWords.custom).map((w) => cleanText(w, 40)).filter(Boolean).slice(0, 200),
+    } : cur.hiddenWords,
+    limit: n.limit ? { enabled: !!n.limit.enabled } : cur.limit,
+  };
+  const nu = await one('update users set settings=$2 where id=$1 returning settings', [u.id, JSON.stringify(next)]);
+  return { settings: settingsOf(nu) };
 });
 
 route('POST', 'me/password', async ({ req, body }) => {
   const u = await authUser(req);
-  if (!(await bcrypt.compare(String(body.current || ''), u.password_hash))) throw bad('wrong_password');
-  if (String(body.next || '').length < 6) throw bad('weak_password');
-  await q('update users set password_hash=$2 where id=$1', [u.id, await bcrypt.hash(String(body.next), 10)]);
+  const next = String(body.next || '');
+  if (next.length < 6) throw bad('weak_password');
+  if (!u.email) {
+    if (u.password_hash && !u.firebase_uid) {
+      if (!(await bcrypt.compare(String(body.current || ''), u.password_hash))) throw bad('wrong_password');
+      const nu = await one('update users set password_hash=$2, token_version=token_version+1 where id=$1 returning *', [u.id, await bcrypt.hash(next, 10)]);
+      return { ok: true, token: sign(nu) };
+    }
+    throw bad('no_email_on_account');
+  }
+  let fb;
+  try { fb = await fbSignIn(u.email, String(body.current || '')); } catch (e) {
+    if (['INVALID_LOGIN_CREDENTIALS', 'INVALID_PASSWORD', 'EMAIL_NOT_FOUND'].includes(e.code)) throw bad('wrong_password');
+    throw fbErr(e);
+  }
+  try { await fbUpdate(fb.idToken, { password: next }); } catch (e) { throw fbErr(e); }
+  // invalidate other sessions
+  const nu = await one('update users set token_version=token_version+1 where id=$1 returning *', [u.id]);
+  return { ok: true, token: sign(nu) };
+});
+route('POST', 'me/password-reset', async ({ req }) => {
+  const u = await authUser(req);
+  if (!u.email) throw bad('no_email_on_account');
+  try { await fbSendReset(u.email); } catch (e) { throw fbErr(e); }
   return { ok: true };
+});
+route('POST', 'me/logout-all', async ({ req }) => {
+  const u = await authUser(req);
+  const nu = await one('update users set token_version=token_version+1 where id=$1 returning *', [u.id]);
+  return { ok: true, token: sign(nu) };
 });
 
 route('DELETE', 'me', async ({ req, body }) => {
   const u = await authUser(req);
-  if (!(await bcrypt.compare(String(body.password || ''), u.password_hash))) throw bad('wrong_password');
+  if (String(body.confirm || '').toLowerCase() !== u.username) throw bad('confirm_username');
+  if (!u.email && u.password_hash && !u.firebase_uid && !(await bcrypt.compare(String(body.password || ''), u.password_hash))) throw bad('wrong_password');
+  if (u.email && body.password) {
+    // remove the Firebase identity too when we can authenticate it
+    try { const fb = await fbSignIn(u.email, String(body.password)); await fbDelete(fb.idToken); } catch (e) {
+      if (['INVALID_LOGIN_CREDENTIALS', 'INVALID_PASSWORD'].includes(e.code)) throw bad('wrong_password');
+    }
+  }
+  const owned = [u.avatar_url,
+    ...(await q('select media from posts where user_id=$1', [u.id])).flatMap((r) => mediaUrls(r.media)),
+    ...(await q('select media_url from stories where user_id=$1', [u.id])).map((r) => r.media_url),
+    ...(await q('select media_url from messages where sender_id=$1 and media_url is not null', [u.id])).map((r) => r.media_url)];
   await q('delete from users where id=$1', [u.id]);
+  await cleanupUnused(owned);
+  return { ok: true };
+});
+
+/* ---------- blocks & relationship lists ---------- */
+route('GET', 'me/lists/:kind', async ({ req, params }) => {
+  const me = await authUser(req);
+  const rows = params.kind === 'block'
+    ? await q('select u.* from blocks b join users u on u.id=b.blocked_id where b.blocker_id=$1 order by b.created_at desc', [me.id])
+    : await q('select u.* from user_lists l join users u on u.id=l.target_id where l.owner_id=$1 and l.kind=$2 order by l.created_at desc', [me.id, params.kind]);
+  return { users: rows.map(publicUser) };
+});
+const LIST_KINDS = ['mute', 'restrict', 'favorite', 'close'];
+for (const kind of [...LIST_KINDS, 'block']) route('POST', `users/:id/${kind}`, async ({ req, params }) => {
+  const me = await authUser(req);
+  if (![...LIST_KINDS, 'block'].includes(kind)) throw new HttpError(404, 'not_found');
+  const target = await one('select id from users where id=$1', [params.id]);
+  if (!target || Number(target.id) === Number(me.id)) throw bad('invalid_user');
+  if (kind === 'block') {
+    await q('insert into blocks(blocker_id, blocked_id) values ($1,$2) on conflict do nothing', [me.id, target.id]);
+    await q('delete from follows where (follower_id=$1 and following_id=$2) or (follower_id=$2 and following_id=$1)', [me.id, target.id]);
+    await q(`delete from user_lists where (owner_id=$1 and target_id=$2) or (owner_id=$2 and target_id=$1)`, [me.id, target.id]);
+  } else {
+    await q('insert into user_lists(owner_id, target_id, kind) values ($1,$2,$3) on conflict do nothing', [me.id, target.id, kind]);
+  }
+  return { ok: true, on: true };
+});
+for (const kind of [...LIST_KINDS, 'block']) route('DELETE', `users/:id/${kind}`, async ({ req, params }) => {
+  const me = await authUser(req);
+  if (kind === 'block') await q('delete from blocks where blocker_id=$1 and blocked_id=$2', [me.id, params.id]);
+  else if (LIST_KINDS.includes(kind)) await q('delete from user_lists where owner_id=$1 and target_id=$2 and kind=$3', [me.id, params.id, kind]);
+  else throw new HttpError(404, 'not_found');
+  return { ok: true, on: false };
+});
+
+/* ---------- your activity ---------- */
+route('GET', 'me/activity/likes', async ({ req }) => {
+  const u = await authUser(req);
+  const rows = await q(`${POST_SELECT} join likes lk on lk.post_id=p.id and lk.user_id=$1 where ${VISIBLE} order by lk.created_at desc limit 90`, [u.id]);
+  return { posts: rows.map(mapPost) };
+});
+route('GET', 'me/activity/comments', async ({ req }) => {
+  const u = await authUser(req);
+  const rows = await q(`select c.id, c.text, c.created_at, p.id as post_id, p.media, pu.username as post_user
+    from comments c join posts p on p.id=c.post_id join users pu on pu.id=p.user_id where c.user_id=$1 order by c.created_at desc limit 100`, [u.id]);
+  return { comments: rows.map((r) => ({ id: Number(r.id), text: r.text, createdAt: r.created_at, postId: Number(r.post_id), postUser: r.post_user, thumb: r.media?.[0]?.poster || r.media?.[0]?.url, thumbType: r.media?.[0]?.poster ? 'image' : r.media?.[0]?.type })) };
+});
+route('GET', 'me/status', async ({ req }) => {
+  const u = await authUser(req);
+  const r = await one(`select
+      (select count(*) from reports rp left join posts p on p.id=rp.post_id where rp.user_id=$1 or p.user_id=$1)::int as reports,
+      (select count(*) from posts where user_id=$1)::int as posts,
+      (select count(*) from blocks where blocked_id=$1)::int as blocked_by`, [u.id]);
+  return { createdAt: u.created_at, verified: u.verified, isPrivate: u.is_private, reports: r.reports, posts: r.posts, standing: r.reports >= 5 ? 'review' : 'good' };
+});
+route('POST', 'support', async ({ req, body }) => {
+  const me = await authUser(req);
+  const text = cleanText(body.text, 1000);
+  if (!text) throw bad('empty_message');
+  await q('insert into reports(reporter_id, reason) values ($1,$2)', [me.id, `support: ${text}`]);
   return { ok: true };
 });
 
@@ -255,6 +579,13 @@ route('POST', 'upload/token', async ({ req, body }) => {
 route('GET', 'users/:username', async ({ req, params }) => {
   const me = await authUser(req);
   const u = await getUserByName(params.username);
+  if (await one('select 1 from blocks where blocker_id=$1 and blocked_id=$2', [u.id, me.id])) throw new HttpError(404, 'user_not_found');
+  const rel = await one(`select
+      exists(select 1 from blocks where blocker_id=$1 and blocked_id=$2) as block,
+      exists(select 1 from user_lists where owner_id=$1 and target_id=$2 and kind='mute') as mute,
+      exists(select 1 from user_lists where owner_id=$1 and target_id=$2 and kind='restrict') as restrict,
+      exists(select 1 from user_lists where owner_id=$1 and target_id=$2 and kind='favorite') as favorite,
+      exists(select 1 from user_lists where owner_id=$1 and target_id=$2 and kind='close') as close`, [me.id, u.id]);
   const r = await one(`select
       (select count(*) from posts where user_id=$2)::int as posts,
       (select count(*) from follows where following_id=$2 and status='accepted')::int as followers,
@@ -269,7 +600,8 @@ route('GET', 'users/:username', async ({ req, params }) => {
     user: { ...publicUser(u), bio: u.bio, website: u.website },
     stats: { posts: r.posts, followers: r.followers, following: r.following },
     followStatus: r.my_status || 'none', followsYou: r.follows_you, hasStory: r.has_story,
-    isMe: Number(u.id) === Number(me.id), canView: await canSee(me.id, u), mutuals: r.mutuals || [],
+    isMe: Number(u.id) === Number(me.id), canView: await canSee(me.id, u), mutuals: r.mutuals || [], relation: rel,
+    canMessage: Number(u.id) !== Number(me.id) && !rel.block && await audienceAllows(settingsOf(u).messages, u, me.id),
   };
 });
 
@@ -317,6 +649,7 @@ route('POST', 'users/:id/follow', async ({ req, params }) => {
   const target = await one('select * from users where id=$1', [params.id]);
   if (!target) throw new HttpError(404, 'user_not_found');
   if (Number(target.id) === Number(me.id)) throw bad('cannot_follow_self');
+  if (await isBlockedEither(me.id, target.id)) throw new HttpError(403, 'blocked');
   const status = target.is_private ? 'pending' : 'accepted';
   const ins = await q('insert into follows(follower_id, following_id, status) values ($1,$2,$3) on conflict do nothing returning status', [me.id, target.id, status]);
   if (ins.length) await notify(target.id, me.id, status === 'pending' ? 'follow_request' : 'follow');
@@ -353,7 +686,7 @@ route('GET', 'search/users', async ({ req, query }) => {
   if (!term) return { users: [] };
   const rows = await q(`select u.*, (select status from follows x where x.follower_id=$1 and x.following_id=u.id) as my_status,
       (select count(*) from follows f where f.following_id=u.id and f.status='accepted')::int as followers
-    from users u where u.username ilike $2 or u.full_name ilike $2
+    from users u where (u.username ilike $2 or u.full_name ilike $2) and ${NOT_BLOCKED}
     order by (u.username ilike $3) desc, followers desc limit 30`, [me.id, `%${term}%`, `${term}%`]);
   return { users: rows.map((r) => ({ ...publicUser(r), followStatus: r.my_status || 'none', followers: r.followers })) };
 });
@@ -362,7 +695,7 @@ route('GET', 'suggestions', async ({ req }) => {
   const me = await authUser(req);
   const rows = await q(`select u.*, (select count(*) from follows f where f.following_id=u.id and f.status='accepted')::int as followers,
       exists(select 1 from follows f where f.follower_id=u.id and f.following_id=$1) as follows_you
-    from users u where u.id <> $1 and not exists (select 1 from follows f where f.follower_id=$1 and f.following_id=u.id)
+    from users u where u.id <> $1 and not exists (select 1 from follows f where f.follower_id=$1 and f.following_id=u.id) and ${NOT_BLOCKED}
     order by follows_you desc, followers desc, u.created_at desc limit 15`, [me.id]);
   return { users: rows.map((r) => ({ ...publicUser(r), followers: r.followers, followsYou: r.follows_you, followStatus: 'none' })) };
 });
@@ -373,8 +706,11 @@ route('GET', 'feed', async ({ req, query }) => {
   const args = [me.id];
   let cur = '';
   if (query.cursor) { args.push(query.cursor); cur = ` and p.id < $2`; }
+  const scope = query.filter === 'favorites'
+    ? `exists (select 1 from user_lists fl where fl.owner_id=$1 and fl.target_id=p.user_id and fl.kind='favorite')`
+    : `(p.user_id=$1 or exists (select 1 from follows f where f.follower_id=$1 and f.following_id=p.user_id and f.status='accepted'))`;
   const rows = await q(`${POST_SELECT}
-    where (p.user_id=$1 or exists (select 1 from follows f where f.follower_id=$1 and f.following_id=p.user_id and f.status='accepted'))
+    where ${scope} and ${VISIBLE} and ${NOT_MUTED}
     ${cur} order by p.id desc limit 15`, args);
   return { posts: rows.map(mapPost), nextCursor: rows.length === 15 ? Number(rows[rows.length - 1].id) : null };
 });
@@ -385,7 +721,7 @@ route('GET', 'explore', async ({ req, query }) => {
   let cur = '';
   if (query.cursor) { args.push(query.cursor); cur = ` and p.id < $2`; }
   const excludeFollowed = query.suggested ? ` and p.user_id <> $1 and not exists (select 1 from follows f where f.follower_id=$1 and f.following_id=p.user_id)` : '';
-  const rows = await q(`${POST_SELECT} where u.is_private=false ${excludeFollowed} ${cur} order by p.id desc limit 30`, args);
+  const rows = await q(`${POST_SELECT} where u.is_private=false and ${NOT_BLOCKED} and ${NOT_MUTED} ${excludeFollowed} ${cur} order by p.id desc limit 30`, args);
   return { posts: rows.map(mapPost), nextCursor: rows.length === 30 ? Number(rows[rows.length - 1].id) : null };
 });
 
@@ -401,7 +737,7 @@ route('GET', 'reels', async ({ req, query }) => {
   const args = [me.id];
   let cur = '';
   if (query.cursor) { args.push(query.cursor); cur = ` and p.id < $2`; }
-  const rows = await q(`${POST_SELECT} where p.kind='reel' and ${VISIBLE} ${cur} order by p.id desc limit 10`, args);
+  const rows = await q(`${POST_SELECT} where p.kind='reel' and ${VISIBLE} and (u.id=$1 or ${NOT_MUTED}) ${cur} order by p.id desc limit 10`, args);
   return { posts: rows.map(mapPost), nextCursor: rows.length === 10 ? Number(rows[rows.length - 1].id) : null };
 });
 
@@ -442,8 +778,9 @@ route('PATCH', 'posts/:id', async ({ req, params, body }) => {
 
 route('DELETE', 'posts/:id', async ({ req, params }) => {
   const me = await authUser(req);
-  const r = await one('delete from posts where id=$1 and user_id=$2 returning id', [params.id, me.id]);
+  const r = await one('delete from posts where id=$1 and user_id=$2 returning id, media', [params.id, me.id]);
   if (!r) throw new HttpError(404, 'post_not_found');
+  await cleanupUnused(mediaUrls(r.media));
   return { ok: true };
 });
 
@@ -481,9 +818,17 @@ route('DELETE', 'posts/:id/save', async ({ req, params }) => {
 });
 
 route('GET', 'posts/:id/comments', async ({ req, params }) => {
-  await authUser(req);
-  const rows = await q(`select c.id, c.text, c.created_at, u.id as uid, u.username, u.avatar_url, u.verified
-    from comments c join users u on u.id=c.user_id where c.post_id=$1 order by c.created_at asc limit 300`, [params.id]);
+  const me = await authUser(req);
+  const post = await one('select p.id, p.user_id, ow.settings from posts p join users ow on ow.id=p.user_id where p.id=$1', [params.id]);
+  if (!post) throw new HttpError(404, 'post_not_found');
+  const words = hiddenWordList(settingsOf(post));
+  let rows = await q(`select c.id, c.text, c.created_at, c.user_id, u.id as uid, u.username, u.avatar_url, u.verified,
+      exists(select 1 from user_lists r where r.owner_id=$2 and r.target_id=c.user_id and r.kind='restrict') as restricted
+    from comments c join users u on u.id=c.user_id
+    where c.post_id=$1 and ${NOT_BLOCKED.replaceAll('$1', () => '$3')}
+    order by c.created_at asc limit 300`, [params.id, post.user_id, me.id]);
+  // restricted accounts' comments and comments with hidden words are only visible to their author
+  rows = rows.filter((c) => Number(c.user_id) === Number(me.id) || (!c.restricted && !containsHidden(c.text, words)));
   return { comments: rows.map((c) => ({ id: Number(c.id), text: c.text, createdAt: c.created_at, user: { id: Number(c.uid), username: c.username, avatarUrl: c.avatar_url, verified: c.verified } })) };
 });
 route('POST', 'posts/:id/comments', async ({ req, params, body }) => {
@@ -492,9 +837,12 @@ route('POST', 'posts/:id/comments', async ({ req, params, body }) => {
   if (!text) throw bad('empty_comment');
   const p = await one('select id, user_id from posts where id=$1', [params.id]);
   if (!p) throw new HttpError(404, 'post_not_found');
+  const owner = await one('select * from users where id=$1', [p.user_id]);
+  if (!(await canSee(me.id, owner))) throw new HttpError(404, 'post_not_found');
+  if (!(await audienceAllows(settingsOf(owner).comments, owner, me.id)) || !(await limitAllows(owner, me.id))) throw new HttpError(403, 'comments_restricted');
   const c = await one('insert into comments(post_id, user_id, text) values ($1,$2,$3) returning id, created_at', [p.id, me.id, text]);
-  await notify(p.user_id, me.id, 'comment', p.id, text);
-  await notifyMentions(text, me.id, p.id);
+  if (!containsHidden(text, hiddenWordList(settingsOf(owner)))) await notify(p.user_id, me.id, 'comment', p.id, text);
+  await notifyMentions(text, me.id, p.id, p.user_id);
   return { comment: { id: Number(c.id), text, createdAt: c.created_at, user: { id: Number(me.id), username: me.username, avatarUrl: me.avatar_url, verified: me.verified } } };
 });
 route('DELETE', 'comments/:id', async ({ req, params }) => {
@@ -512,27 +860,30 @@ route('POST', 'reports', async ({ req, body }) => {
 /* ---------- stories ---------- */
 route('GET', 'stories', async ({ req }) => {
   const me = await authUser(req);
-  const rows = await q(`select s.id, s.media_url, s.media_type, s.created_at, u.id as uid, u.username, u.avatar_url, u.verified,
+  const rows = await q(`select s.id, s.media_url, s.media_type, s.audience, s.created_at, u.id as uid, u.username, u.avatar_url, u.verified,
       exists(select 1 from story_views v where v.story_id=s.id and v.user_id=$1) as seen
     from stories s join users u on u.id=s.user_id
     where s.created_at > now() - interval '24 hours'
-      and (u.id=$1 or exists (select 1 from follows f where f.follower_id=$1 and f.following_id=u.id and f.status='accepted')
-           or (u.is_private=false and u.verified=true))
+      and (u.id=$1 or (
+           (exists (select 1 from follows f where f.follower_id=$1 and f.following_id=u.id and f.status='accepted')
+            or (u.is_private=false and u.verified=true))
+           and ${NOT_BLOCKED} and not exists (select 1 from user_lists ml where ml.owner_id=$1 and ml.target_id=u.id and ml.kind='mute')
+           and (s.audience='all' or exists (select 1 from user_lists cf where cf.owner_id=u.id and cf.target_id=$1 and cf.kind='close'))))
     order by s.created_at asc`, [me.id]);
   const groups = new Map();
   for (const r of rows) {
     const k = Number(r.uid);
     if (!groups.has(k)) groups.set(k, { user: { id: k, username: r.username, avatarUrl: r.avatar_url, verified: r.verified }, stories: [] });
-    groups.get(k).stories.push({ id: Number(r.id), url: r.media_url, type: r.media_type, createdAt: r.created_at, seen: r.seen });
+    groups.get(k).stories.push({ id: Number(r.id), url: r.media_url, type: r.media_type, createdAt: r.created_at, seen: r.seen, close: r.audience === 'close' });
   }
-  const list = [...groups.values()].map((g) => ({ ...g, allSeen: g.stories.every((s) => s.seen) }));
+  const list = [...groups.values()].map((g) => ({ ...g, allSeen: g.stories.every((s) => s.seen), close: g.stories.some((s) => s.close && !s.seen) }));
   list.sort((a, b) => (a.user.id === Number(me.id) ? -1 : b.user.id === Number(me.id) ? 1 : (a.allSeen - b.allSeen)));
   return { tray: list };
 });
 route('POST', 'stories', async ({ req, body }) => {
   const me = await authUser(req);
   if (!isMediaUrl(body.url)) throw bad('invalid_media');
-  const s = await one('insert into stories(user_id, media_url, media_type) values ($1,$2,$3) returning id', [me.id, body.url, body.type === 'video' ? 'video' : 'image']);
+  const s = await one('insert into stories(user_id, media_url, media_type, audience) values ($1,$2,$3,$4) returning id', [me.id, body.url, body.type === 'video' ? 'video' : 'image', body.audience === 'close' ? 'close' : 'all']);
   return { id: Number(s.id) };
 });
 route('POST', 'stories/:id/view', async ({ req, params }) => {
@@ -548,7 +899,8 @@ route('GET', 'stories/:id/viewers', async ({ req, params }) => {
 });
 route('DELETE', 'stories/:id', async ({ req, params }) => {
   const me = await authUser(req);
-  await q('delete from stories where id=$1 and user_id=$2', [params.id, me.id]);
+  const rows = await q('delete from stories where id=$1 and user_id=$2 returning media_url', [params.id, me.id]);
+  await cleanupUnused(rows.map((r) => r.media_url));
   return { ok: true };
 });
 
@@ -576,7 +928,7 @@ route('GET', 'notifications', async ({ req }) => {
       p.media as post_media,
       (select status from follows x where x.follower_id=$1 and x.following_id=u.id) as my_status
     from notifications n join users u on u.id=n.actor_id left join posts p on p.id=n.post_id
-    where n.user_id=$1 order by n.created_at desc limit 100`, [me.id]);
+    where n.user_id=$1 and n.created_at > now() - interval '90 days' and ${NOT_BLOCKED} order by n.created_at desc limit 200`, [me.id]);
   return {
     notifications: rows.map((n) => ({
       id: Number(n.id), type: n.type, text: n.text, read: n.read, createdAt: n.created_at,
@@ -636,8 +988,27 @@ route('POST', 'messages/:userId', async ({ req, params, body }) => {
   const mediaUrl = body.mediaUrl && isMediaUrl(body.mediaUrl) ? body.mediaUrl : null;
   const postId = Number(body.postId) || null;
   if (!text && !mediaUrl && !postId) throw bad('empty_message');
-  const target = await one('select id from users where id=$1', [params.userId]);
+  const target = await one('select * from users where id=$1', [params.userId]);
   if (!target) throw new HttpError(404, 'user_not_found');
+  if (await isBlockedEither(me.id, target.id)) throw new HttpError(403, 'messages_restricted');
+  const ts = settingsOf(target);
+  const already = await one('select 1 from messages where sender_id=$1 and receiver_id=$2 limit 1', [target.id, me.id]);
+  if (!already) {
+    const rule = body.storyReply ? ts.storyReplies : ts.messages;
+    if (!(await audienceAllows(rule, target, me.id)) || !(await limitAllows(target, me.id))) throw new HttpError(403, 'messages_restricted');
+  }
+  if (postId) {
+    const po = await one('select p.user_id, u.settings from posts p join users u on u.id=p.user_id where p.id=$1', [postId]);
+    if (!po) throw new HttpError(404, 'post_not_found');
+    if (Number(po.user_id) !== Number(me.id) && !settingsOf(po).allowSharing) throw new HttpError(403, 'sharing_disabled');
+  }
   const m = await one('insert into messages(sender_id, receiver_id, text, media_url, post_id) values ($1,$2,$3,$4,$5) returning id, created_at', [me.id, target.id, text, mediaUrl, postId]);
   return { message: { id: Number(m.id), mine: true, text, mediaUrl, post: postId ? { id: postId } : null, createdAt: m.created_at } };
+});
+
+route('GET', 'follow-requests', async ({ req }) => {
+  const me = await authUser(req);
+  const rows = await q(`select u.*, f.created_at as requested_at from follows f join users u on u.id=f.follower_id
+    where f.following_id=$1 and f.status='pending' order by f.created_at desc limit 300`, [me.id]);
+  return { users: rows.map((r) => ({ ...publicUser(r), requestedAt: r.requested_at })) };
 });

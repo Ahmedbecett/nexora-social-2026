@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, uploadMedia } from '../api.js';
 import { t, errText } from '../i18n.js';
 import { useApp, Avatar, TopBar, Spinner } from '../components.jsx';
-import { IClose, IImage, ILocation, IMusic, IChevron, ISend } from '../icons.jsx';
+import { IClose, IImage, ILocation, IMusic, IChevron, ISend, IStar } from '../icons.jsx';
 
 export default function Create({ mode: initialMode = 'post' }) {
   const { me, nav, toast } = useApp();
@@ -13,6 +13,7 @@ export default function Create({ mode: initialMode = 'post' }) {
   const [audio, setAudio] = useState('');
   const [alsoStory, setAlsoStory] = useState(false);
   const [busy, setBusy] = useState(false);
+  const audienceRef = useRef('all');
   const [progress, setProgress] = useState(0);
   const [locOpen, setLocOpen] = useState(false);
   const inputRef = useRef();
@@ -44,7 +45,7 @@ export default function Create({ mode: initialMode = 'post' }) {
         media.push(m);
       }
       if (mode === 'story') {
-        await api('stories', { method: 'POST', body: { url: media[0].url, type: media[0].type } });
+        await api('stories', { method: 'POST', body: { url: media[0].url, type: media[0].type, audience: audienceRef.current } });
       } else {
         await api('posts', { method: 'POST', body: { kind: mode === 'reel' ? 'reel' : 'post', media, caption, location, audio, alsoStory } });
       }
@@ -90,10 +91,13 @@ export default function Create({ mode: initialMode = 'post' }) {
         <div className="story-preview">{f.type === 'video' ? <video disableRemotePlayback src={f.url} autoPlay loop playsInline muted /> : <img src={f.url} alt="" />}</div>
         <button className="icon-btn light story-x" onClick={() => setFiles([])}><IClose size={28} /></button>
         <div className="story-share-bar">
-          <button className="story-share-btn" onClick={share} disabled={busy}>
+          <button className="story-share-btn" onClick={() => { audienceRef.current = 'all'; share(); }} disabled={busy}>
             <Avatar src={me.avatarUrl} name={me.username} size={26} /><span>{t('yourStory')}</span>
           </button>
-          <button className="story-send" onClick={share} disabled={busy}>{busy ? <Spinner size={20} /> : <ISend size={20} />}</button>
+          <button className="story-share-btn close" onClick={() => { audienceRef.current = 'close'; share(); }} disabled={busy}>
+            <span className="cf-star"><IStar size={14} filled /></span><span>{t('closeFriends')}</span>
+          </button>
+          <button className="story-send" onClick={() => { audienceRef.current = 'all'; share(); }} disabled={busy}>{busy ? <Spinner size={20} /> : <ISend size={20} />}</button>
         </div>
         {busy && <UploadOverlay progress={progress} />}
       </div>

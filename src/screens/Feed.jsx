@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { t } from '../i18n.js';
-import { useApp, Avatar, Wordmark, Spinner, Empty, ErrorBox } from '../components.jsx';
-import { IHeart, ISend, IPlus, ICheck } from '../icons.jsx';
+import { useApp, Avatar, Wordmark, Spinner, Empty, ErrorBox, Sheet } from '../components.jsx';
+import { IHeart, ISend, IPlus, ICheck, IDown, IUsers, IStar } from '../icons.jsx';
 import { PostCard, SuggestedUsers } from './Post.jsx';
 
 export function usePullToRefresh(ref, onRefresh) {
@@ -39,7 +39,7 @@ export function StoriesTray({ tray, onOpen }) {
       </div>
       {others.map((g) => (
         <div className="story-item" key={g.user.id} onClick={() => onOpen(tray.indexOf(g))}>
-          <Avatar src={g.user.avatarUrl} name={g.user.username} size={64} ring={g.allSeen ? 'seen' : 'story'} />
+          <Avatar src={g.user.avatarUrl} name={g.user.username} size={64} ring={g.allSeen ? 'seen' : g.close ? 'close' : 'story'} />
           <span className="story-name">{g.user.username}</span>
         </div>
       ))}
@@ -57,11 +57,15 @@ export default function Feed({ active, refreshKey }) {
   const [error, setError] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const scrollRef = useRef();
+  const [filter, setFilter] = useState('following');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef(filter); filterRef.current = filter;
+  const feedPath = (cur) => `feed?${filterRef.current === 'favorites' ? 'filter=favorites&' : ''}${cur ? `cursor=${cur}` : ''}`;
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [f, s, sg] = await Promise.all([api('feed'), api('stories'), api('suggestions').catch(() => ({ users: [] }))]);
+      const [f, s, sg] = await Promise.all([api(feedPath()), api('stories'), api('suggestions').catch(() => ({ users: [] }))]);
       setPosts(f.posts); setCursor(f.nextCursor); setTray(s.tray); setSuggestions(sg.users);
       if (!f.nextCursor) api('explore?suggested=1').then((r) => setSuggestedPosts(r.posts.slice(0, 12))).catch(() => {});
     } catch (e) { setError(e); }
@@ -80,7 +84,7 @@ export default function Feed({ active, refreshKey }) {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const f = await api(`feed?cursor=${cursor}`);
+      const f = await api(feedPath(cursor));
       setPosts((p) => [...p, ...f.posts]); setCursor(f.nextCursor);
       if (!f.nextCursor) api('explore?suggested=1').then((r) => setSuggestedPosts(r.posts.slice(0, 12))).catch(() => {});
     } catch { /* ignore */ }
@@ -96,7 +100,7 @@ export default function Feed({ active, refreshKey }) {
   return (
     <div className="screen">
       <header className="feed-header">
-        <Wordmark size={34} />
+        <button className="feed-logo" onClick={() => setFilterOpen(true)}><Wordmark size={34} /><IDown size={16} /></button>
         <div className="feed-header-actions">
           <button className="icon-btn badge-wrap" onClick={() => nav.push('notifications')} aria-label={t('notifications')}>
             <IHeart size={27} />{(badges.notifications > 0) && <span className="dot-badge" />}
@@ -113,7 +117,8 @@ export default function Feed({ active, refreshKey }) {
           : posts === null ? <FeedSkeleton />
             : (
               <>
-                {posts.length === 0 && <Empty title={t('welcome')} sub={t('welcomeSub')} />}
+                {filter === 'favorites' && <div className="feed-filter-bar"><IStar size={16} filled /> {t('favorites')}<button className="text-link" onClick={() => { setFilter('following'); filterRef.current = 'following'; setPosts(null); load(); }}>{t('backToFeed')}</button></div>}
+                {posts.length === 0 && (filter === 'favorites' ? <Empty icon={<IStar size={36} />} title={t('favorites')} sub={t('noFavoritesFeed')} /> : <Empty title={t('welcome')} sub={t('welcomeSub')} />)}
                 {posts.map((p, i) => (
                   <div key={p.id}>
                     <PostCard post={p} onDeleted={(id) => setPosts((l) => l.filter((x) => x.id !== id))} />
@@ -137,6 +142,15 @@ export default function Feed({ active, refreshKey }) {
               </>
             )}
       </div>
+      <Sheet open={filterOpen} onClose={() => setFilterOpen(false)}>
+        <div className="actions">
+          {[['following', t('followingFeed'), <IUsers size={24} key="i" />], ['favorites', t('favorites'), <IStar size={24} key="s" />]].map(([k, label, icon]) => (
+            <button key={k} className="action" onClick={() => { setFilterOpen(false); if (k !== filter) { setFilter(k); filterRef.current = k; setPosts(null); load(); } }}>
+              {icon}<span style={{ flex: 1 }}>{label}</span>{filter === k && <ICheck size={20} />}
+            </button>
+          ))}
+        </div>
+      </Sheet>
     </div>
   );
 }

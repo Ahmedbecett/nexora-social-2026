@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, uploadMedia, WEB_URL } from '../api.js';
+import { api, uploadMedia, WEB_URL, getAccounts } from '../api.js';
 import { t, fmtNum, errText } from '../i18n.js';
-import { useApp, Avatar, UserName, FollowButton, Loading, ErrorBox, Empty, TopBar, Tabs, Thumb, Sheet, Spinner, useAsync, ActionSheet } from '../components.jsx';
-import { IGrid, IReels, IBookmark, IPlusSquare, IMenu, IPlus, ILock, IDown, IUserPlus, ICamera, ILink, ICheck, IFlag } from '../icons.jsx';
+import { useApp, Avatar, UserName, FollowButton, Loading, ErrorBox, Empty, TopBar, Tabs, Thumb, Sheet, Spinner, useAsync, ActionSheet, Confirm } from '../components.jsx';
+import { IGrid, IReels, IBookmark, IPlusSquare, IMenu, IPlus, ILock, IDown, IUserPlus, ICamera, ILink, ICheck, IFlag, IBlock, IBellOff, IRestrict, IStar, IStarCircle } from '../icons.jsx';
 import { shareLink, SuggestedUsers } from './Post.jsx';
 import { usePullToRefresh } from './Feed.jsx';
 
@@ -18,6 +18,8 @@ export default function Profile({ username, isTab, active, refreshKey }) {
   const [sugg, setSugg] = useState([]);
   const [hlOpen, setHlOpen] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [switcher, setSwitcher] = useState(false);
+  const [confirmBlock, setConfirmBlock] = useState(false);
   const scrollRef = useRef();
 
   const load = async () => {
@@ -65,10 +67,19 @@ export default function Profile({ username, isTab, active, refreshKey }) {
   if (error) return <div className="screen">{!isTab && <TopBar title={uname} />}<ErrorBox error={error} onRetry={load} /></div>;
   if (!data) return <div className="screen">{!isTab && <TopBar title={uname} />}<Loading /></div>;
   const { user, stats, isMe, canView, followStatus } = data;
+  const rel = data.relation || {};
+  const toggleRel = async (kind, msgOn, msgOff) => {
+    const on = !rel[kind];
+    try {
+      await api(`users/${user.id}/${kind}`, { method: on ? 'POST' : 'DELETE' });
+      toast(on ? msgOn : msgOff);
+      load(); if (kind === 'block') loadPosts();
+    } catch (e) { toast(errText(e.code)); }
+  };
 
   const header = isTab ? (
     <header className="profile-header">
-      <button className="profile-uname" onClick={() => {}}>
+      <button className="profile-uname" onClick={() => setSwitcher(true)}>
         {user.isPrivate && <ILock size={16} />}<span>{user.username}</span><IDown size={18} />
       </button>
       <div className="feed-header-actions">
@@ -112,10 +123,12 @@ export default function Profile({ username, isTab, active, refreshKey }) {
               <button className="btn btn-secondary flex1" onClick={shareProfile}>{t('shareProfile')}</button>
               <button className={`btn btn-secondary btn-square ${showSugg ? 'on' : ''}`} onClick={toggleSugg}><IUserPlus size={18} /></button>
             </>
+          ) : rel.block ? (
+            <button className="btn btn-secondary flex1" onClick={() => toggleRel('block', t('blockedToast'), t('unblockedToast'))}>{t('unblock')}</button>
           ) : (
             <>
               <FollowButton user={user} status={followStatus} className="flex1" onChange={() => load()} />
-              <button className="btn btn-secondary flex1" onClick={() => nav.push('chat', { user })}>{t('message')}</button>
+              {data.canMessage && <button className="btn btn-secondary flex1" onClick={() => nav.push('chat', { user })}>{t('message')}</button>}
               <button className={`btn btn-secondary btn-square ${showSugg ? 'on' : ''}`} onClick={toggleSugg}><IUserPlus size={18} /></button>
             </>
           )}
@@ -160,9 +173,17 @@ export default function Profile({ username, isTab, active, refreshKey }) {
           </div>
         )}
       </div>
+      <Confirm open={confirmBlock} title={t('blockQ', { u: user.username })} text={t('blockDesc')} okLabel={t('block')} danger
+        onOk={() => toggleRel('block', t('blockedToast'), '')} onClose={() => setConfirmBlock(false)} />
+      {isTab && <AccountSwitcher open={switcher} onClose={() => setSwitcher(false)} />}
       {isMe && <NewHighlight open={hlOpen} onClose={() => setHlOpen(false)} onCreated={() => api(`users/${uname}/highlights`).then((r) => setHighlights(r.highlights))} />}
       <ActionSheet open={menu} onClose={() => setMenu(false)} actions={[
         { label: t('shareProfile'), icon: <ILink size={22} />, onClick: shareProfile },
+        !rel.block && followStatus === 'accepted' && { label: rel.favorite ? t('removeFavorite') : t('addFavorite'), icon: <IStar size={22} filled={rel.favorite} />, onClick: () => toggleRel('favorite', t('addedFavorite'), t('removedFavorite')) },
+        !rel.block && { label: rel.close ? t('removeCloseFriend') : t('addCloseFriend'), icon: <IStarCircle size={22} />, onClick: () => toggleRel('close', t('addedCloseFriend'), t('removedCloseFriend')) },
+        !rel.block && { label: rel.mute ? t('unmute') : t('mute'), icon: <IBellOff size={22} />, onClick: () => toggleRel('mute', t('mutedToast'), t('unmutedToast')) },
+        !rel.block && { label: rel.restrict ? t('unrestrict') : t('restrict'), icon: <IRestrict size={22} />, onClick: () => toggleRel('restrict', t('restrictedToast'), t('unrestrictedToast')) },
+        { label: rel.block ? t('unblock') : t('block'), icon: <IBlock size={22} />, danger: !rel.block, onClick: () => (rel.block ? toggleRel('block', '', t('unblockedToast')) : setConfirmBlock(true)) },
         { label: t('report'), icon: <IFlag size={22} />, danger: true, onClick: async () => { await api('reports', { method: 'POST', body: { userId: user.id } }).catch(() => {}); toast(t('reported')); } },
       ]} />
     </div>
@@ -270,5 +291,54 @@ export function UserList({ kind, username, id, title }) {
         )}
       </div>
     </div>
+  );
+}
+
+/** Instagram-style account switcher (opened from the username in the profile header). */
+export function AccountSwitcher({ open, onClose }) {
+  const { me, switchAccount, addAccount, nav } = useApp();
+  const [accounts, setAccounts] = useState([]);
+  const [badges, setBadges] = useState({});
+  useEffect(() => {
+    if (!open) return;
+    const list = getAccounts();
+    setAccounts(list);
+    list.forEach((a) => {
+      if (!a.token || a.id === me.id) return;
+      api('me/badges', { token: a.token }).then((b) => setBadges((x) => ({ ...x, [a.id]: b }))).catch(() => {});
+    });
+  }, [open]); // eslint-disable-line
+  const status = (b) => {
+    if (!b) return null;
+    if (b.messages) return t('nChats', { n: b.messages });
+    const n = b.notifications + b.requests;
+    return n ? t('nNotifications', { n }) : null;
+  };
+  return (
+    <Sheet open={open} onClose={onClose}>
+      <div className="switcher">
+        <div className="switch-card">
+          {accounts.map((a) => (
+            <button key={a.id} className="switch-row" onClick={() => {
+              onClose();
+              if (a.id === me.id) return;
+              if (a.token) switchAccount(a); else addAccount();
+            }}>
+              <Avatar src={a.id === me.id ? me.avatarUrl : a.avatarUrl} name={a.username} size={56} />
+              <span className="flex1 switch-meta">
+                <bdi>{a.id === me.id ? me.username : a.username}</bdi>
+                {a.id !== me.id && !a.token && <small className="muted">{t('loginAgain')}</small>}
+                {a.id !== me.id && status(badges[a.id]) && <small className="muted"><i className="red-dot" />{status(badges[a.id])}</small>}
+              </span>
+              {a.id === me.id && <span className="blue-check"><ICheck size={16} sw={3} /></span>}
+            </button>
+          ))}
+          <button className="switch-row" onClick={() => { onClose(); addAccount(); }}>
+            <span className="switch-plus"><IPlus size={26} /></span><span className="flex1">{t('addNexoraAccount')}</span>
+          </button>
+        </div>
+        <button className="btn btn-outline btn-lg btn-block pill" onClick={() => { onClose(); nav.push('settingsPage', { page: 'accountsCenter' }); }}>{t('goAccountsCenter')}</button>
+      </div>
+    </Sheet>
   );
 }

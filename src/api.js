@@ -10,6 +10,29 @@ export function setToken(t) {
   if (t) localStorage.setItem('nx_token', t); else localStorage.removeItem('nx_token');
 }
 
+/* ---------------- saved accounts (multi-account) ---------------- */
+const ACC_KEY = 'nx_accounts';
+export function getAccounts() {
+  try { return JSON.parse(localStorage.getItem(ACC_KEY)) || []; } catch { return []; }
+}
+function saveAccounts(list) { localStorage.setItem(ACC_KEY, JSON.stringify(list.slice(0, 10))); }
+export function upsertAccount(user, tk) {
+  if (!user) return;
+  const prev = getAccounts();
+  const old = prev.find((a) => a.id === user.id);
+  const entry = { id: user.id, username: user.username, fullName: user.fullName, avatarUrl: user.avatarUrl, verified: user.verified, token: tk === undefined ? old?.token || null : tk };
+  saveAccounts(old ? prev.map((a) => (a.id === user.id ? entry : a)) : [entry, ...prev]);
+}
+export function forgetAccount(id) { saveAccounts(getAccounts().filter((a) => a.id !== id)); }
+export function dropAccountToken(id) { saveAccounts(getAccounts().map((a) => (a.id === id ? { ...a, token: null } : a))); }
+// one-time migration from the single-account storage
+(() => {
+  try {
+    const me = JSON.parse(localStorage.getItem('nx_me') || 'null');
+    if (token && me && !getAccounts().some((a) => a.id === me.id)) upsertAccount(me, token);
+  } catch { /* ignore */ }
+})();
+
 const listeners = new Set();
 export const onUnauthorized = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
 
@@ -17,12 +40,13 @@ export class ApiError extends Error {
   constructor(code, status) { super(code); this.code = code; this.status = status; }
 }
 
-export async function api(path, { method = 'GET', body, signal } = {}) {
+export async function api(path, { method = 'GET', body, signal, token: tk } = {}) {
+  const auth = tk !== undefined ? tk : token;
   let res;
   try {
     res = await fetch(`${API_BASE}/api/${path}`, {
       method, signal,
-      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(auth ? { Authorization: `Bearer ${auth}` } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (e) {
@@ -32,7 +56,7 @@ export async function api(path, { method = 'GET', body, signal } = {}) {
   let data = {};
   try { data = await res.json(); } catch { /* empty */ }
   if (!res.ok) {
-    if (res.status === 401 && token) listeners.forEach((fn) => fn());
+    if (res.status === 401 && token && auth === token && !path.startsWith('auth/')) listeners.forEach((fn) => fn());
     throw new ApiError(data.error || 'server_error', res.status);
   }
   return data;

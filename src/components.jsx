@@ -11,6 +11,44 @@ export function Wordmark({ size = 34, gradient = false, className = '' }) {
   return <span className={`wordmark ${gradient ? 'grad' : ''} ${className}`} style={{ fontSize: size }}>Nexora</span>;
 }
 
+/** The Nexora glyph: rounded square + lens + flash dot, drawn with the brand gradient. */
+let glyphSeq = 0;
+export function Glyph({ size = 72, filled = false, className = '' }) {
+  const [id] = useState(() => `nxg${++glyphSeq}`);
+  if (filled) {
+    return <img src="/icon-192.png" alt="Nexora" width={size} height={size} className={`glyph-filled ${className}`} style={{ borderRadius: size * 0.24 }} />;
+  }
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className={className} role="img" aria-label="Nexora">
+<defs>
+<linearGradient id={`${id}a`} gradientUnits="userSpaceOnUse" x1="30" y1="100" x2="62" y2="0"><stop offset="0" stopColor="#ffd600"/><stop offset="0.22" stopColor="#ff9a00"/><stop offset="0.45" stopColor="#ff1f5a"/><stop offset="0.75" stopColor="#e6007e"/><stop offset="1" stopColor="#d000c8"/></linearGradient>
+<radialGradient id={`${id}b`} gradientUnits="userSpaceOnUse" cx="4" cy="2" r="62"><stop offset="0" stopColor="#7a2cff"/><stop offset="0.45" stopColor="#8a2be2" stopOpacity="0.85"/><stop offset="1" stopColor="#a020f0" stopOpacity="0"/></radialGradient>
+</defs>
+<g fill="none" strokeWidth="9.5"><g stroke={`url(#${id}a)`}><rect x="8" y="8" width="84" height="84" rx="25"/><circle cx="50" cy="50" r="19.5"/></g><g stroke={`url(#${id}b)`}><rect x="8" y="8" width="84" height="84" rx="25"/><circle cx="50" cy="50" r="19.5"/></g></g>
+<circle cx="74" cy="26" r="6" fill={`url(#${id}a)`}/>
+    </svg>
+  );
+}
+
+/** "from Nexora" footer used on the splash and saved-profiles screens. */
+export function FromBrand({ small }) {
+  return (
+    <div className={`from-brand ${small ? 'small' : ''}`}>
+      {!small && <span className="from-label">from</span>}
+      <span className="from-name"><Glyph size={small ? 20 : 22} /><span>Nexora</span></span>
+    </div>
+  );
+}
+
+export function Splash() {
+  return (
+    <div className="splash">
+      <Glyph size={92} />
+      <FromBrand />
+    </div>
+  );
+}
+
 const COLORS = ['#f58529', '#dd2a7b', '#8134af', '#515bd4', '#0095f6', '#00a67e'];
 export function Avatar({ src, name = '', size = 32, ring = null, onClick, className = '' }) {
   const [err, setErr] = useState(false);

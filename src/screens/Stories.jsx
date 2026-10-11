@@ -82,13 +82,13 @@ export default function StoryViewer({ tray, index = 0, onSeen, highlight }) {
   const sendReply = async () => {
     if (!reply.trim()) return;
     try {
-      await api(`messages/${group.user.id}`, { method: 'POST', body: { text: reply, mediaUrl: story.type === 'image' ? story.url : null } });
+      await api(`messages/${group.user.id}`, { method: 'POST', body: { text: reply, mediaUrl: story.type === 'image' ? story.url : null, storyReply: true } });
       setReply(''); toast(t('sent')); setPaused(false);
     } catch (e) { toast(errText(e.code)); }
   };
   const like = async () => {
     setLiked((l) => ({ ...l, [story.url]: true }));
-    try { await api(`messages/${group.user.id}`, { method: 'POST', body: { text: '❤️', mediaUrl: story.type === 'image' ? story.url : null } }); } catch { /* ignore */ }
+    try { await api(`messages/${group.user.id}`, { method: 'POST', body: { text: '❤️', mediaUrl: story.type === 'image' ? story.url : null, storyReply: true } }); } catch { /* ignore */ }
   };
   const openViewers = async () => {
     setPaused(true); setViewers([]);

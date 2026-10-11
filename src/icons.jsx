@@ -61,9 +61,32 @@ export const IVerified = ({ size = 14 }) => (
     <path d="m8 12.3 2.6 2.6L16.2 9.3" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-export const IFacebook = ({ size = 24 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-    <circle cx="12" cy="12" r="12" fill="#1877F2" />
-    <path fill="#fff" d="M15.1 12.8h-2.2V20h-3v-7.2H8.3v-2.6h1.6V8.6c0-2.2 1-3.6 3.6-3.6h2v2.6h-1.3c-1 0-1.3.4-1.3 1.2v1.4h2.6z" />
+export const IActivity = (p) => <S {...p}><rect x="3" y="3" width="18" height="18" rx="2.5" /><path d="M3 13h4l2-4 3 7 2.5-5L16 13h5" /></S>;
+export const IClock = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></S>;
+export const IStar = ({ filled, ...p }) => <S {...p} fill={filled ? 'currentColor' : 'none'}><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" /></S>;
+export const IStarCircle = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="m12 7.2 1.5 3 3.3.5-2.4 2.3.6 3.3-3-1.6-3 1.6.6-3.3-2.4-2.3 3.3-.5z" fill="currentColor" strokeWidth="1" /></S>;
+export const IPaperPlane = (p) => <S {...p}><path d="M3 4.5 21 3l-7.5 18-3-7.5z" /><path d="m10.5 13.5 4-4" /></S>;
+export const IAt = (p) => <S {...p}><circle cx="12" cy="12" r="4" /><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" /></S>;
+export const IRepeat = (p) => <S {...p}><path d="M17 2.5 20.5 6 17 9.5" /><path d="M4 11.5V10a4 4 0 0 1 4-4h12.5M7 21.5 3.5 18 7 14.5" /><path d="M20 12.5V14a4 4 0 0 1-4 4H3.5" /></S>;
+export const IRestrict = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="10" r="3" /><path d="M7 18c1.2-2 3-3 5-3M4.5 4.5l15 15" /></S>;
+export const ILimit = (p) => <S {...p}><path d="M20.7 16.2A9 9 0 1 0 17 19.9l4 1.1z" /><path d="M12 7.5v5M12 16v.01" /></S>;
+export const IAa = (p) => <S {...p} sw={1.8}><path d="M2.5 19 8 5l5.5 14M4.5 14h7" /><path d="M21.5 19v-5.5a3 3 0 0 0-5.5-1.5M21.5 15.5c-1.5-.6-6-.8-6 1.8 0 2.5 4.5 2.3 6-.3" /></S>;
+export const IBellOff = (p) => <S {...p}><path d="M8.7 4.1A6 6 0 0 1 18 9c0 3.4.8 5.4 1.5 6.5M6.1 7A6 6 0 0 0 6 9c0 6-2.5 7.5-2.5 7.5H16.5" /><path d="M10 20a2.2 2.2 0 0 0 4 0M3 3l18 18" /></S>;
+export const ILifebuoy = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4" /><path d="m5.6 5.6 3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6" /></S>;
+export const IShieldStar = (p) => <S {...p}><path d="M12 3 4.5 6v5.5c0 4.8 3.2 8.3 7.5 9.5 4.3-1.2 7.5-4.7 7.5-9.5V6z" /><path d="m12 8 1.2 2.5 2.7.4-2 1.9.5 2.7-2.4-1.3-2.4 1.3.5-2.7-2-1.9 2.7-.4z" fill="currentColor" strokeWidth="1" /></S>;
+export const IPerson = (p) => <S {...p}><circle cx="12" cy="7.5" r="4" /><path d="M4 21c.8-4.2 4-6.5 8-6.5s7.2 2.3 8 6.5" /></S>;
+export const IUsers = (p) => <S {...p}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.6-3.5 3.2-5.5 6.5-5.5s5.9 2 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.7.8 2.7 2.5 3 5.2" /></S>;
+export const IKey = (p) => <S {...p}><circle cx="7.5" cy="15.5" r="4.5" /><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2 2" /></S>;
+export const IPhone = (p) => <S {...p}><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M11 18.5h2" /></S>;
+export const IMail = (p) => <S {...p}><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="m3.5 6.5 8.5 6.5 8.5-6.5" /></S>;
+export const IBlock = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="m5.6 5.6 12.8 12.8" /></S>;
+export const ICheckCircle = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="m8 12.3 2.8 2.8L16.2 9.6" /></S>;
+export const IDoc = (p) => <S {...p}><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4M9 12h6M9 16h6" /></S>;
+export const IGoogle = ({ size = 22 }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
+    <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+    <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+    <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+    <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
   </svg>
 );

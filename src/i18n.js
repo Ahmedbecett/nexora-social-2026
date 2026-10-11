@@ -5,11 +5,7 @@ const ar = {
   password: 'كلمة السر',
   login: 'تسجيل الدخول',
   or: 'أو',
-  loginFacebook: 'تسجيل الدخول باستخدام فيسبوك',
-  signupFacebook: 'التسجيل باستخدام فيسبوك',
-  facebookSoon: 'تسجيل الدخول عبر فيسبوك غير متاح حالياً، استخدم حسابك في نيكسورا.',
   forgot: 'هل نسيت كلمة السر؟',
-  forgotHelp: 'لإعادة تعيين كلمة السر تواصل مع الدعم من داخل التطبيق: الإعدادات ← المساعدة. يمكنك تغيير كلمة السر من الإعدادات ← الأمان بعد تسجيل الدخول.',
   noAccount: 'ليس لديك حساب؟',
   createNew: 'إنشاء حساب جديد.',
   createAccount: 'إنشاء حساب',
@@ -113,11 +109,7 @@ const en = {
   password: 'Password',
   login: 'Log in',
   or: 'OR',
-  loginFacebook: 'Log in with Facebook',
-  signupFacebook: 'Sign up with Facebook',
-  facebookSoon: 'Facebook login is not available yet. Please use your Nexora account.',
   forgot: 'Forgot password?',
-  forgotHelp: 'To reset your password, contact support from Settings → Help. Once logged in you can change it in Settings → Security.',
   noAccount: "Don't have an account?",
   createNew: 'Sign up.',
   createAccount: 'Create account',
@@ -205,25 +197,69 @@ const en = {
   },
 };
 
-export const dicts = { ar, en };
-let current = localStorage.getItem('nx_lang') || 'ar';
+import { extraAr, extraEn } from './locales/extra.js';
+Object.assign(ar, extraAr, { errors: { ...ar.errors, ...extraAr.errors } });
+Object.assign(en, extraEn, { errors: { ...en.errors, ...extraEn.errors } });
 
+/** [code, native name, English name] — machine translations live in src/locales/<code>.json */
+export const LANGUAGES = [
+  ['ar', 'العربية', 'Arabic'], ['en', 'English', 'English'], ['fr', 'Français', 'French'], ['es', 'Español', 'Spanish'],
+  ['pt', 'Português', 'Portuguese'], ['de', 'Deutsch', 'German'], ['it', 'Italiano', 'Italian'], ['nl', 'Nederlands', 'Dutch'],
+  ['tr', 'Türkçe', 'Turkish'], ['ru', 'Русский', 'Russian'], ['uk', 'Українська', 'Ukrainian'], ['pl', 'Polski', 'Polish'],
+  ['ro', 'Română', 'Romanian'], ['el', 'Ελληνικά', 'Greek'], ['cs', 'Čeština', 'Czech'], ['hu', 'Magyar', 'Hungarian'],
+  ['sv', 'Svenska', 'Swedish'], ['da', 'Dansk', 'Danish'], ['no', 'Norsk', 'Norwegian'], ['fi', 'Suomi', 'Finnish'],
+  ['bg', 'Български', 'Bulgarian'], ['sr', 'Српски', 'Serbian'], ['hr', 'Hrvatski', 'Croatian'], ['sq', 'Shqip', 'Albanian'],
+  ['fa', 'فارسی', 'Persian'], ['ur', 'اردو', 'Urdu'], ['ps', 'پښتو', 'Pashto'], ['ku', 'Kurdî', 'Kurdish'], ['he', 'עברית', 'Hebrew'],
+  ['hi', 'हिन्दी', 'Hindi'], ['bn', 'বাংলা', 'Bengali'], ['pa', 'ਪੰਜਾਬੀ', 'Punjabi'], ['ta', 'தமிழ்', 'Tamil'], ['te', 'తెలుగు', 'Telugu'],
+  ['mr', 'मराठी', 'Marathi'], ['gu', 'ગુજરાતી', 'Gujarati'], ['zh-CN', '简体中文', 'Chinese (Simplified)'], ['zh-TW', '繁體中文', 'Chinese (Traditional)'],
+  ['ja', '日本語', 'Japanese'], ['ko', '한국어', 'Korean'], ['id', 'Bahasa Indonesia', 'Indonesian'], ['ms', 'Bahasa Melayu', 'Malay'],
+  ['vi', 'Tiếng Việt', 'Vietnamese'], ['th', 'ไทย', 'Thai'], ['tl', 'Filipino', 'Filipino'], ['sw', 'Kiswahili', 'Swahili'],
+  ['am', 'አማርኛ', 'Amharic'], ['ha', 'Hausa', 'Hausa'], ['yo', 'Yorùbá', 'Yoruba'], ['so', 'Soomaali', 'Somali'],
+  ['az', 'Azərbaycan', 'Azerbaijani'], ['kk', 'Қазақ', 'Kazakh'], ['uz', 'Oʻzbek', 'Uzbek'], ['ber', 'ⵜⴰⵎⴰⵣⵉⵖⵜ', 'Tamazight'],
+];
+const RTL = new Set(['ar', 'fa', 'ur', 'ps', 'he']);
+const loaders = import.meta.glob('./locales/*.json');
+export const dicts = { ar, en };
+
+function initialLang() {
+  const saved = localStorage.getItem('nx_lang');
+  if (saved && LANGUAGES.some((l) => l[0] === saved)) return saved;
+  const nav = (navigator.language || 'ar');
+  const exact = LANGUAGES.find((l) => l[0].toLowerCase() === nav.toLowerCase());
+  const base = LANGUAGES.find((l) => l[0] === nav.split('-')[0]);
+  return (exact || base || ['ar'])[0];
+}
+let current = initialLang();
+
+export async function loadLang(l) {
+  if (dicts[l]) return;
+  const loader = loaders[`./locales/${l}.json`];
+  if (!loader) return;
+  try {
+    const mod = await loader();
+    const d = mod.default || mod;
+    dicts[l] = { ...d, errors: { ...(d.errors || {}) } };
+  } catch { /* fall back to English */ }
+}
 export function getLang() { return current; }
-export function setLang(l) {
-  current = l; localStorage.setItem('nx_lang', l);
+export async function setLang(l) {
+  await loadLang(l);
+  current = dicts[l] ? l : 'en';
+  localStorage.setItem('nx_lang', current);
   applyDir();
 }
+export function isRtl() { return RTL.has(current); }
 export function applyDir() {
   document.documentElement.lang = current;
-  document.documentElement.dir = current === 'ar' ? 'rtl' : 'ltr';
+  document.documentElement.dir = RTL.has(current) ? 'rtl' : 'ltr';
 }
 export function t(key, vars) {
-  let s = dicts[current][key] ?? dicts.en[key] ?? key;
-  if (vars) for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, v);
+  let s = dicts[current]?.[key] ?? dicts.en[key] ?? key;
+  if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(v);
   return s;
 }
 export function errText(code) {
-  return dicts[current].errors[code] || dicts.en.errors[code] || t('error');
+  return dicts[current]?.errors?.[code] || dicts.en.errors[code] || t('error');
 }
 export function fmtNum(n) {
   n = Number(n) || 0;
@@ -239,10 +275,13 @@ export function timeAgo(d, long = false) {
       const n = Math.floor(s / sec);
       if (long) {
         const map = { y: 'year', w: 'week', d: 'day', h: 'hour', m: 'minute', s: 'second' };
-        return new Intl.RelativeTimeFormat(current, { numeric: 'auto' }).format(-n, map[u]);
+        try { return new Intl.RelativeTimeFormat(current, { numeric: 'auto' }).format(-n, map[u]); } catch { return `${n}${u}`; }
       }
       const arU = { y: 'سنة', w: 'أ', d: 'ي', h: 'س', m: 'د', s: 'ث' };
-      return current === 'ar' ? `${n}${arU[u]}` : `${n}${u}`;
+      if (current === 'ar') return `${n}${arU[u]}`;
+      if (current === 'en') return `${n}${u}`;
+      const unit = { y: 'year', w: 'week', d: 'day', h: 'hour', m: 'minute', s: 'second' }[u];
+      try { return new Intl.NumberFormat(current, { style: 'unit', unit, unitDisplay: 'narrow' }).format(n); } catch { return `${n}${u}`; }
     }
   }
   return '';
