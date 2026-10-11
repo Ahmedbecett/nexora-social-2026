@@ -13,7 +13,7 @@ import { shareLink, SuggestedUsers } from './Post.jsx';
 import { LanguageList } from './Auth.jsx';
 import { usageDays, getDailyLimit, setDailyLimit } from '../usage.js';
 
-export const APP_VERSION = '2.4.3';
+export const APP_VERSION = '2.4.4';
 export const OFFICIAL_USERNAME = 'official.nexora';
 
 /* ------------------------------------------------------------------ */
@@ -486,10 +486,16 @@ function AudiencePage({ field, title, desc, options }) {
   return <Radio title={title} desc={desc} value={s[field]} onChange={(v) => patch({ [field]: v })} options={options} />;
 }
 
+function ActivityStatusToggle() {
+  const { s, patch } = useSettings();
+  if (!s) return null;
+  return <div className="settings-list"><Toggle on={s.activityStatus !== false} label={t('activityStatus')} desc={t('activityStatusDesc')} onChange={(v) => patch({ activityStatus: v })} /></div>;
+}
 function MessagesPrivacy() {
   const opts3 = [['everyone', t('everyone')], ['following', t('peopleYouFollow')], ['none', t('noOne')]];
   return (
     <>
+      <ActivityStatusToggle />
       <AudiencePage field="messages" title={t('whoCanMessage')} desc={t('whoCanMessageDesc')} options={opts3} />
       <AudiencePage field="storyReplies" title={t('whoCanReplyStory')} options={opts3} />
     </>

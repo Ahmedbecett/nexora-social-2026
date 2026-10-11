@@ -50,7 +50,16 @@ async function authUser(req, required = true) {
   if (payload.typ === 'pending') throw new HttpError(401, 'unauthorized');
   const u = await one('select * from users where id=$1', [payload.sub]);
   if (!u || (payload.v || 0) !== (u.token_version || 0)) throw new HttpError(401, 'unauthorized');
+  if (!u.last_active_at || Date.now() - new Date(u.last_active_at).getTime() > 60000) {
+    try { await q('update users set last_active_at=now() where id=$1', [u.id]); u.last_active_at = new Date(); } catch { /* column missing during migration */ }
+  }
   return u;
+}
+/** Activity status is shared only when both people have it switched on (like Instagram). */
+function activeAtFor(viewer, other) {
+  if (!other?.last_active_at) return null;
+  if (settingsOf(viewer).activityStatus === false || settingsOf(other).activityStatus === false) return null;
+  return other.last_active_at;
 }
 function cleanText(s, max) { return String(s ?? '').replace(/\u0000/g, '').trim().slice(0, max); }
 function isMediaUrl(url) {
@@ -192,6 +201,7 @@ export const DEFAULT_SETTINGS = {
   allowSharing: true,
   hiddenWords: { enabled: false, custom: [] },
   limit: { enabled: false },
+  activityStatus: true,
 };
 function settingsOf(u) {
   const s = u?.settings || {};
@@ -511,6 +521,7 @@ route('PATCH', 'me/settings', async ({ req, body }) => {
       custom: (Array.isArray(n.hiddenWords.custom) ? n.hiddenWords.custom : cur.hiddenWords.custom).map((w) => cleanText(w, 40)).filter(Boolean).slice(0, 200),
     } : cur.hiddenWords,
     limit: n.limit ? { enabled: !!n.limit.enabled } : cur.limit,
+    activityStatus: 'activityStatus' in n ? !!n.activityStatus : cur.activityStatus,
   };
   const nu = await one('update users set settings=$2 where id=$1 returning settings', [u.id, JSON.stringify(next)]);
   return { settings: settingsOf(nu) };
@@ -1122,7 +1133,7 @@ const MSG_VISIBLE = `not m.unsent and not ($1 = any(m.hidden_for))`;
 route('GET', 'conversations', async ({ req }) => {
   const me = await authUser(req);
   const rows = await q(`select distinct on (partner) partner, m.id, m.text, m.media_url, m.post_id, m.created_at, m.sender_id, m.read,
-        u.username, u.full_name, u.avatar_url, u.verified,
+        u.username, u.full_name, u.avatar_url, u.verified, u.last_active_at, u.settings,
         (select count(*) from messages x where x.sender_id=partner and x.receiver_id=$1 and x.read=false and not x.unsent)::int as unread
      from (select *, case when sender_id=$1 then receiver_id else sender_id end as partner from messages m
            where (sender_id=$1 or receiver_id=$1) and ${MSG_VISIBLE}) m
@@ -1132,6 +1143,7 @@ route('GET', 'conversations', async ({ req }) => {
   return {
     conversations: rows.map((r) => ({
       user: { id: Number(r.partner), username: r.username, fullName: r.full_name, avatarUrl: r.avatar_url, verified: r.verified },
+      activeAt: activeAtFor(me, r),
       last: { text: r.text, media: !!r.media_url, post: !!r.post_id, mine: Number(r.sender_id) === Number(me.id), createdAt: r.created_at },
       unread: r.unread,
     })),
@@ -1145,11 +1157,11 @@ function msgOut(m, meId) {
   return {
     id: Number(m.id), mine: Number(m.sender_id) === Number(meId), text: m.text, mediaUrl: m.media_url,
     post: m.post_id ? { id: Number(m.post_id), thumb: m.post_media?.[0]?.poster || m.post_media?.[0]?.url, type: m.post_media?.[0]?.poster ? 'image' : m.post_media?.[0]?.type, username: m.post_user } : null,
-    read: m.read, createdAt: m.created_at, pinned: !!m.pinned_at, reply,
+    read: m.read, readAt: m.read_at || null, createdAt: m.created_at, pinned: !!m.pinned_at, reply,
     reactions: (m.reactions || []).map((x) => ({ emoji: x.e, mine: Number(x.u) === Number(meId) })),
   };
 }
-const MSG_SELECT = `select m.id, m.sender_id, m.text, m.media_url, m.post_id, m.read, m.created_at, m.unsent, m.hidden_for, m.pinned_at, m.reply_to,
+const MSG_SELECT = `select m.id, m.sender_id, m.text, m.media_url, m.post_id, m.read, m.read_at, m.created_at, m.unsent, m.hidden_for, m.pinned_at, m.reply_to,
         p.media as post_media, pu.username as post_user,
         r.id as r_id, r.sender_id as r_sender, r.text as r_text, r.media_url as r_media, r.post_id as r_post, r.unsent as r_unsent,
         (select coalesce(json_agg(json_build_object('u', mr.user_id, 'e', mr.emoji) order by mr.created_at), '[]'::json)
@@ -1166,8 +1178,9 @@ route('GET', 'messages/:userId', async ({ req, params, query }) => {
       where ((m.sender_id=$1 and m.receiver_id=$2) or (m.sender_id=$2 and m.receiver_id=$1))
         and (m.id > $3 or ($4::timestamptz is not null and m.updated_at > $4::timestamptz))
       order by m.id desc limit 200`, [me.id, params.userId, after, since]);
-  await q('update messages set read=true where sender_id=$2 and receiver_id=$1 and read=false', [me.id, params.userId]);
+  await q('update messages set read=true, read_at=now(), updated_at=now() where sender_id=$2 and receiver_id=$1 and read=false', [me.id, params.userId]);
   const partner = await one('select * from users where id=$1', [params.userId]);
+  const typing = !!(await one(`select 1 from typing where user_id=$1 and partner_id=$2 and at > now() - interval '6 seconds'`, [params.userId, me.id]));
   const initial = !after && !since;
   const out = [];
   for (const m of rows.reverse()) {
@@ -1175,7 +1188,7 @@ route('GET', 'messages/:userId', async ({ req, params, query }) => {
     if (gone) { if (!initial) out.push({ id: Number(m.id), gone: true }); continue; }
     out.push(msgOut(m, me.id));
   }
-  return { user: publicUser(partner), messages: out, serverTime: now };
+  return { user: publicUser(partner), messages: out, serverTime: now, activeAt: activeAtFor(me, partner), typing };
 });
 route('POST', 'messages/:userId', async ({ req, params, body }) => {
   const me = await authUser(req);
@@ -1204,8 +1217,18 @@ route('POST', 'messages/:userId', async ({ req, params, body }) => {
     if (!r) replyTo = null;
   }
   const m = await one('insert into messages(sender_id, receiver_id, text, media_url, post_id, reply_to) values ($1,$2,$3,$4,$5,$6) returning id', [me.id, target.id, text, mediaUrl, postId, replyTo]);
+  await q('delete from typing where user_id=$1 and partner_id=$2', [me.id, target.id]);
   const full = await one(`${MSG_SELECT} where m.id=$1`, [m.id]);
   return { message: msgOut(full, me.id) };
+});
+
+route('POST', 'messages/:userId/typing', async ({ req, params }) => {
+  const me = await authUser(req);
+  const pid = Number(params.userId) || 0;
+  if (!pid || pid === Number(me.id)) return { ok: true };
+  await q(`insert into typing(user_id, partner_id, at) values ($1,$2,now())
+    on conflict (user_id, partner_id) do update set at=now()`, [me.id, pid]);
+  return { ok: true };
 });
 
 async function myMessage(id, meId) {

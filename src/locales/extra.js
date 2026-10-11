@@ -513,3 +513,15 @@ Object.assign(extraAr, {
   msgReactions: 'التفاعلات', msgTapToRemove: 'اضغط للإزالة', msgSwipeHint: 'اسحب الرسالة للرد',
 });
 Object.assign(extraAr.errors, { message_not_found: 'هذه الرسالة لم تعد متاحة.', invalid_emoji: 'اختر رمزاً تعبيرياً.' });
+
+// 2.4.4 — activity status, seen, typing
+Object.assign(extraEn, {
+  activeNowLive: 'Active now', activeAgo: 'Active {t} ago', msgSeen: 'Seen', msgSeenAgo: 'Seen {t} ago', msgTyping: 'Typing…',
+  activityStatus: 'Show activity status',
+  activityStatusDesc: "Allow accounts you follow and anyone you message to see when you were last active on Nexora. When this is turned off, you won't be able to see the activity status of other accounts.",
+});
+Object.assign(extraAr, {
+  activeNowLive: 'نشط الآن', activeAgo: 'كان نشطاً منذ {t}', msgSeen: 'تمت المشاهدة', msgSeenAgo: 'تمت المشاهدة منذ {t}', msgTyping: 'يكتب…',
+  activityStatus: 'إظهار حالة النشاط',
+  activityStatusDesc: 'اسمح للحسابات التي تتابعها ومن تراسلهم برؤية آخر مرة كنت فيها نشطاً على نيكسورا. عند إيقافها لن تتمكن من رؤية حالة نشاط الحسابات الأخرى.',
+});

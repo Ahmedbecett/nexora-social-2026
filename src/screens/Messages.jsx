@@ -6,6 +6,16 @@ import { useApp, Avatar, UserName, TopBar, Loading, Empty, ErrorBox, Sheet, Spin
 import { IEdit, ISend, IImage, IComment, IReply, ICopy, IPin, IUnsend, ITrash, IPlus, IClose } from '../icons.jsx';
 import { tapHaptic } from '../theme.js';
 
+/** "Active now" / "Active 9m ago" (hidden after 7 days or when activity status is off). */
+export function activeLabel(at) {
+  if (!at) return '';
+  const d = Date.now() - new Date(at).getTime();
+  if (d < 5 * 60000) return t('activeNowLive');
+  if (d < 7 * 864e5) return t('activeAgo', { t: timeAgo(at) });
+  return '';
+}
+const isActiveNow = (at) => !!at && Date.now() - new Date(at).getTime() < 5 * 60000;
+
 export function Inbox({ isTab = false, active = true }) {
   const { me, nav, refreshBadges } = useApp();
   const { loading, data, error, reload } = useAsync(() => api('conversations'), []);
@@ -37,10 +47,10 @@ export function Inbox({ isTab = false, active = true }) {
           <div className="user-list">
             {convs.map((c) => (
               <div className={`user-row conv ${c.unread ? 'unread' : ''}`} key={c.user.id} onClick={() => { nav.push('chat', { user: c.user, onBack: () => { reload(); refreshBadges(); } }); }}>
-                <Avatar src={c.user.avatarUrl} name={c.user.username} size={56} />
+                <span className="avatar-presence"><Avatar src={c.user.avatarUrl} name={c.user.username} size={56} />{isActiveNow(c.activeAt) && <i className="presence-dot" />}</span>
                 <div className="user-row-text">
                   <span className="conv-name">{c.user.fullName || c.user.username}</span>
-                  <span className="conv-last"><span className="ellipsis">{preview(c)}</span> · {timeAgo(c.last.createdAt)}</span>
+                  <span className="conv-last">{c.unread || !activeLabel(c.activeAt) ? <><span className="ellipsis">{preview(c)}</span> · {timeAgo(c.last.createdAt)}</> : <span className="ellipsis">{activeLabel(c.activeAt)}</span>}</span>
                 </div>
                 {c.unread > 0 && <span className="unread-dot" />}
               </div>
@@ -248,6 +258,9 @@ export function Chat({ user, onBack, active }) {
   const [forward, setForward] = useState(null);
   const [confirm, setConfirm] = useState(null); // { kind, m }
   const [flashId, setFlashId] = useState(0);
+  const [activeAt, setActiveAt] = useState(null);
+  const [typing, setTyping] = useState(false);
+  const typingSent = useRef(0);
   const lastId = useRef(0);
   const since = useRef(null);
   const endRef = useRef();
@@ -266,6 +279,7 @@ export function Chat({ user, onBack, active }) {
       const qs = initial ? 'after=0' : `after=${lastId.current}${since.current ? `&since=${encodeURIComponent(since.current)}` : ''}`;
       const r = await api(`messages/${user.id}?${qs}`);
       if (r.serverTime) since.current = new Date(new Date(r.serverTime).getTime() - 2000).toISOString();
+      setActiveAt(r.activeAt || null); setTyping(!!r.typing);
       for (const x of r.messages) if (!x.gone && x.id > lastId.current) lastId.current = x.id;
       if (initial) setMsgs(r.messages.filter((x) => !x.gone && !removed.current.has(x.id)));
       else if (r.messages.length) setMsgs((m) => merge(m, r.messages));
@@ -280,6 +294,7 @@ export function Chat({ user, onBack, active }) {
     const last = msgs?.[msgs.length - 1]?.id || 0;
     if (last > lastRendered.current) { endRef.current?.scrollIntoView({ block: 'end' }); lastRendered.current = last; }
   }, [msgs]);
+  useEffect(() => { if (typing) endRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }); }, [typing]);
   useEffect(() => {
     const h = () => setMenu(null);
     document.addEventListener('nx-close-overlay', h);
@@ -359,8 +374,8 @@ export function Chat({ user, onBack, active }) {
     <div className="screen chat">
       <TopBar title={
         <div className="chat-title" onClick={() => nav.profile(user.username)}>
-          <Avatar src={user.avatarUrl} name={user.username} size={32} />
-          <div><b>{user.fullName || user.username}</b><span>{user.username}</span></div>
+          <span className="avatar-presence"><Avatar src={user.avatarUrl} name={user.username} size={32} />{isActiveNow(activeAt) && <i className="presence-dot sm" />}</span>
+          <div><b>{user.fullName || user.username}</b><span>{typing ? t('msgTyping') : (activeLabel(activeAt) || user.username)}</span></div>
         </div>
       } />
       {pinned && (
@@ -394,6 +409,17 @@ export function Chat({ user, onBack, active }) {
                 </div>
               );
             })}
+            {(() => {
+              const last = msgs[msgs.length - 1];
+              if (!last || !last.mine || !last.read || typing) return null;
+              return <div className="seen-label">{last.readAt ? t('msgSeenAgo', { t: timeAgo(last.readAt) }) : t('msgSeen')}</div>;
+            })()}
+            {typing && (
+              <div className="bubble-row typing-row">
+                <Avatar src={user.avatarUrl} name={user.username} size={28} />
+                <div className="typing-bubble"><i /><i /><i /></div>
+              </div>
+            )}
             <div ref={endRef} />
           </>
         )}
@@ -409,7 +435,13 @@ export function Chat({ user, onBack, active }) {
       )}
       <div className="chat-composer">
         <button className="chat-cam" onClick={() => fileRef.current?.click()}>{sending ? <Spinner size={18} light /> : <IImage size={20} />}</button>
-        <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} placeholder={t('typeMessage')} dir="auto"
+        <input ref={inputRef} value={text} onChange={(e) => {
+          setText(e.target.value);
+          if (e.target.value.trim() && Date.now() - typingSent.current > 3000) {
+            typingSent.current = Date.now();
+            api(`messages/${user.id}/typing`, { method: 'POST' }).catch(() => {});
+          }
+        }} placeholder={t('typeMessage')} dir="auto"
           onKeyDown={(e) => e.key === 'Enter' && text.trim() && send({ text })} />
         {text.trim() ? <button className="text-link strong" onClick={() => send({ text })}>{t('send')}</button>
           : <button className="icon-btn" onClick={() => send({ text: '❤️' })}>❤️</button>}

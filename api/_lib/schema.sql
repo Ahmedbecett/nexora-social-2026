@@ -236,3 +236,13 @@ create table if not exists message_reactions (
   created_at timestamptz not null default now(),
   primary key (message_id, user_id)
 );
+
+-- 2.4.4: activity status, seen time, typing indicator
+alter table users add column if not exists last_active_at timestamptz;
+alter table messages add column if not exists read_at timestamptz;
+create table if not exists typing (
+  user_id    bigint not null references users(id) on delete cascade,
+  partner_id bigint not null references users(id) on delete cascade,
+  at         timestamptz not null default now(),
+  primary key (user_id, partner_id)
+);
