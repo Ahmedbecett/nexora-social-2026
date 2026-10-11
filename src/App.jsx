@@ -18,6 +18,7 @@ import Notifications, { FollowRequests } from './screens/Notifications.jsx';
 import { Inbox, Chat } from './screens/Messages.jsx';
 import Settings, { SettingsPage } from './screens/Settings.jsx';
 import { PostDetail, PostList } from './screens/Post.jsx';
+import { CallCenter } from './chatkit/calls.jsx';
 import StoryViewer from './screens/Stories.jsx';
 
 const SCREENS = {
@@ -140,7 +141,7 @@ export default function App() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const h = CapApp.addListener('backButton', () => {
-      if (document.querySelector('.msg-menu-wrap, .media-viewer, .sheet-wrap.open, .dialog-wrap')) { document.dispatchEvent(new CustomEvent('nx-close-overlay')); document.querySelector('.sheet-wrap.open, .dialog-wrap')?.click(); return; }
+      if (document.querySelector('.msg-menu-wrap, .media-viewer, .sheet-wrap.open, .dialog-wrap, .ck-sheet-wrap.open, .ck-drawer.open, .ck-aimenu-wrap')) { document.dispatchEvent(new CustomEvent('nx-close-overlay')); document.querySelector('.sheet-wrap.open, .dialog-wrap, .ck-sheet-wrap.open, .ck-aimenu-wrap')?.click(); return; }
       if (stackRef.current.length) { setStack((s) => s.slice(0, -1)); return; }
       if (tabRef.current !== 'home') { setTab('home'); return; }
       CapApp.exitApp();
@@ -167,7 +168,7 @@ export default function App() {
       <AppCtx.Provider value={ctx}>
         <div className="app" key={lang}>
           <AuthFlow onCancel={token ? () => setAdding(false) : null} key={`auth-${session}-${adding}`} />
-          {toastMsg && <div className="toast">{toastMsg}</div>}
+        {toastMsg && <div className="toast">{toastMsg}</div>}
         </div>
       </AppCtx.Provider>
     );
@@ -204,6 +205,7 @@ export default function App() {
             </div>
           );
         })}
+        <CallCenter />
         {toastMsg && <div className="toast">{toastMsg}</div>}
       </div>
     </AppCtx.Provider>

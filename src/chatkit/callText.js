@@ -1,0 +1,95 @@
+/** نصوص المكالمات — ملف مستقل حتى لا نلمس ملفات الترجمة الأساسية. */
+import { getLang } from '../i18n.js';
+
+const ar = {
+  ckCallContacting: 'جارٍ الاتصال...',
+  ckCallRinging: 'يُرن...',
+  ckCallConnecting: 'جارٍ الربط...',
+  ckCallReconnecting: 'إعادة الاتصال...',
+  ckCallEnded: 'انتهت المكالمة',
+  ckCallDeclined: 'تم رفض المكالمة',
+  ckCallNoAnswer: 'لا يوجد رد',
+  ckCallBusy: 'المستخدم مشغول بمكالمة أخرى',
+  ckCallFailed: 'تعذّر إتمام الاتصال',
+  ckCallLost: 'انقطع الاتصال',
+  ckCallMediaErr: 'لم نتمكن من الوصول إلى الميكروفون أو الكاميرا. تأكد من منح الإذن ثم أعد المحاولة.',
+  ckCallInAudio: 'مكالمة صوتية واردة',
+  ckCallInVideo: 'مكالمة فيديو واردة',
+  ckCallAccept: 'قبول',
+  ckCallDecline: 'رفض',
+  ckCallMute: 'الصوت',
+  ckCallSpeaker: 'مكبر الصوت',
+  ckCallCamera: 'الكاميرا',
+  ckCallEnd: 'إنهاء',
+  ckCallMore: 'خيارات',
+  ckCallVolume: 'مستوى الصوت',
+  ckLogAudioStart: 'مكالمة صوتية بدأت',
+  ckLogAudioEnd: 'مكالمة صوتية انتهت',
+  ckLogVideoStart: 'مكالمة فيديو بدأت',
+  ckLogVideoEnd: 'مكالمة فيديو انتهت',
+  ckLogMissedAudio: 'مكالمة صوتية فائتة',
+  ckLogMissedVideo: 'مكالمة فيديو فائتة',
+  ckCallPreviewAudio: 'مكالمة صوتية',
+  ckCallPreviewVideo: 'مكالمة فيديو',
+  ckCallSomeone: 'مستخدم',
+  ckCallYou: 'أنت',
+  ckCallSwitchCam: 'تبديل الكاميرا',
+  ckCallFront: 'الكاميرا الأمامية',
+  ckCallBack: 'الكاميرا الخلفية',
+};
+const en = {
+  ckCallContacting: 'Contacting...',
+  ckCallRinging: 'Ringing...',
+  ckCallConnecting: 'Connecting...',
+  ckCallReconnecting: 'Reconnecting...',
+  ckCallEnded: 'Call ended',
+  ckCallDeclined: 'Call declined',
+  ckCallNoAnswer: 'No answer',
+  ckCallBusy: 'User is on another call',
+  ckCallFailed: 'Could not connect the call',
+  ckCallLost: 'Connection lost',
+  ckCallMediaErr: 'We could not access the microphone or camera. Allow the permission and try again.',
+  ckCallInAudio: 'Incoming audio call',
+  ckCallInVideo: 'Incoming video call',
+  ckCallAccept: 'Accept',
+  ckCallDecline: 'Decline',
+  ckCallMute: 'Audio',
+  ckCallSpeaker: 'Speaker',
+  ckCallCamera: 'Camera',
+  ckCallEnd: 'End',
+  ckCallMore: 'Options',
+  ckCallVolume: 'Volume',
+  ckLogAudioStart: 'Audio call started',
+  ckLogAudioEnd: 'Audio call ended',
+  ckLogVideoStart: 'Video call started',
+  ckLogVideoEnd: 'Video call ended',
+  ckLogMissedAudio: 'Missed audio call',
+  ckLogMissedVideo: 'Missed video call',
+  ckCallPreviewAudio: 'Audio call',
+  ckCallPreviewVideo: 'Video call',
+  ckCallSomeone: 'User',
+  ckCallYou: 'You',
+  ckCallSwitchCam: 'Switch camera',
+  ckCallFront: 'Front camera',
+  ckCallBack: 'Back camera',
+};
+const fr = {
+  ckCallContacting: 'Connexion...', ckCallRinging: 'Sonnerie...', ckCallConnecting: 'Connexion...',
+  ckCallReconnecting: 'Reconnexion...', ckCallEnded: 'Appel terminé', ckCallDeclined: 'Appel refusé',
+  ckCallNoAnswer: 'Pas de réponse', ckCallBusy: 'Utilisateur en ligne occupée', ckCallFailed: 'Échec de l\'appel',
+  ckCallLost: 'Connexion perdue', ckCallInAudio: 'Appel audio entrant', ckCallInVideo: 'Appel vidéo entrant',
+  ckCallAccept: 'Accepter', ckCallDecline: 'Refuser', ckLogAudioStart: 'Appel audio démarré',
+  ckLogAudioEnd: 'Appel audio terminé', ckLogVideoStart: 'Appel vidéo démarré', ckLogVideoEnd: 'Appel vidéo terminé',
+  ckLogMissedAudio: 'Appel audio manqué', ckLogMissedVideo: 'Appel vidéo manqué',
+  ckCallPreviewAudio: 'Appel audio', ckCallPreviewVideo: 'Appel vidéo', ckCallSomeone: 'Utilisateur', ckCallYou: 'Vous',
+};
+const DICTS = { ar, en, fr };
+
+export const ct = (k) => DICTS[getLang()]?.[k] ?? en[k] ?? k;
+
+/** 8:21 PM بصيغة لغة المستخدم */
+export function fmtClock(ts) {
+  const d = new Date(ts || Date.now());
+  try { return d.toLocaleTimeString(getLang(), { hour: 'numeric', minute: '2-digit' }); }
+  catch { return d.toLocaleTimeString(); }
+}

@@ -916,7 +916,7 @@ html:not([data-theme='dark']) .msg-menu-time { color: #737373; }
 .bubble-video-play { position: absolute; inset: 0; margin: auto; width: 54px; height: 54px; border-radius: 50%; background: rgba(0,0,0,.45); color: #fff; display: flex; align-items: center; justify-content: center; }
 .bubble-img { cursor: pointer; }
 .edited-label { font-size: 11px; color: var(--muted); padding: 0 10px; }
-.media-viewer { position: fixed; inset: 0; z-index: 400; background: #000; display: flex; align-items: center; justify-content: center; animation: fadeIn .18s ease; }
+.media-viewer { position: fixed; inset: 0; z-index: 800; background: #000; display: flex; align-items: center; justify-content: center; animation: fadeIn .18s ease; }
 .media-viewer img, .media-viewer video { max-width: 100%; max-height: 100%; object-fit: contain; }
 .media-viewer-x { position: absolute; top: calc(10px + var(--safe-top, 0px)); inset-inline-end: 10px; z-index: 2; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,.35); border-radius: 50%; }
 .chat-composer.recording { padding: 5px; gap: 10px; }

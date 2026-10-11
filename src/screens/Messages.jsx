@@ -2,9 +2,19 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, uploadMedia, uploadBlob } from '../api.js';
 import { t, timeAgo, errText, getLang } from '../i18n.js';
-import { useApp, Avatar, UserName, TopBar, Loading, Empty, ErrorBox, Sheet, Spinner, Confirm, useAsync } from '../components.jsx';
-import { IEdit, ISend, IImage, IComment, IReply, ICopy, IPin, IUnsend, ITrash, IPlus, IClose, IMic, IPlay, IPause, IArrowUp } from '../icons.jsx';
+import { useApp, Avatar, UserName, TopBar, Loading, Empty, ErrorBox, Sheet, Spinner, Confirm, ActionSheet, useAsync } from '../components.jsx';
+import { IEdit, ISend, IImage, IComment, IReply, ICopy, IPin, IUnsend, ITrash, IPlus, IClose, IMic, IPlay, IPause, IArrowUp, ICamera, IPhone } from '../icons.jsx';
+import { IScissors, IHandset, ICamcorder } from '../chatkit/icons2.jsx';
 import { tapHaptic } from '../theme.js';
+import {
+  ChatComposer, ChatDrawer, AiMenu, LocationSheet, AiImageSheet, DrawSheet, AiChatSheet,
+  CutoutSheet, MusicSheet, EffectSheet, KitSettingsSheet, DragLayer,
+  StickerBubble, GifBubble, LocationBubble, MusicBubble,
+} from '../chatkit/ChatKit.jsx';
+import { startCall, isCallSignal, isCallLog, parseCallLog } from '../chatkit/call.js';
+import { ct } from '../chatkit/callText.js';
+import { CallLogBubble } from '../chatkit/calls.jsx';
+import { rasterize, readFile } from '../chatkit/lib.js';
 
 /** "Active now" / "Active 9m ago" (hidden after 7 days or when activity status is off). */
 export function activeLabel(at) {
@@ -30,6 +40,12 @@ export function Inbox({ isTab = false, active = true }) {
   const convs = (data?.conversations || []).filter((c) => !q || c.user.username.includes(q.toLowerCase()) || (c.user.fullName || '').toLowerCase().includes(q.toLowerCase()));
   const preview = (c) => {
     const prefix = c.last.mine ? `${t('you')}: ` : '';
+    if (isCallSignal(c.last.text)) return prefix + ct('ckCallPreviewAudio');
+    if (isCallLog(c.last.text)) {
+      const d = parseCallLog(c.last.text) || {};
+      if (d.d === 'missed') return prefix + ct(d.k === 'video' ? 'ckLogMissedVideo' : 'ckLogMissedAudio');
+      return prefix + ct(d.k === 'video' ? 'ckCallPreviewVideo' : 'ckCallPreviewAudio');
+    }
     if (c.last.post) return prefix + t('sentPost');
     if (c.last.media && !c.last.text) return prefix + t(c.last.mediaType === 'audio' ? 'sentVoice' : c.last.mediaType === 'video' ? 'sentVideo' : 'sentPhoto');
     return prefix + c.last.text;
@@ -104,8 +120,24 @@ const MORE = ['❤️', '😂', '😮', '😢', '😡', '👍', '🔥', '👏', 
   '💯', '✨', '🎉', '💔', '💙', '💚', '💛', '🖤', '🤍', '💜', '🌹', '⭐', '☀️', '🌙', '⚽', '🎶'];
 const isEmojiOnly = (s) => !!s && s.length <= 16 && /\p{Extended_Pictographic}/u.test(s)
   && /^[\p{Extended_Pictographic}\p{Emoji_Component}\u200d\ufe0f\s]+$/u.test(s) && !/[0-9#*]/.test(s);
-const preview = (m) => (m.text ? m.text : m.mediaType === 'audio' ? `🎤 ${t('msgVoice')}` : m.mediaType === 'video' ? `🎬 ${t('msgVideo')}`
-  : m.media || m.mediaUrl ? `📷 ${t('msgPhoto')}` : m.post ? t('msgPost') : '');
+const preview = (m) => {
+  if (isCallSignal(m.text)) return `📞 ${ct('ckCallPreviewAudio')}`;
+  if (isCallLog(m.text)) {
+    const d = parseCallLog(m.text) || {};
+    if (d.d === 'missed') return `📞 ${ct(d.k === 'video' ? 'ckLogMissedVideo' : 'ckLogMissedAudio')}`;
+    return `📞 ${ct(d.k === 'video' ? 'ckCallPreviewVideo' : 'ckCallPreviewAudio')}`;
+  }
+  const k = m.mediaMeta?.kind;
+  if (k === 'sticker') return `🎨 ${t('ckSticker')}`;
+  if (k === 'gif') return `🎞️ ${t('ckGifs')}`;
+  if (k === 'cutout') return `✂️ ${t('ckCutouts')}`;
+  if (k === 'draw') return `✍️ ${t('ckDraw')}`;
+  if (k === 'ai') return `✨ ${t('ckAiImages')}`;
+  if (k === 'location') return `📍 ${m.mediaMeta?.place || m.text || t('ckLocation')}`;
+  if (k === 'music') return `🎵 ${m.mediaMeta?.title || t('ckMusic')}`;
+  return m.text ? m.text : m.mediaType === 'audio' ? `🎤 ${t('msgVoice')}` : m.mediaType === 'video' ? `🎬 ${t('msgVideo')}`
+    : m.media || m.mediaUrl ? `📷 ${t('msgPhoto')}` : m.post ? t('msgPost') : '';
+};
 const fmtDur = (s) => { s = Math.max(0, Math.round(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 function resample(arr, n) {
   if (!arr?.length) return [];
@@ -179,6 +211,14 @@ async function copyText(text) {
 }
 
 function MsgBody({ m, onPost, onMedia }) {
+  const kind = m.mediaMeta?.kind;
+  // ملصق / صورة متحركة / موقع / موسيقى: عرض خاص بدون فقاعة
+  if (m.mediaUrl && kind === 'sticker') return <StickerBubble m={m} onOpen={onMedia} />;
+  if (m.mediaUrl && kind === 'cutout') return <StickerBubble m={m} big onOpen={onMedia} />;
+  if (m.mediaUrl && kind === 'draw') return <StickerBubble m={m} big onOpen={onMedia} />;
+  if (m.mediaUrl && kind === 'gif') return <GifBubble m={m} />;
+  if (m.mediaUrl && kind === 'location') return <LocationBubble m={m} />;
+  if (m.mediaUrl && kind === 'music') return <MusicBubble m={m} />;
   return (
     <>
       {m.post && (
@@ -194,7 +234,12 @@ function MsgBody({ m, onPost, onMedia }) {
           <span className="bubble-video-play"><IPlay size={28} /></span>
         </div>
       )}
-      {m.mediaUrl && (!m.mediaType || m.mediaType === 'image') && <img className="bubble-img" src={m.mediaUrl} alt="" draggable={false} onClick={() => onMedia?.({ type: 'image', url: m.mediaUrl })} />}
+      {m.mediaUrl && (!m.mediaType || m.mediaType === 'image') && (
+        <span className={`ck-img-wrap ${kind === 'ai' ? 'ai' : ''}`}>
+          <img className="bubble-img" src={m.mediaUrl} alt="" draggable={false} onClick={() => onMedia?.({ type: 'image', url: m.mediaUrl })} />
+          {kind === 'ai' && <span className="ck-ai-badge">✨ {t('ckAiImages')}</span>}
+        </span>
+      )}
       {m.text && <div className={`bubble ${isEmojiOnly(m.text) ? 'emoji' : ''}`} dir="auto">{m.text}</div>}
     </>
   );
@@ -330,6 +375,20 @@ export function Chat({ user, onBack, active }) {
   const typingSent = useRef(0);
   const [editing, setEditing] = useState(null);
   const [viewer, setViewer] = useState(null);
+  const [drawer, setDrawer] = useState(false);
+  const [drawerTab, setDrawerTab] = useState('stickers');
+  const [aiMenu, setAiMenu] = useState(false);
+  const [tool, setTool] = useState(null);
+  const [camMenu, setCamMenu] = useState(false);
+  const [fxSrc, setFxSrc] = useState(null);
+  const [fxEffect, setFxEffect] = useState('vivid');
+  const [aiSeed, setAiSeed] = useState('');
+  const composerRef = useRef();
+  const fxInputRef = useRef();
+  const camRef = useRef();
+  const dragRef = useRef(null);
+  const [drag, setDragState] = useState(null);
+  const setDrag = (v) => { dragRef.current = v; setDragState(v); };
   const [recording, setRecording] = useState(false);
   const [recTime, setRecTime] = useState(0);
   const [recLevels, setRecLevels] = useState([]);
@@ -408,6 +467,52 @@ export function Chat({ user, onBack, active }) {
       setSending(false);
       await send({ mediaUrl: m.url, mediaType: m.type, mediaMeta: { w: m.w, h: m.h, poster: m.poster || undefined } });
     } catch (err) { toast(errText(err.code || 'server_error')); setSending(false); }
+  };
+
+  /* ---- ChatKit: ملصقات، صور متحركة، أدوات ---- */
+  const sendKit = async ({ blob, url: directUrl, mime = 'image/png', w, h, text: caption, meta = {} }) => {
+    setSending(true);
+    try {
+      const url = directUrl || await uploadBlob(blob, mime);
+      await send({ mediaUrl: url, mediaType: 'image', text: caption || undefined, mediaMeta: { ...meta, w, h } });
+      setDrawer(false);
+    } catch (e) { console.warn('[chatkit] send failed', e?.code || e?.message || e); toast(errText(e.code || 'server_error')); }
+    setSending(false);
+  };
+  const sendSticker = async (item) => {
+    tapHaptic();
+    try {
+      if (item.source === 'giphy') { await send({ mediaUrl: item.url, mediaType: 'image', mediaMeta: { kind: 'sticker', w: item.w, h: item.h } }); return; }
+      const { blob, w, h } = await rasterize(item.url, 512);
+      await sendKit({ blob, mime: 'image/png', w, h, meta: { kind: 'sticker' } });
+    } catch { toast(errText('server_error')); }
+  };
+  const sendGif = async (item) => {
+    tapHaptic();
+    try {
+      if (item.source === 'giphy') { await send({ mediaUrl: item.url, mediaType: 'image', mediaMeta: { kind: 'gif', w: item.w, h: item.h } }); return; }
+      const res = await fetch(item.url);
+      const blob = await res.blob();
+      await sendKit({ blob, mime: blob.type || 'image/gif', w: item.w, h: item.h, meta: { kind: 'gif' } });
+    } catch { toast(errText('network')); }
+  };
+  /* سحب الملصق من اللوحة وإفلاته في المحادثة */
+  const handleDrag = (e) => {
+    if (e.phase === 'start') { tapHaptic(); setDrag({ phase: 'down', item: e.item, x: e.x, y: e.y }); return; }
+    if (e.phase === 'move') {
+      const top = composerRef.current?.getBoundingClientRect().top ?? window.innerHeight;
+      setDrag({ phase: 'move', item: e.item, x: e.x, y: e.y, over: e.y < top });
+      return;
+    }
+    const cur = dragRef.current;
+    setDrag(null);
+    if (cur?.over && cur.item) (cur.item.kind === 'gif' ? sendGif : sendSticker)(cur.item);
+  };
+  const onFxFile = async (e) => {
+    const f = e.target.files?.[0]; e.target.value = '';
+    if (!f) return;
+    setDrawer(false);
+    try { setFxSrc(await readFile(f)); } catch { toast(errText('unsupported_type')); }
   };
 
   /* ---- voice messages ---- */
@@ -508,7 +613,8 @@ export function Chat({ user, onBack, active }) {
     } catch (e) { toast(errText(e.code)); }
   };
 
-  const pinned = msgs ? [...msgs].reverse().find((x) => x.pinned) : null;
+  const shown = msgs ? msgs.filter((m) => !isCallSignal(m.text)) : null;
+  const pinned = shown ? [...shown].reverse().find((x) => x.pinned) : null;
   const meName = me?.username;
   return (
     <div className="screen chat">
@@ -517,6 +623,11 @@ export function Chat({ user, onBack, active }) {
           <span className="avatar-presence"><Avatar src={user.avatarUrl} name={user.username} size={32} />{isActiveNow(activeAt) && <i className="presence-dot sm" />}</span>
           <div><b>{user.fullName || user.username}</b><span>{typing ? t('msgTyping') : (activeLabel(activeAt) || user.username)}</span></div>
         </div>
+      } right={
+        <div className="ck-call-btns">
+          <button className="icon-btn" onClick={() => startCall(user, 'audio', { active: isActiveNow(activeAt) })} aria-label={t('ckVoiceCall')}><IHandset size={24} /></button>
+          <button className="icon-btn" onClick={() => startCall(user, 'video', { active: isActiveNow(activeAt) })} aria-label={t('ckVideoCall')}><ICamcorder size={25} /></button>
+        </div>
       } />
       {pinned && (
         <button className="pinned-bar" onClick={() => jump(pinned.id)}>
@@ -524,7 +635,7 @@ export function Chat({ user, onBack, active }) {
           <div><b>{t('msgPinned')}</b><span className="ellipsis" dir="auto">{preview(pinned)}</span></div>
         </button>
       )}
-      <div className="scroll chat-scroll">
+      <div className="scroll chat-scroll" onClick={() => drawer && setDrawer(false)}>
         {msgs === null ? <Loading /> : (
           <>
             <div className="chat-intro">
@@ -533,10 +644,18 @@ export function Chat({ user, onBack, active }) {
               <span className="muted">{user.username} · {t('activeNow')}</span>
               <button className="btn btn-secondary btn-sm" onClick={() => nav.profile(user.username)}>{t('viewProfile')}</button>
             </div>
-            {msgs.map((m, i) => {
-              const showTime = i === 0 || new Date(m.createdAt) - new Date(msgs[i - 1].createdAt) > 30 * 60000;
-              const next = msgs[i + 1];
+            {shown.map((m, i) => {
+              const showTime = i === 0 || new Date(m.createdAt) - new Date(shown[i - 1].createdAt) > 30 * 60000;
+              const next = shown[i + 1];
               const showAvatar = !m.mine && (!next || next.mine || new Date(next.createdAt) - new Date(m.createdAt) > 30 * 60000);
+              if (isCallLog(m.text)) {
+                return (
+                  <div key={m.id}>
+                    {showTime && <div className="chat-time">{new Date(m.createdAt).toLocaleString(getLang(), { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</div>}
+                    <CallLogBubble text={m.text} mine={m.mine} />
+                  </div>
+                );
+              }
               return (
                 <div key={m.id}>
                   {showTime && <div className="chat-time">{new Date(m.createdAt).toLocaleString(getLang(), { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</div>}
@@ -550,7 +669,7 @@ export function Chat({ user, onBack, active }) {
               );
             })}
             {(() => {
-              const last = msgs[msgs.length - 1];
+              const last = shown[shown.length - 1];
               if (!last || !last.mine || !last.read || typing) return null;
               return <div className="seen-label">{last.readAt ? t('msgSeenAgo', { t: timeAgo(last.readAt) }) : t('msgSeen')}</div>;
             })()}
@@ -579,34 +698,69 @@ export function Chat({ user, onBack, active }) {
           <button className="icon-btn" onClick={() => setReplyTo(null)} aria-label="close"><IClose size={18} /></button>
         </div>
       )}
-      {recording ? (
-        <div className="chat-composer recording">
-          <button className="rec-cancel" onClick={() => stopRec(false)} aria-label="cancel"><ITrash size={20} /></button>
-          <span className="rec-dot" /><span className="rec-time">{fmtDur(recTime / 1000)}</span>
-          <div className="rec-wave" dir="ltr">{recLevels.map((v, i) => <i key={i} style={{ height: `${12 + v * 88}%` }} />)}</div>
-          <button className="rec-send" onClick={() => stopRec(true)} aria-label="send"><IArrowUp size={20} /></button>
-        </div>
-      ) : (
-        <div className="chat-composer">
-          <button className="chat-cam" onClick={() => fileRef.current?.click()}>{sending ? <Spinner size={18} light /> : <IImage size={20} />}</button>
-          <input ref={inputRef} value={text} onChange={(e) => {
-            setText(e.target.value);
-            if (!editing && e.target.value.trim() && Date.now() - typingSent.current > 3000) {
-              typingSent.current = Date.now();
-              api(`messages/${user.id}/typing`, { method: 'POST' }).catch(() => {});
-            }
-          }} placeholder={t('typeMessage')} dir="auto"
-            onKeyDown={(e) => e.key === 'Enter' && text.trim() && send({ text })} />
-          {text.trim() ? <button className="text-link strong" onClick={() => send({ text })}>{editing ? t('done') : t('send')}</button> : (
-            <>
-              <button className="icon-btn" onClick={startRec} aria-label={t('msgVoice')}><IMic size={24} /></button>
-              <button className="icon-btn" onClick={() => send({ text: '❤️' })}>❤️</button>
-            </>
-          )}
-          <input ref={fileRef} type="file" accept="image/*,video/*" hidden onChange={sendPhoto} />
-        </div>
-      )}
-
+      <ChatComposer
+        rootRef={composerRef}
+        inputRef={inputRef}
+        text={text} setText={setText} sending={sending}
+        editing={editing}
+        onCancelEdit={() => { setEditing(null); setText(''); }}
+        onSend={(v) => send({ text: v })}
+        onTyping={() => {
+          if (!editing && Date.now() - typingSent.current > 3000) {
+            typingSent.current = Date.now();
+            api(`messages/${user.id}/typing`, { method: 'POST' }).catch(() => {});
+          }
+        }}
+        onPickMedia={() => fileRef.current?.click()}
+        onCamera={() => setCamMenu(true)}
+        onOpenStickers={() => { setDrawerTab('stickers'); setDrawer(true); tapHaptic(); }}
+        onToggleDrawer={() => { setDrawer((v) => !v); tapHaptic(); }}
+        onOpenAi={() => setAiMenu(true)}
+        recording={recording} recTime={recTime} recLevels={recLevels}
+        onStartRec={startRec} onStopRec={stopRec}
+        drawerOpen={drawer}
+      />
+      <ChatDrawer
+        open={drawer}
+        tab={drawerTab} setTab={setDrawerTab}
+        onClose={() => setDrawer(false)}
+        onOpenAi={() => setAiMenu(true)}
+        onSendSticker={sendSticker}
+        onSendGif={sendGif}
+        onEffect={(id) => { setFxEffect(id); fxInputRef.current?.click(); }}
+        onTool={(x) => setTool(x)}
+        onDrag={handleDrag}
+      />
+      <input ref={fxInputRef} type="file" accept="image/*" hidden onChange={onFxFile} />
+      <input ref={camRef} type="file" accept="image/*" capture="environment" hidden onChange={sendPhoto} />
+      <AiMenu
+        open={aiMenu} anchorRef={composerRef} onClose={() => setAiMenu(false)}
+        onPick={(id) => {
+          setDrawer(false);
+          setTool(id === 'location' ? 'location' : id === 'aiimage' ? 'aiimage' : id === 'draw' ? 'draw' : 'ai');
+        }}
+      />
+      <LocationSheet open={tool === 'location'} onClose={() => setTool(null)} onSend={sendKit} toast={toast} />
+      <AiImageSheet open={tool === 'aiimage'} onClose={() => setTool(null)} onSend={sendKit} toast={toast} initialPrompt={aiSeed} />
+      <DrawSheet open={tool === 'draw'} onClose={() => setTool(null)} onSend={sendKit} />
+      <AiChatSheet
+        open={tool === 'ai'} onClose={() => setTool(null)} toast={toast} messages={msgs || []}
+        onSendText={(v) => send({ text: v })}
+        onUsePrompt={(p) => { setAiSeed(p); setTool('aiimage'); }}
+      />
+      <CutoutSheet open={tool === 'cutouts'} onClose={() => setTool(null)} onSend={sendKit} toast={toast} />
+      <MusicSheet open={tool === 'music'} onClose={() => setTool(null)} onSend={sendKit} onSendText={(v) => send({ text: v })} />
+      <EffectSheet open={!!fxSrc} onClose={() => setFxSrc(null)} onSend={sendKit} src={fxSrc} effect={fxEffect} setEffect={setFxEffect} />
+      <KitSettingsSheet open={tool === 'settings'} onClose={() => setTool(null)} />
+      <ActionSheet
+        open={camMenu} onClose={() => setCamMenu(false)}
+        actions={[
+          { icon: <ICamera size={22} />, label: t('ckTakePhoto'), onClick: () => camRef.current?.click() },
+          { icon: <IImage size={22} />, label: t('ckFromGallery'), onClick: () => fileRef.current?.click() },
+          { icon: <IScissors size={22} />, label: t('ckCutouts'), onClick: () => setTool('cutouts') },
+    ]}
+      />
+      <DragLayer drag={drag} />
       {viewer && <MediaViewer v={viewer} onClose={() => setViewer(null)} />}
       {menu && <MessageMenu m={menu.m} rect={menu.rect} onClose={() => setMenu(null)} onReact={react} onAction={action} />}
       <Sheet open={!!reactSheet} onClose={() => setReactSheet(null)} title={t('msgReactions')}>
