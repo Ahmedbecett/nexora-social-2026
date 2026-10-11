@@ -140,7 +140,7 @@ export default function App() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const h = CapApp.addListener('backButton', () => {
-      if (document.querySelector('.msg-menu-wrap, .sheet-wrap.open, .dialog-wrap')) { document.dispatchEvent(new CustomEvent('nx-close-overlay')); document.querySelector('.sheet-wrap.open, .dialog-wrap')?.click(); return; }
+      if (document.querySelector('.msg-menu-wrap, .media-viewer, .sheet-wrap.open, .dialog-wrap')) { document.dispatchEvent(new CustomEvent('nx-close-overlay')); document.querySelector('.sheet-wrap.open, .dialog-wrap')?.click(); return; }
       if (stackRef.current.length) { setStack((s) => s.slice(0, -1)); return; }
       if (tabRef.current !== 'home') { setTab('home'); return; }
       CapApp.exitApp();

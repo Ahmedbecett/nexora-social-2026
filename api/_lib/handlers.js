@@ -661,12 +661,12 @@ route('GET', 'me/badges', async ({ req }) => {
 });
 
 /* ---------- uploads (Vercel Blob client tokens) ---------- */
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm', 'audio/webm', 'audio/mp4', 'audio/ogg', 'audio/mpeg', 'audio/aac'];
 route('POST', 'upload/token', async ({ req, body }) => {
   const u = await authUser(req);
   const contentType = String(body.contentType || '');
   if (!ALLOWED_TYPES.includes(contentType)) throw bad('unsupported_type');
-  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm' }[contentType];
+  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm', 'audio/webm': 'weba', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/aac': 'aac' }[contentType];
   const pathname = `u/${u.id}/${Date.now().toString(36)}.${ext}`;
   if (!process.env.BLOB_READ_WRITE_TOKEN) throw new HttpError(500, 'storage_not_configured');
   const clientToken = await generateClientTokenFromReadWriteToken({
@@ -1132,7 +1132,7 @@ route('POST', 'notifications/read', async ({ req }) => {
 const MSG_VISIBLE = `not m.unsent and not ($1 = any(m.hidden_for))`;
 route('GET', 'conversations', async ({ req }) => {
   const me = await authUser(req);
-  const rows = await q(`select distinct on (partner) partner, m.id, m.text, m.media_url, m.post_id, m.created_at, m.sender_id, m.read,
+  const rows = await q(`select distinct on (partner) partner, m.id, m.text, m.media_url, m.media_type, m.post_id, m.created_at, m.sender_id, m.read,
         u.username, u.full_name, u.avatar_url, u.verified, u.last_active_at, u.settings,
         (select count(*) from messages x where x.sender_id=partner and x.receiver_id=$1 and x.read=false and not x.unsent)::int as unread
      from (select *, case when sender_id=$1 then receiver_id else sender_id end as partner from messages m
@@ -1144,7 +1144,7 @@ route('GET', 'conversations', async ({ req }) => {
     conversations: rows.map((r) => ({
       user: { id: Number(r.partner), username: r.username, fullName: r.full_name, avatarUrl: r.avatar_url, verified: r.verified },
       activeAt: activeAtFor(me, r),
-      last: { text: r.text, media: !!r.media_url, post: !!r.post_id, mine: Number(r.sender_id) === Number(me.id), createdAt: r.created_at },
+      last: { text: r.text, media: !!r.media_url, mediaType: r.media_url ? (r.media_type || 'image') : null, post: !!r.post_id, mine: Number(r.sender_id) === Number(me.id), createdAt: r.created_at },
       unread: r.unread,
     })),
   };
@@ -1152,18 +1152,19 @@ route('GET', 'conversations', async ({ req }) => {
 
 function msgOut(m, meId) {
   const reply = m.reply_to ? (m.r_id && !m.r_unsent
-    ? { id: Number(m.r_id), mine: Number(m.r_sender) === Number(meId), text: m.r_text || '', media: !!m.r_media, post: !!m.r_post }
+    ? { id: Number(m.r_id), mine: Number(m.r_sender) === Number(meId), text: m.r_text || '', media: !!m.r_media, mediaType: m.r_media ? (m.r_media_type || 'image') : null, post: !!m.r_post }
     : { id: Number(m.reply_to), gone: true }) : null;
   return {
     id: Number(m.id), mine: Number(m.sender_id) === Number(meId), text: m.text, mediaUrl: m.media_url,
+    mediaType: m.media_url ? (m.media_type || 'image') : null, mediaMeta: m.media_meta || null, edited: !!m.edited_at,
     post: m.post_id ? { id: Number(m.post_id), thumb: m.post_media?.[0]?.poster || m.post_media?.[0]?.url, type: m.post_media?.[0]?.poster ? 'image' : m.post_media?.[0]?.type, username: m.post_user } : null,
     read: m.read, readAt: m.read_at || null, createdAt: m.created_at, pinned: !!m.pinned_at, reply,
     reactions: (m.reactions || []).map((x) => ({ emoji: x.e, mine: Number(x.u) === Number(meId) })),
   };
 }
-const MSG_SELECT = `select m.id, m.sender_id, m.text, m.media_url, m.post_id, m.read, m.read_at, m.created_at, m.unsent, m.hidden_for, m.pinned_at, m.reply_to,
+const MSG_SELECT = `select m.id, m.sender_id, m.text, m.media_url, m.media_type, m.media_meta, m.edited_at, m.post_id, m.read, m.read_at, m.created_at, m.unsent, m.hidden_for, m.pinned_at, m.reply_to,
         p.media as post_media, pu.username as post_user,
-        r.id as r_id, r.sender_id as r_sender, r.text as r_text, r.media_url as r_media, r.post_id as r_post, r.unsent as r_unsent,
+        r.id as r_id, r.sender_id as r_sender, r.text as r_text, r.media_url as r_media, r.media_type as r_media_type, r.post_id as r_post, r.unsent as r_unsent,
         (select coalesce(json_agg(json_build_object('u', mr.user_id, 'e', mr.emoji) order by mr.created_at), '[]'::json)
            from message_reactions mr where mr.message_id=m.id) as reactions
       from messages m left join posts p on p.id=m.post_id left join users pu on pu.id=p.user_id
@@ -1216,7 +1217,10 @@ route('POST', 'messages/:userId', async ({ req, params, body }) => {
       ((sender_id=$2 and receiver_id=$3) or (sender_id=$3 and receiver_id=$2))`, [replyTo, me.id, target.id]);
     if (!r) replyTo = null;
   }
-  const m = await one('insert into messages(sender_id, receiver_id, text, media_url, post_id, reply_to) values ($1,$2,$3,$4,$5,$6) returning id', [me.id, target.id, text, mediaUrl, postId, replyTo]);
+  const mediaType = mediaUrl ? (['image', 'video', 'audio'].includes(body.mediaType) ? body.mediaType : 'image') : null;
+  const mediaMeta = mediaUrl ? cleanMediaMeta(body.mediaMeta) : null;
+  const m = await one('insert into messages(sender_id, receiver_id, text, media_url, post_id, reply_to, media_type, media_meta) values ($1,$2,$3,$4,$5,$6,$7,$8) returning id',
+    [me.id, target.id, text, mediaUrl, postId, replyTo, mediaType, mediaMeta ? JSON.stringify(mediaMeta) : null]);
   await q('delete from typing where user_id=$1 and partner_id=$2', [me.id, target.id]);
   const full = await one(`${MSG_SELECT} where m.id=$1`, [m.id]);
   return { message: msgOut(full, me.id) };
@@ -1229,6 +1233,30 @@ route('POST', 'messages/:userId/typing', async ({ req, params }) => {
   await q(`insert into typing(user_id, partner_id, at) values ($1,$2,now())
     on conflict (user_id, partner_id) do update set at=now()`, [me.id, pid]);
   return { ok: true };
+});
+
+function cleanMediaMeta(x) {
+  if (!x || typeof x !== 'object') return null;
+  const o = {};
+  const num = (v, max) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.min(Number(v), max) : undefined);
+  o.duration = num(x.duration, 3600); o.w = num(x.w, 10000); o.h = num(x.h, 10000);
+  if (x.poster && isMediaUrl(x.poster)) o.poster = x.poster;
+  if (Array.isArray(x.peaks)) o.peaks = x.peaks.slice(0, 64).map((v) => Math.round(Math.max(0, Math.min(1, Number(v) || 0)) * 100) / 100);
+  Object.keys(o).forEach((k) => o[k] === undefined && delete o[k]);
+  return Object.keys(o).length ? o : null;
+}
+// Edit a text message (sender only, within 15 minutes, like Instagram)
+route('PATCH', 'message/:id', async ({ req, params, body }) => {
+  const me = await authUser(req);
+  const m = await myMessage(params.id, me.id);
+  if (Number(m.sender_id) !== Number(me.id)) throw new HttpError(403, 'forbidden');
+  if (m.media_url || m.post_id) throw bad('edit_text_only');
+  if (Date.now() - new Date(m.created_at).getTime() > 15 * 60000) throw bad('edit_expired');
+  const text = cleanText(body.text, 2000);
+  if (!text) throw bad('empty_message');
+  await q('update messages set text=$2, edited_at=now(), updated_at=now() where id=$1', [m.id, text]);
+  const full = await one(`${MSG_SELECT} where m.id=$1`, [m.id]);
+  return { message: msgOut(full, me.id) };
 });
 
 async function myMessage(id, meId) {

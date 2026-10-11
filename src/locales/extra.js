@@ -525,3 +525,19 @@ Object.assign(extraAr, {
   activityStatus: 'إظهار حالة النشاط',
   activityStatusDesc: 'اسمح للحسابات التي تتابعها ومن تراسلهم برؤية آخر مرة كنت فيها نشطاً على نيكسورا. عند إيقافها لن تتمكن من رؤية حالة نشاط الحسابات الأخرى.',
 });
+
+// 2.4.5 — voice / video messages, edit
+Object.assign(extraEn, {
+  msgEdit: 'Edit', msgEdited: 'Edited', msgEditing: 'Editing message', msgVoice: 'Voice message', msgVideo: 'Video',
+  sentVoice: 'Sent a voice message', sentVideo: 'Sent a video',
+  msgMicDenied: 'Allow microphone access to send voice messages.', msgMicUnsupported: 'Voice messages are not supported on this device.',
+  msgSlideCancel: 'Tap the trash to cancel',
+});
+Object.assign(extraEn.errors, { edit_expired: 'You can only edit a message for 15 minutes after sending it.', edit_text_only: 'Only text messages can be edited.' });
+Object.assign(extraAr, {
+  msgEdit: 'تعديل', msgEdited: 'مُعدّلة', msgEditing: 'تعديل الرسالة', msgVoice: 'رسالة صوتية', msgVideo: 'فيديو',
+  sentVoice: 'أرسل رسالة صوتية', sentVideo: 'أرسل فيديو',
+  msgMicDenied: 'اسمح بالوصول إلى الميكروفون لإرسال رسائل صوتية.', msgMicUnsupported: 'الرسائل الصوتية غير مدعومة على هذا الجهاز.',
+  msgSlideCancel: 'اضغط سلة المهملات للإلغاء',
+});
+Object.assign(extraAr.errors, { edit_expired: 'يمكنك تعديل الرسالة خلال 15 دقيقة فقط من إرسالها.', edit_text_only: 'يمكن تعديل الرسائل النصية فقط.' });

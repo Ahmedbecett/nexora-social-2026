@@ -902,3 +902,28 @@ html:not([data-theme='dark']) .msg-menu-time { color: #737373; }
 .typing-bubble i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: typingDot 1.2s infinite ease-in-out; }
 .typing-bubble i:nth-child(2) { animation-delay: .15s; } .typing-bubble i:nth-child(3) { animation-delay: .3s; }
 @keyframes typingDot { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+/* 2.4.5 — voice / video messages, media viewer, edit */
+.voice-bubble { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; width: 230px; max-width: 100%; white-space: normal; }
+.voice-play { width: 34px; height: 34px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: inherit; background: rgba(127,127,127,.18); }
+.bubble-row.mine .voice-play { background: rgba(255,255,255,.22); }
+.voice-wave { flex: 1; min-width: 0; height: 28px; display: flex; align-items: center; gap: 2px; }
+.voice-wave i { flex: 1; min-width: 2px; border-radius: 2px; background: currentColor; opacity: .38; transition: opacity .15s; }
+.voice-wave i.on { opacity: 1; }
+.voice-time { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; opacity: .85; min-width: 30px; text-align: end; }
+.bubble-video { position: relative; width: 200px; aspect-ratio: 4/5; border-radius: 18px; overflow: hidden; background: #000; cursor: pointer; }
+.bubble-video img, .bubble-video video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.bubble-video-play { position: absolute; inset: 0; margin: auto; width: 54px; height: 54px; border-radius: 50%; background: rgba(0,0,0,.45); color: #fff; display: flex; align-items: center; justify-content: center; }
+.bubble-img { cursor: pointer; }
+.edited-label { font-size: 11px; color: var(--muted); padding: 0 10px; }
+.media-viewer { position: fixed; inset: 0; z-index: 400; background: #000; display: flex; align-items: center; justify-content: center; animation: fadeIn .18s ease; }
+.media-viewer img, .media-viewer video { max-width: 100%; max-height: 100%; object-fit: contain; }
+.media-viewer-x { position: absolute; top: calc(10px + var(--safe-top, 0px)); inset-inline-end: 10px; z-index: 2; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,.35); border-radius: 50%; }
+.chat-composer.recording { padding: 5px; gap: 10px; }
+.rec-cancel { width: 38px; height: 38px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #ed4956; }
+.rec-dot { width: 9px; height: 9px; border-radius: 50%; background: #ed4956; flex: none; animation: recBlink 1s infinite; }
+.rec-time { font-size: 14px; font-variant-numeric: tabular-nums; flex: none; min-width: 34px; }
+.rec-wave { flex: 1; min-width: 0; height: 30px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; overflow: hidden; }
+.rec-wave i { width: 3px; flex: none; border-radius: 2px; background: var(--blue); }
+.rec-send { width: 38px; height: 38px; flex: none; border-radius: 50%; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; }
+@keyframes recBlink { 50% { opacity: .2; } }

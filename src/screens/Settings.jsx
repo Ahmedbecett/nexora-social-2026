@@ -13,7 +13,7 @@ import { shareLink, SuggestedUsers } from './Post.jsx';
 import { LanguageList } from './Auth.jsx';
 import { usageDays, getDailyLimit, setDailyLimit } from '../usage.js';
 
-export const APP_VERSION = '2.4.4';
+export const APP_VERSION = '2.4.5';
 export const OFFICIAL_USERNAME = 'official.nexora';
 
 /* ------------------------------------------------------------------ */

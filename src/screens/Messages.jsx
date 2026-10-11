@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api, uploadMedia } from '../api.js';
+import { api, uploadMedia, uploadBlob } from '../api.js';
 import { t, timeAgo, errText, getLang } from '../i18n.js';
 import { useApp, Avatar, UserName, TopBar, Loading, Empty, ErrorBox, Sheet, Spinner, Confirm, useAsync } from '../components.jsx';
-import { IEdit, ISend, IImage, IComment, IReply, ICopy, IPin, IUnsend, ITrash, IPlus, IClose } from '../icons.jsx';
+import { IEdit, ISend, IImage, IComment, IReply, ICopy, IPin, IUnsend, ITrash, IPlus, IClose, IMic, IPlay, IPause, IArrowUp } from '../icons.jsx';
 import { tapHaptic } from '../theme.js';
 
 /** "Active now" / "Active 9m ago" (hidden after 7 days or when activity status is off). */
@@ -31,7 +31,7 @@ export function Inbox({ isTab = false, active = true }) {
   const preview = (c) => {
     const prefix = c.last.mine ? `${t('you')}: ` : '';
     if (c.last.post) return prefix + t('sentPost');
-    if (c.last.media && !c.last.text) return prefix + t('sentPhoto');
+    if (c.last.media && !c.last.text) return prefix + t(c.last.mediaType === 'audio' ? 'sentVoice' : c.last.mediaType === 'video' ? 'sentVideo' : 'sentPhoto');
     return prefix + c.last.text;
   };
   return (
@@ -104,7 +104,65 @@ const MORE = ['❤️', '😂', '😮', '😢', '😡', '👍', '🔥', '👏', 
   '💯', '✨', '🎉', '💔', '💙', '💚', '💛', '🖤', '🤍', '💜', '🌹', '⭐', '☀️', '🌙', '⚽', '🎶'];
 const isEmojiOnly = (s) => !!s && s.length <= 16 && /\p{Extended_Pictographic}/u.test(s)
   && /^[\p{Extended_Pictographic}\p{Emoji_Component}\u200d\ufe0f\s]+$/u.test(s) && !/[0-9#*]/.test(s);
-const preview = (m) => (m.text ? m.text : m.media || m.mediaUrl ? `📷 ${t('msgPhoto')}` : m.post ? t('msgPost') : '');
+const preview = (m) => (m.text ? m.text : m.mediaType === 'audio' ? `🎤 ${t('msgVoice')}` : m.mediaType === 'video' ? `🎬 ${t('msgVideo')}`
+  : m.media || m.mediaUrl ? `📷 ${t('msgPhoto')}` : m.post ? t('msgPost') : '');
+const fmtDur = (s) => { s = Math.max(0, Math.round(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+function resample(arr, n) {
+  if (!arr?.length) return [];
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = Math.floor((i * arr.length) / n), b = Math.max(a + 1, Math.floor(((i + 1) * arr.length) / n));
+    out.push(Math.max(...arr.slice(a, b)));
+  }
+  const max = Math.max(0.05, ...out);
+  return out.map((v) => v / max);
+}
+function pseudoPeaks(seed, n) { // stable fallback waveform when none was recorded
+  let x = (Number(seed) || 1) * 9301 + 49297;
+  return Array.from({ length: n }, () => { x = (x * 9301 + 49297) % 233280; return 0.25 + (x / 233280) * 0.75; });
+}
+
+let playingAudio = null;
+function VoiceBubble({ m }) {
+  const ref = useRef();
+  const [playing, setPlaying] = useState(false);
+  const [pos, setPos] = useState(0);
+  const [dur, setDur] = useState(m.mediaMeta?.duration || 0);
+  const peaks = useMemo(() => (m.mediaMeta?.peaks?.length ? resample(m.mediaMeta.peaks, 30) : pseudoPeaks(m.id, 30)), [m.id, m.mediaMeta]);
+  const toggle = (e) => {
+    e.stopPropagation();
+    const a = ref.current; if (!a) return;
+    if (a.paused) { if (playingAudio && playingAudio !== a) playingAudio.pause(); playingAudio = a; a.play().catch(() => {}); } else a.pause();
+  };
+  const frac = dur ? Math.min(1, pos / dur) : 0;
+  return (
+    <div className="bubble voice-bubble" dir="ltr">
+      <button className="voice-play" onClick={toggle} aria-label="play">{playing ? <IPause size={20} /> : <IPlay size={20} />}</button>
+      <div className="voice-wave">{peaks.map((v, i) => <i key={i} className={(i + 0.5) / peaks.length <= frac ? 'on' : ''} style={{ height: `${18 + v * 82}%` }} />)}</div>
+      <span className="voice-time">{fmtDur(playing || pos ? dur - pos : dur)}</span>
+      <audio ref={ref} src={m.mediaUrl} preload="metadata"
+        onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setPos(0); }}
+        onTimeUpdate={(e) => setPos(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setDur(d); }} />
+    </div>
+  );
+}
+
+function MediaViewer({ v, onClose }) {
+  useEffect(() => {
+    const h = () => onClose();
+    document.addEventListener('nx-close-overlay', h);
+    return () => document.removeEventListener('nx-close-overlay', h);
+  }, [onClose]);
+  return createPortal(
+    <div className="media-viewer" onClick={onClose}>
+      <button className="media-viewer-x" onClick={onClose} aria-label="close"><IClose size={26} /></button>
+      {v.type === 'video'
+        ? <video src={v.url} poster={v.poster || undefined} controls autoPlay playsInline disableRemotePlayback onClick={(e) => e.stopPropagation()} />
+        : <img src={v.url} alt="" draggable={false} onClick={(e) => e.stopPropagation()} />}
+    </div>, document.body,
+  );
+}
 const menuTime = (d) => {
   const dt = new Date(d);
   const recent = Date.now() - dt < 6 * 864e5;
@@ -120,7 +178,7 @@ async function copyText(text) {
   } catch { return false; }
 }
 
-function MsgBody({ m, onPost }) {
+function MsgBody({ m, onPost, onMedia }) {
   return (
     <>
       {m.post && (
@@ -129,13 +187,20 @@ function MsgBody({ m, onPost }) {
           {m.post.thumb && (m.post.type === 'video' ? <video disableRemotePlayback src={m.post.thumb + '#t=0.3'} muted /> : <img src={m.post.thumb} alt="" draggable={false} />)}
         </div>
       )}
-      {m.mediaUrl && <img className="bubble-img" src={m.mediaUrl} alt="" draggable={false} />}
+      {m.mediaUrl && m.mediaType === 'audio' && <VoiceBubble m={m} />}
+      {m.mediaUrl && m.mediaType === 'video' && (
+        <div className="bubble-video" onClick={() => onMedia?.({ type: 'video', url: m.mediaUrl, poster: m.mediaMeta?.poster })}>
+          {m.mediaMeta?.poster ? <img src={m.mediaMeta.poster} alt="" draggable={false} /> : <video disableRemotePlayback src={m.mediaUrl + '#t=0.1'} muted playsInline preload="metadata" />}
+          <span className="bubble-video-play"><IPlay size={28} /></span>
+        </div>
+      )}
+      {m.mediaUrl && (!m.mediaType || m.mediaType === 'image') && <img className="bubble-img" src={m.mediaUrl} alt="" draggable={false} onClick={() => onMedia?.({ type: 'image', url: m.mediaUrl })} />}
       {m.text && <div className={`bubble ${isEmojiOnly(m.text) ? 'emoji' : ''}`} dir="auto">{m.text}</div>}
     </>
   );
 }
 
-function MessageRow({ m, user, showAvatar, flash, onMenu, onDoubleTap, onSwipeReply, onReactions, onJump, nav }) {
+function MessageRow({ m, user, showAvatar, flash, onMenu, onDoubleTap, onSwipeReply, onReactions, onJump, onMedia, nav }) {
   const bodyRef = useRef();
   const st = useRef({});
   const dxRef = useRef(0);
@@ -196,7 +261,8 @@ function MessageRow({ m, user, showAvatar, flash, onMenu, onDoubleTap, onSwipeRe
         <div ref={bodyRef} className={`bubble-body ${dx ? 'dragging' : ''}`} style={dx ? { transform: `translateX(${dx}px)` } : undefined}
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={reset} onPointerLeave={() => st.current.swiping || reset()}
           onClickCapture={onClickCapture} onContextMenu={(e) => e.preventDefault()}>
-          <MsgBody m={m} onPost={() => nav.push('post', { id: m.post.id })} />
+          {m.edited && <span className="edited-label">{t('msgEdited')}</span>}
+          <MsgBody m={m} onPost={() => nav.push('post', { id: m.post.id })} onMedia={onMedia} />
           {reacts.length > 0 && (
             <button className="msg-reacts" onClick={(e) => { e.stopPropagation(); onReactions(m); }}>
               {uniq.map((e) => <span key={e}>{e}</span>)}{reacts.length > 1 && <b>{reacts.length}</b>}
@@ -223,6 +289,7 @@ function MessageMenu({ m, rect, onClose, onReact, onAction }) {
     { k: 'reply', icon: <IReply size={24} />, label: t('msgReply') },
     { k: 'forward', icon: <ISend size={24} />, label: t('msgForward') },
     m.text && { k: 'copy', icon: <ICopy size={24} />, label: t('msgCopy') },
+    m.mine && m.text && !m.mediaUrl && !m.post && Date.now() - new Date(m.createdAt) < 15 * 60000 && { k: 'edit', icon: <IEdit size={24} />, label: t('msgEdit') },
     { k: m.pinned ? 'unpin' : 'pin', icon: <IPin size={24} />, label: t(m.pinned ? 'msgUnpin' : 'msgPin') },
     { k: 'hide', icon: <ITrash size={24} />, label: t('msgDeleteForYou') },
     m.mine && { k: 'unsend', icon: <IUnsend size={24} />, label: t('msgUnsend'), danger: true },
@@ -261,6 +328,12 @@ export function Chat({ user, onBack, active }) {
   const [activeAt, setActiveAt] = useState(null);
   const [typing, setTyping] = useState(false);
   const typingSent = useRef(0);
+  const [editing, setEditing] = useState(null);
+  const [viewer, setViewer] = useState(null);
+  const [recording, setRecording] = useState(false);
+  const [recTime, setRecTime] = useState(0);
+  const [recLevels, setRecLevels] = useState([]);
+  const recRef = useRef(null);
   const lastId = useRef(0);
   const since = useRef(null);
   const endRef = useRef();
@@ -306,6 +379,17 @@ export function Chat({ user, onBack, active }) {
 
   const send = async (payload) => {
     if (sending) return;
+    if (editing && payload.text !== undefined) {
+      const m = editing;
+      setSending(true);
+      try {
+        const r = await api(`message/${m.id}`, { method: 'PATCH', body: { text: payload.text } });
+        setMsgs((list) => merge(list, [r.message]));
+        setText(''); setEditing(null);
+      } catch (e) { toast(errText(e.code)); }
+      setSending(false);
+      return;
+    }
     setSending(true);
     try {
       const r = await api(`messages/${user.id}`, { method: 'POST', body: { ...payload, replyTo: replyTo?.id } });
@@ -319,9 +403,64 @@ export function Chat({ user, onBack, active }) {
     const f = e.target.files?.[0]; e.target.value = '';
     if (!f) return;
     setSending(true);
-    try { const m = await uploadMedia(f); setSending(false); await send({ mediaUrl: m.url }); }
-    catch (err) { toast(errText(err.code || 'server_error')); setSending(false); }
+    try {
+      const m = await uploadMedia(f);
+      setSending(false);
+      await send({ mediaUrl: m.url, mediaType: m.type, mediaMeta: { w: m.w, h: m.h, poster: m.poster || undefined } });
+    } catch (err) { toast(errText(err.code || 'server_error')); setSending(false); }
   };
+
+  /* ---- voice messages ---- */
+  const startRec = async () => {
+    if (recRef.current || sending) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') { toast(t('msgMicUnsupported')); return; }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+    catch { toast(t('msgMicDenied')); return; }
+    const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'].find((x) => MediaRecorder.isTypeSupported?.(x)) || '';
+    let rec;
+    try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 48000 } : undefined); }
+    catch { stream.getTracks().forEach((x) => x.stop()); toast(t('msgMicUnsupported')); return; }
+    const chunks = [];
+    rec.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
+    const levels = [];
+    let ctx = null, an = null, buf = null;
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      an = ctx.createAnalyser(); an.fftSize = 512; buf = new Uint8Array(an.fftSize);
+      ctx.createMediaStreamSource(stream).connect(an);
+    } catch { ctx = null; }
+    const start = Date.now();
+    const tick = setInterval(() => {
+      let lv = 0.3;
+      if (an) { an.getByteTimeDomainData(buf); let pk = 0; for (let i = 0; i < buf.length; i++) pk = Math.max(pk, Math.abs(buf[i] - 128) / 128); lv = Math.min(1, pk * 1.8); }
+      levels.push(lv);
+      setRecLevels(levels.slice(-34)); setRecTime(Date.now() - start);
+      if (Date.now() - start > 180000) stopRec(true);
+    }, 100);
+    rec.start(250);
+    recRef.current = { rec, stream, chunks, ctx, tick, levels, start, mime };
+    setRecLevels([]); setRecTime(0); setRecording(true); tapHaptic();
+  };
+  const stopRec = async (doSend) => {
+    const r = recRef.current; if (!r) return;
+    recRef.current = null; clearInterval(r.tick); setRecording(false);
+    await new Promise((res) => { r.rec.onstop = res; try { r.rec.stop(); } catch { res(); } setTimeout(res, 1500); });
+    r.stream.getTracks().forEach((x) => x.stop());
+    try { r.ctx?.close(); } catch { /* ignore */ }
+    const duration = (Date.now() - r.start) / 1000;
+    if (!doSend || duration < 0.8 || !r.chunks.length) return;
+    const base = (r.rec.mimeType || r.mime || 'audio/webm').split(';')[0];
+    const type = ['audio/webm', 'audio/mp4', 'audio/ogg', 'audio/mpeg', 'audio/aac'].includes(base) ? base : 'audio/webm';
+    const blob = new Blob(r.chunks, { type });
+    setSending(true);
+    try {
+      const url = await uploadBlob(blob, type);
+      setSending(false);
+      await send({ mediaUrl: url, mediaType: 'audio', mediaMeta: { duration: Math.round(duration * 10) / 10, peaks: resample(r.levels, 40) } });
+    } catch (e) { toast(errText(e.code || 'server_error')); setSending(false); }
+  };
+  useEffect(() => () => { if (recRef.current) { const r = recRef.current; recRef.current = null; clearInterval(r.tick); try { r.rec.stop(); } catch { /* */ } r.stream.getTracks().forEach((x) => x.stop()); } }, []);
 
   const react = async (m, emoji) => {
     setMenu(null);
@@ -346,6 +485,7 @@ export function Chat({ user, onBack, active }) {
       if (k === 'reply') startReply(m);
       else if (k === 'forward') setForward(m);
       else if (k === 'copy') { if (await copyText(m.text)) toast(t('msgCopied')); }
+      else if (k === 'edit') { setReplyTo(null); setEditing(m); setText(m.text); setTimeout(() => inputRef.current?.focus(), 60); }
       else if (k === 'pin') { patch(m.id, (x) => ({ ...x, pinned: true })); await api(`message/${m.id}/pin`, { method: 'POST' }); }
       else if (k === 'unpin') { patch(m.id, (x) => ({ ...x, pinned: false })); await api(`message/${m.id}/pin`, { method: 'DELETE' }); }
       else if (k === 'hide') setConfirm({ kind: 'hide', m });
@@ -363,7 +503,7 @@ export function Chat({ user, onBack, active }) {
   const doForward = async (to) => {
     const m = forward; setForward(null);
     try {
-      await api(`messages/${to.id}`, { method: 'POST', body: { text: m.text || '', mediaUrl: m.mediaUrl || undefined, postId: m.post?.id || undefined } });
+      await api(`messages/${to.id}`, { method: 'POST', body: { text: m.text || '', mediaUrl: m.mediaUrl || undefined, mediaType: m.mediaType || undefined, mediaMeta: m.mediaMeta || undefined, postId: m.post?.id || undefined } });
       toast(t('msgSent'));
     } catch (e) { toast(errText(e.code)); }
   };
@@ -405,7 +545,7 @@ export function Chat({ user, onBack, active }) {
                     onDoubleTap={(mm) => react(mm, '❤️')}
                     onSwipeReply={startReply}
                     onReactions={setReactSheet}
-                    onJump={jump} />
+                    onJump={jump} onMedia={setViewer} />
                 </div>
               );
             })}
@@ -424,7 +564,13 @@ export function Chat({ user, onBack, active }) {
           </>
         )}
       </div>
-      {replyTo && (
+      {editing && (
+        <div className="reply-bar">
+          <div><b>{t('msgEditing')}</b><span className="ellipsis" dir="auto">{editing.text}</span></div>
+          <button className="icon-btn" onClick={() => { setEditing(null); setText(''); }} aria-label="close"><IClose size={18} /></button>
+        </div>
+      )}
+      {replyTo && !editing && (
         <div className="reply-bar">
           <div>
             <b>{replyTo.mine ? t('msgReplyingYourself') : t('msgReplyingTo', { u: user.username })}</b>
@@ -433,21 +579,35 @@ export function Chat({ user, onBack, active }) {
           <button className="icon-btn" onClick={() => setReplyTo(null)} aria-label="close"><IClose size={18} /></button>
         </div>
       )}
-      <div className="chat-composer">
-        <button className="chat-cam" onClick={() => fileRef.current?.click()}>{sending ? <Spinner size={18} light /> : <IImage size={20} />}</button>
-        <input ref={inputRef} value={text} onChange={(e) => {
-          setText(e.target.value);
-          if (e.target.value.trim() && Date.now() - typingSent.current > 3000) {
-            typingSent.current = Date.now();
-            api(`messages/${user.id}/typing`, { method: 'POST' }).catch(() => {});
-          }
-        }} placeholder={t('typeMessage')} dir="auto"
-          onKeyDown={(e) => e.key === 'Enter' && text.trim() && send({ text })} />
-        {text.trim() ? <button className="text-link strong" onClick={() => send({ text })}>{t('send')}</button>
-          : <button className="icon-btn" onClick={() => send({ text: '❤️' })}>❤️</button>}
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={sendPhoto} />
-      </div>
+      {recording ? (
+        <div className="chat-composer recording">
+          <button className="rec-cancel" onClick={() => stopRec(false)} aria-label="cancel"><ITrash size={20} /></button>
+          <span className="rec-dot" /><span className="rec-time">{fmtDur(recTime / 1000)}</span>
+          <div className="rec-wave" dir="ltr">{recLevels.map((v, i) => <i key={i} style={{ height: `${12 + v * 88}%` }} />)}</div>
+          <button className="rec-send" onClick={() => stopRec(true)} aria-label="send"><IArrowUp size={20} /></button>
+        </div>
+      ) : (
+        <div className="chat-composer">
+          <button className="chat-cam" onClick={() => fileRef.current?.click()}>{sending ? <Spinner size={18} light /> : <IImage size={20} />}</button>
+          <input ref={inputRef} value={text} onChange={(e) => {
+            setText(e.target.value);
+            if (!editing && e.target.value.trim() && Date.now() - typingSent.current > 3000) {
+              typingSent.current = Date.now();
+              api(`messages/${user.id}/typing`, { method: 'POST' }).catch(() => {});
+            }
+          }} placeholder={t('typeMessage')} dir="auto"
+            onKeyDown={(e) => e.key === 'Enter' && text.trim() && send({ text })} />
+          {text.trim() ? <button className="text-link strong" onClick={() => send({ text })}>{editing ? t('done') : t('send')}</button> : (
+            <>
+              <button className="icon-btn" onClick={startRec} aria-label={t('msgVoice')}><IMic size={24} /></button>
+              <button className="icon-btn" onClick={() => send({ text: '❤️' })}>❤️</button>
+            </>
+          )}
+          <input ref={fileRef} type="file" accept="image/*,video/*" hidden onChange={sendPhoto} />
+        </div>
+      )}
 
+      {viewer && <MediaViewer v={viewer} onClose={() => setViewer(null)} />}
       {menu && <MessageMenu m={menu.m} rect={menu.rect} onClose={() => setMenu(null)} onReact={react} onAction={action} />}
       <Sheet open={!!reactSheet} onClose={() => setReactSheet(null)} title={t('msgReactions')}>
         <div className="user-list">

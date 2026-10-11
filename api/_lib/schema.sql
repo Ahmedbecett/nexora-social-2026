@@ -246,3 +246,8 @@ create table if not exists typing (
   at         timestamptz not null default now(),
   primary key (user_id, partner_id)
 );
+
+-- 2.4.5: voice / video messages, edit
+alter table messages add column if not exists media_type text;
+alter table messages add column if not exists media_meta jsonb;
+alter table messages add column if not exists edited_at timestamptz;

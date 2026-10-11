@@ -110,7 +110,7 @@ export function videoInfo(file) {
   });
 }
 
-async function uploadBlob(blob, contentType, onProgress) {
+export async function uploadBlob(blob, contentType, onProgress) {
   const { clientToken, pathname } = await api('upload/token', { method: 'POST', body: { contentType } });
   const r = await put(pathname, blob, {
     access: 'public', token: clientToken, contentType,

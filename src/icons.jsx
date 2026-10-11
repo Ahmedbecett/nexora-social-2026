@@ -104,3 +104,6 @@ export const ICopy = (p) => <S {...p}><rect x="8.5" y="8.5" width="12" height="1
 export const IPin = (p) => <S {...p}><path d="M14.6 3.4 20.6 9.4" /><path d="m15.8 4.6-4.9 4.9-4.2.7-1.5 1.5 7.1 7.1 1.5-1.5.7-4.2 4.9-4.9" /><path d="m8.8 15.2-5.3 5.3" /></S>;
 export const IUnsend = (p) => <S {...p}><circle cx="12" cy="12" r="9.5" /><path d="M10 8.2 7 11.2l3 3" /><path d="M7.4 11.2h6.1a3.2 3.2 0 0 1 0 6.4H12" /></S>;
 export const ISmilePlus = (p) => <S {...p}><path d="M21.3 12.6A9.4 9.4 0 1 1 11.4 2.6" /><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0" /><path d="M9 9.5h.01M15 9.5h.01" sw={2.6} /><path d="M19 2.5v6M16 5.5h6" /></S>;
+export const IMic = (p) => <S {...p}><rect x="8.5" y="2.5" width="7" height="12" rx="3.5" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5" /></S>;
+export const IPause = (p) => <S {...p} fill="currentColor" stroke="none"><rect x="6.5" y="5" width="4" height="14" rx="1.2" /><rect x="13.5" y="5" width="4" height="14" rx="1.2" /></S>;
+export const IArrowUp = (p) => <S {...p} sw={2.4}><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" /></S>;
