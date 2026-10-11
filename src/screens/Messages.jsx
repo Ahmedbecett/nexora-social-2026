@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api, uploadMedia, uploadBlob } from '../api.js';
+import { api, uploadMedia, uploadBlob, getAccounts } from '../api.js';
 import { t, timeAgo, errText, getLang } from '../i18n.js';
 import { useApp, Avatar, UserName, TopBar, Loading, Empty, ErrorBox, Sheet, Spinner, Confirm, ActionSheet, useAsync } from '../components.jsx';
 import { IEdit, ISend, IImage, IComment, IReply, ICopy, IPin, IUnsend, ITrash, IPlus, IClose, IMic, IPlay, IPause, IArrowUp, ICamera, IPhone } from '../icons.jsx';
-import { IScissors, IHandset, ICamcorder, IPencilSoft } from '../chatkit/icons2.jsx';
+import { IScissors, IHandset, ICamcorder, IPencilSoft, ISearchAi } from '../chatkit/icons2.jsx';
 import { tapHaptic } from '../theme.js';
 import {
   ChatComposer, ChatDrawer, AiMenu, LocationSheet, AiImageSheet, DrawSheet, AiChatSheet,
@@ -31,6 +31,8 @@ export function Inbox({ isTab = false, active = true }) {
   const { loading, data, error, reload } = useAsync(() => api('conversations'), []);
   const [q, setQ] = useState('');
   const [newOpen, setNewOpen] = useState(false);
+  const [reqOpen, setReqOpen] = useState(false);
+  const [acctOpen, setAcctOpen] = useState(false);
   useEffect(() => {
     if (!active) return undefined;
     const iv = setInterval(() => { if (document.visibilityState === 'visible') reload(true); }, 15000);
@@ -44,6 +46,7 @@ export function Inbox({ isTab = false, active = true }) {
     if (isCallLog(c.last.text)) {
       const d = parseCallLog(c.last.text) || {};
       if (d.d === 'missed') return prefix + ct(d.k === 'video' ? 'ckLogMissedVideo' : 'ckLogMissedAudio');
+      if (d.d === 'ended') return prefix + ct(d.k === 'video' ? 'ckLogVideoEnd' : 'ckLogAudioEnd');
       return prefix + ct(d.k === 'video' ? 'ckCallPreviewVideo' : 'ckCallPreviewAudio');
     }
     if (c.last.post) return prefix + t('sentPost');
@@ -52,10 +55,17 @@ export function Inbox({ isTab = false, active = true }) {
   };
   return (
     <div className="screen">
-      <TopBar left={isTab ? <span /> : undefined} className={isTab ? 'start-title' : ''} title={<b>{me.username}</b>} right={<button className="icon-btn" onClick={() => setNewOpen(true)} aria-label={t('newMessage')}><IPencilSoft size={25} /></button>} />
+      <TopBar left={isTab ? <span /> : undefined} className={isTab ? 'start-title' : ''} title={<button className="msgs-title" onClick={() => setAcctOpen(true)} aria-label={t('switch')}><b>{me.username}</b><IChevD size={16} /></button>} right={<button className="icon-btn" onClick={() => setNewOpen(true)} aria-label={t('newMessage')}><IPencilSoft size={25} /></button>} />
       <div className="scroll">
-        <div className="search-box pad"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('searchPh')} dir="auto" /></div>
-        <div className="section-head pad"><b>{t('messages')}</b></div>
+        <div className="msgs-search pad">
+          <ISearchAi size={22} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('msgsSearchAi')} dir="auto" />
+        </div>
+        <NotesRail convs={data?.conversations || []} me={me} />
+        <div className="section-head pad">
+          <b>{t('messages')}</b>
+          <button className="msgs-requests" onClick={() => setReqOpen(true)}>{t('msgsRequests')}</button>
+        </div>
         {loading ? <Loading /> : error ? <ErrorBox error={error} onRetry={reload} /> : convs.length === 0 ? (
           <Empty icon={<IComment size={40} />} title={t('noMessages')} sub={t('noMessagesSub')}
             action={<button className="btn btn-primary" onClick={() => setNewOpen(true)}>{t('newMessage')}</button>} />
@@ -66,7 +76,15 @@ export function Inbox({ isTab = false, active = true }) {
                 <span className="avatar-presence"><Avatar src={c.user.avatarUrl} name={c.user.username} size={56} />{isActiveNow(c.activeAt) && <i className="presence-dot" />}</span>
                 <div className="user-row-text">
                   <span className="conv-name">{c.user.fullName || c.user.username}</span>
-                  <span className="conv-last">{c.unread || !activeLabel(c.activeAt) ? <><span className="ellipsis">{preview(c)}</span> · {timeAgo(c.last.createdAt)}</> : <span className="ellipsis">{activeLabel(c.activeAt)}</span>}</span>
+                  <span className="conv-last">
+                    {c.unread > 1
+                      ? <><span className="ellipsis">{`${c.unread}+ ${t('msgsNew')}`}</span> · {timeAgo(c.last.createdAt)}</>
+                      : c.last.mine && c.last.read && !isCallLog(c.last.text || '')
+                        ? <>{t('msgSeen')} · {timeAgo(c.last.createdAt)}</>
+                        : (c.unread || !activeLabel(c.activeAt))
+                          ? <><span className="ellipsis">{preview(c)}</span> · {timeAgo(c.last.createdAt)}</>
+                          : <span className="ellipsis">{activeLabel(c.activeAt)}</span>}
+                  </span>
                 </div>
                 {c.unread > 0 && <span className="unread-dot" />}
               </div>
@@ -75,7 +93,132 @@ export function Inbox({ isTab = false, active = true }) {
         )}
       </div>
       <UserPicker open={newOpen} onClose={() => setNewOpen(false)} title={t('newMessage')} onPick={(u) => nav.push('chat', { user: u })} />
+      <RequestsSheet open={reqOpen} onClose={() => setReqOpen(false)} convs={data?.conversations || []} nav={nav} />
+      <AccountsModal open={acctOpen} onClose={() => setAcctOpen(false)} />
     </div>
+  );
+}
+
+/** سهم صغير بجانب اسم المستخدم (قائمة الحسابات) */
+const IChevD = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+);
+
+/* ================================================================= *
+ *  الحسابات على الجهاز (تبديل حقيقي كما في ملفك الشخصي) — سهم الرأس
+ * ================================================================= */
+function AccountsModal({ open, onClose }) {
+  const { me, switchAccount, addAccount } = useApp();
+  const [list, setList] = useState([]);
+  useEffect(() => { if (open) setList(getAccounts()); }, [open]);
+  return (
+    <Sheet open={open} onClose={onClose} title={t('switch')}>
+      <div className="acct-list">
+        {list.map((a) => (
+          <div className={`acct-row ${a.id === me.id ? 'cur' : ''}`} key={a.id}>
+            <Avatar src={a.avatarUrl} name={a.username} size={44} />
+            <span className="flex1 acct-txt"><b><bdi>{a.username}</bdi></b>
+              <small className="muted">{a.id === me.id ? t('currentAccount') : a.token ? t('loggedIn') : t('loginAgain')}</small></span>
+            {a.id !== me.id && a.token && (
+              <button className="btn btn-secondary btn-sm" onClick={() => { onClose(); switchAccount(a); }}>{t('switch')}</button>
+            )}
+          </div>
+        ))}
+      </div>
+      <button className="btn btn-primary btn-block" onClick={() => { onClose(); addAccount(); }}>{t('addAccount')}</button>
+    </Sheet>
+  );
+}
+
+/* ================================================================= *
+ *  شريط الملاحظات (Notes) — ملاحظات حقيقية من الخادم (تنتهي بعد 24 ساعة)
+ * ================================================================= */
+function NotesRail({ convs, me }) {
+  const [notes, setNotes] = useState({});      // userId -> note
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(me?.note || '');
+  const { updateMe, nav, toast } = useApp();
+  const fetched = useRef(new Set());
+  const fetchNotes = (force) => {
+    convs.slice(0, 12).forEach((c) => {
+      const un = c.user?.username;
+      if (!un || (!force && fetched.current.has(un))) return;
+      fetched.current.add(un);
+      api(`users/${encodeURIComponent(un)}`).then((r) => {
+        const n = r?.user?.note;
+        setNotes((m) => ({ ...m, [c.user.id]: n || null }));
+      }).catch(() => {});
+    });
+  };
+  useEffect(() => { fetchNotes(false); }); // eslint-disable-line
+  const save = async () => {
+    try {
+      const r = await api('me', { method: 'PATCH', body: { note: text.trim() } });
+      updateMe(r.user);
+      setOpen(false);
+      toast(t('noteSaved'));
+      fetchNotes(true);
+    } catch { toast(errText('server_error')); }
+  };
+  const items = convs.filter((c) => notes[c.user.id]).slice(0, 10);
+  return (
+    <div className="notes-rail">
+      <button className="note-item me" onClick={() => { setText(me?.note || ''); setOpen(true); }}>
+        <span className={`note-bubble-sm ${me?.note ? '' : 'empty'}`} dir="auto">{me?.note || t('msgsYourThoughts')}</span>
+        <Avatar src={me?.avatarUrl} name={me?.username || ''} size={64} />
+        <b>{t('msgsYourNote')}</b>
+      </button>
+      {items.map((c) => (
+        <button className="note-item" key={c.user.id} onClick={() => nav.push('chat', { user: c.user })}>
+          <span className="note-bubble-sm" dir="auto">{notes[c.user.id]}</span>
+          <Avatar src={c.user.avatarUrl} name={c.user.username} size={64} />
+          <b className="ellipsis">{c.user.username}</b>
+        </button>
+      ))}
+      <Sheet open={open} onClose={() => setOpen(false)} title={t('note')}>
+        <textarea className="note-input" value={text} maxLength={60} dir="auto" rows={2}
+          onChange={(e) => setText(e.target.value)} placeholder={t('notePh')} />
+        <div className="ck-note small">{t('noteHint')}</div>
+        <button className="btn btn-primary btn-block" onClick={save}>{t('save')}</button>
+        {me?.note && <button className="btn btn-secondary btn-block" onClick={() => { setText(''); save(); }}>{t('deleteNote')}</button>}
+      </Sheet>
+    </div>
+  );
+}
+
+/* ================================================================= *
+ *  طلبات الرسائل — الطلبات الحقيقية (من كتب لك ولم تردّ عليه بعد)
+ * ================================================================= */
+function RequestsSheet({ open, onClose, convs, nav }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    let dead = false;
+    setRows(null);
+    const cands = convs.filter((c) => c.last && !c.last.mine).slice(0, 15);
+    Promise.all(cands.map((c) => api(`messages/${c.user.id}?after=0`)
+      .then((r) => ({ c, answered: (r.messages || []).some((m) => m.mine) }))
+      .catch(() => ({ c, answered: true }))))
+      .then((list) => { if (!dead) setRows(list.filter((x) => !x.answered).map((x) => x.c)); });
+    return () => { dead = true; };
+  }, [open]); // eslint-disable-line
+  return (
+    <Sheet open={open} onClose={onClose} title={t('msgsRequests')} full>
+      <div className="scroll">
+        {rows === null ? <Loading /> : rows.length === 0 ? (
+          <Empty icon={<IComment size={40} />} title={t('msgsNoRequests')} sub={t('msgsNoRequestsSub')} />
+        ) : rows.map((c) => (
+          <div className="user-row conv" key={c.user.id} onClick={() => { onClose(); nav.push('chat', { user: c.user }); }}>
+            <span className="avatar-presence"><Avatar src={c.user.avatarUrl} name={c.user.username} size={56} /></span>
+            <div className="user-row-text">
+              <span className="conv-name">{c.user.fullName || c.user.username}</span>
+              <span className="conv-last"><span className="ellipsis">{c.last.text}</span> · {timeAgo(c.last.createdAt)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Sheet>
   );
 }
 

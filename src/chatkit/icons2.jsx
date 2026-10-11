@@ -154,3 +154,10 @@ export const IPencilSoft = ({ size = 24, ...p }) => <S size={size} sw={1.8} {...
 export const IPlusSoft = ({ size = 22, ...p }) => <S size={size} sw={1.8} {...p}>
   <path d="M12 5.2v13.6M5.2 12h13.6" />
 </S>;
+
+/** بحث + AI (حقل البحث في صندوق الرسائل) — بنفس فكرة إنستغرام */
+export const ISearchAi = ({ size = 22, ...p }) => <S size={size} sw={1.8} {...p}>
+  <circle cx="10.6" cy="10.6" r="6.6" />
+  <path d="m15.4 15.4 5 5" />
+  <path d="M10.6 7.3c.28 1.75.75 2.22 2.5 2.5-1.75.28-2.22.75-2.5 2.5-.28-1.75-.75-2.22-2.5-2.5 1.75-.28 2.22-.75 2.5-2.5Z" sw={1.5} />
+</S>;

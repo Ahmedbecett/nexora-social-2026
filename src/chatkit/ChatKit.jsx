@@ -117,7 +117,7 @@ function Press({ onPress, onLong, longMs = 420, className = '', children, ...res
 /* ================================================================== *
  *  Sheet عام للأدوات
  * ================================================================== */
-export function KitSheet({ open, onClose, title, icon, children, footer, tall = false }) {
+export function KitSheet({ open, onClose, title, icon, children, footer, tall = false, above = false, noClose = false, center = false }) {
   const [show, setShow] = useState(open);
   useEffect(() => { if (open) setShow(true); else { const tm = setTimeout(() => setShow(false), 200); return () => clearTimeout(tm); } }, [open]);
   useEffect(() => {
@@ -128,11 +128,11 @@ export function KitSheet({ open, onClose, title, icon, children, footer, tall = 
   }, [open, onClose]);
   if (!show) return null;
   return createPortal(
-    <div className={`ck-sheet-wrap ${open ? 'open' : 'closing'}`} onClick={onClose}>
+    <div className={`ck-sheet-wrap ${above ? 'above' : ''} ${open ? 'open' : 'closing'}`} onClick={onClose}>
       <div className={`ck-sheet ${tall ? 'tall' : ''}`} onClick={(e) => e.stopPropagation()}>
-        <div className="ck-sheet-head">
+        <div className={`ck-sheet-head ${center ? 'center' : ''}`}>
           <span className="ck-sheet-title">{icon}{title}</span>
-          <button className="ck-sheet-x" onClick={onClose} aria-label="close"><IClose size={20} /></button>
+          {!noClose && <button className="ck-sheet-x" onClick={onClose} aria-label="close"><IClose size={20} /></button>}
         </div>
         <div className="ck-sheet-body">{children}</div>
         {footer && <div className="ck-sheet-foot">{footer}</div>}

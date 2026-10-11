@@ -94,6 +94,7 @@ const IDLE = {
   peer: null, incoming: false, outgoing: false, status: 'contacting',
   muted: false, camOn: false, peerCam: true, speaker: false, volume: 0.92,
   startedAt: 0, reason: '', error: '', facing: 'user', ringStamp: 0, duration: 0,
+  groupId: '', peers: [], speakerId: 0, touchUp: true, notice: null, joining: 0,
 };
 let S = { ...IDLE };
 const subs = new Set();
@@ -104,6 +105,14 @@ function set(p) { S = { ...S, ...p }; subs.forEach((f) => { try { f(S); } catch 
 /* ---------------- داخلية ---------------- */
 let pc = null, localStream = null, remoteStream = null;
 let callId = null, peerId = null, signalPeer = null;
+let pendingGroup = '', pendingList = null;
+let meId = 0;
+export function setMyId(id) { meId = Number(id) || 0; }
+let groupId = '';                       // معرّف المكالمة الجماعية (نفسه عند كل المشاركين)
+const extras = new Map();               // peerId -> { id, user, pc, remote, i, connected, pending }
+const known = new Map();                // peerId -> { id, user } (مشاركون أُعلن عنهم ولم يُربطوا بعد)
+let statsTimer = null;
+let touchUpTrack = null, touchUpGraph = null;
 let pendingOffer = null, queuedCand = [], addedCand = new Set(), seen = new Set();
 let refreshTimer = null, timeoutTimer = null, ringTimeout = null, refreshes = 0;
 let ringSent = false, busySent = false, connectedLogged = false, endLogged = false;
@@ -163,7 +172,7 @@ function scheduleDelete(id) {
   setTimeout(() => { api(`message/${id}`, { method: 'DELETE' }).catch(() => {}); }, 7000);
 }
 async function send(to, t, extra = {}) {
-  const body = { i: callId, t, k: S.kind, ...extra };
+  const body = { i: callId, t, k: S.kind, g: groupId || undefined, ...extra };
   const text = MARK + enc(JSON.stringify(body));
   if (text.length <= 1900) {
     dbg('tx', t, text.length);
@@ -290,6 +299,187 @@ async function attachLocal(kind) {
   });
   set({}); // لتظهر كاميرتي في الشاشة فوراً
 }
+const rid = () => Math.random().toString(36).slice(2, 10);
+const allPcs = () => [pc, ...[...extras.values()].map((l) => l.pc)].filter(Boolean);
+function listPeers() {
+  const out = [];
+  if (peerId) out.push({ id: Number(peerId), user: S.peer, connected: S.phase === 'connected' });
+  extras.forEach((l) => out.push({ id: l.id, user: l.user, connected: l.connected }));
+  known.forEach((k) => { if (!out.some((x) => Number(x.id) === Number(k.id))) out.push({ id: k.id, user: k.user, connected: false, pending: true }); });
+  return out;
+}
+function pushPeers() { set({ peers: listPeers() }); }
+/** يضيف مساراتنا المحلية (صوت/كاميرا) إلى اتصال معيّن. */
+function addLocalTo(p) {
+  if (!p || !localStream) return;
+  localStream.getTracks().forEach((tr) => {
+    const sender = p.getSenders().find((x) => x.track && x.track.kind === tr.kind);
+    if (sender) sender.replaceTrack(tr);
+    else p.addTrack(tr, localStream);
+  });
+  if (!p.getTransceivers().some((x) => (x.sender && x.sender.track && x.sender.track.kind === 'video') || (x.receiver && x.receiver.track && x.receiver.track.kind === 'video'))) {
+    try { p.addTransceiver('video', { direction: 'sendrecv' }); } catch { /* ignore */ }
+  }
+}
+function newLegPc(user) {
+  const p = new RTCPeerConnection(rtcConfig());
+  const remote = new MediaStream();
+  const leg = { id: Number(user.id), user, pc: p, remote, i: rid(), connected: false };
+  p.ontrack = (e) => {
+    const st = e.streams && e.streams[0];
+    if (st) st.getTracks().forEach((tr) => { if (!remote.getTracks().includes(tr)) remote.addTrack(tr); });
+    else if (!remote.getTracks().includes(e.track)) remote.addTrack(e.track);
+    set({});
+  };
+  p.onconnectionstatechange = () => {
+    leg.connected = p.connectionState === 'connected';
+    if (p.connectionState === 'failed') dropLeg(leg.id);
+    pushPeers();
+    if (leg.connected) { dbg('leg-connected', leg.id); announce(leg.id); startStats(); }
+  };
+  return leg;
+}
+/** يُعلن للمشاركين الآخرين أن يدعوا العضو الجديد (حلقة كاملة بين الجميع). */
+async function announce(newPeerId) {
+  const metas = listPeers();
+  for (const leg of extras.values()) {
+    if (Number(leg.id) === Number(newPeerId)) continue;
+    try { await send(leg.id, 'dial', { u: Number(newPeerId), n: nameOf(newPeerId), lst: metas.map((m) => ({ id: m.id, u: m.user?.username, f: m.user?.fullName })) }); } catch { /* ignore */ }
+  }
+  if (peerId && Number(peerId) !== Number(newPeerId)) {
+    try { await send(peerId, 'dial', { u: Number(newPeerId), n: nameOf(newPeerId), lst: metas.map((m) => ({ id: m.id, u: m.user?.username, f: m.user?.fullName })) }); } catch { /* ignore */ }
+  }
+}
+const nameOf = (id) => (extras.get(Number(id))?.user?.fullName || extras.get(Number(id))?.user?.username || known.get(Number(id))?.user?.username || '');
+
+/** دعوة مشارك جديد إلى المكالمة الجارية (ساق WebRTC مستقلة معه). */
+export async function inviteToCall(user) {
+  if (!user || !localStream) return false;
+  const id = Number(user.id);
+  if (id === Number(peerId) || extras.has(id)) return false;
+  if (extras.size >= 3) { set({ notice: { k: 'full' } }); return false; }
+  try {
+    known.set(id, { id, user });
+    const leg = newLegPc({ ...user, id });
+    extras.set(id, leg);
+    pushPeers();
+    addLocalTo(leg.pc);
+    const offer = await leg.pc.createOffer();
+    await leg.pc.setLocalDescription(offer);
+    await waitIceFor(leg.pc);
+    await send(id, 'offer', { i: leg.i, d: await pack(leg.pc.localDescription.sdp), grp: 1, g: groupId, nm: user, k: S.kind });
+    set({ notice: { k: 'invited', name: user.fullName || user.username } });
+    startStats();
+    return true;
+  } catch { dropLeg(id); return false; }
+}
+function waitIceFor(p, ms = 3500) {
+  return new Promise((resolve) => {
+    if (p.iceGatheringState === 'complete') return resolve();
+    const t = setTimeout(resolve, ms);
+    p.onicegatheringstatechange = () => { if (p.iceGatheringState === 'complete') { clearTimeout(t); resolve(); } };
+  });
+}
+function dropLeg(id) {
+  const leg = extras.get(Number(id));
+  if (!leg) return;
+  try { leg.pc.close(); } catch { /* ignore */ }
+  extras.delete(Number(id));
+  known.delete(Number(id));
+  pushPeers();
+}
+/** قبول ساق قادمة من مشارك آخر في نفس المكالمة (بلا رنين). */
+async function joinLeg(env, from, user) {
+  const sdp = env.d ? await unpack(env.d) : '';
+  if (!sdp) return;
+  try {
+    const leg = newLegPc({ ...(user || {}), id: from });
+    leg.i = env.i;                      // نردّ بنفس معرّف الساق
+    extras.set(Number(from), leg);
+    if (user) known.set(Number(from), { id: Number(from), user });
+    pushPeers();
+    addLocalTo(leg.pc);
+    await leg.pc.setRemoteDescription({ type: 'offer', sdp });
+    await flushCandFor(leg.pc, sdp);
+    const answer = await leg.pc.createAnswer();
+    await leg.pc.setLocalDescription(answer);
+    await waitIceFor(leg.pc);
+    await send(from, 'answer', { i: leg.i, d: await pack(leg.pc.localDescription.sdp), grp: 1, g: groupId });
+    startStats();
+  } catch { dropLeg(from); }
+}
+/** إضافة مرشّحات مضمّنة في SDP معيّن إلى اتصال معيّن. */
+async function flushCandFor(p, sdp) {
+  for (const c of parseCandidates(sdp)) {
+    if (!c.candidate) continue;
+    try { await p.addIceCandidate(c); } catch { /* ignore */ }
+  }
+}
+/** كل الأقران المرتبطين + الأساسي (لأوامر الكاميرا والصوت). */
+function forEachPc(fn) { allPcs().forEach((p) => { try { fn(p); } catch { /* ignore */ } }); }
+
+/** تحسين الصوت (Audio Touch Up): تنقية + ضغط + وضوح — على مسار الميكروفون الحقيقي. */
+async function buildTouchUp() {
+  if (touchUpTrack) return touchUpTrack;
+  const ctx = ctxAudio();
+  if (!ctx || !localStream) return null;
+  try {
+    const src = ctx.createMediaStreamSource(localStream);
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 95;
+    const air = ctx.createBiquadFilter(); air.type = 'peaking'; air.frequency.value = 2700; air.gain.value = 3.5; air.Q.value = 0.9;
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -26; comp.knee.value = 18; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.22;
+    const gain = ctx.createGain(); gain.gain.value = 1.35;
+    const dest = ctx.createMediaStreamDestination();
+    src.connect(hp); hp.connect(air); air.connect(comp); comp.connect(gain); gain.connect(dest);
+    touchUpGraph = { src, hp, air, comp, gain, dest };
+    touchUpTrack = dest.stream.getAudioTracks()[0] || null;
+  } catch { touchUpTrack = null; }
+  return touchUpTrack;
+}
+function destroyTouchUp() {
+  try {
+    Object.values(touchUpGraph || {}).forEach((n) => { try { n.disconnect(); } catch { /* ignore */ } });
+  } catch { /* ignore */ }
+  touchUpGraph = null;
+  touchUpTrack = null;
+}
+async function applyAudioTrack() {
+  const t = (S.touchUp && touchUpTrack) ? touchUpTrack : localStream?.getAudioTracks()[0];
+  if (!t) return;
+  forEachPc((p) => {
+    const sender = p.getSenders().find((x) => x.track && x.track.kind === 'audio');
+    if (sender) sender.replaceTrack(t);
+  });
+}
+export async function setAudioTouchUp(on) {
+  const v = typeof on === 'boolean' ? on : !S.touchUp;
+  set({ touchUp: v });
+  if (v) { await buildTouchUp(); } else { await applyAudioTrack(); destroyTouchUp(); }
+  await applyAudioTrack();
+  return v;
+}
+/** المتحدث النشط: من إحصاءات WebRTC الحقيقية (مستوى صوت كل مشارك). */
+function startStats() {
+  if (statsTimer) return;
+  statsTimer = setInterval(async () => {
+    const all = [];
+    if (pc && peerId) all.push([Number(peerId), pc]);
+    extras.forEach((l) => all.push([l.id, l.pc]));
+    if (all.length < 2) { if (S.speakerId) set({ speakerId: 0 }); return; }
+    let best = { id: 0, level: 0.02 };
+    for (const [id, p] of all) {
+      try {
+        const st = await p.getStats();
+        st.forEach((r) => {
+          if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio') && typeof r.audioLevel === 'number' && r.audioLevel > best.level) best = { id, level: r.audioLevel };
+        });
+      } catch { /* ignore */ }
+    }
+    if (best.id !== S.speakerId) set({ speakerId: best.id });
+  }, 900);
+}
+
 /** قناة الفيديو في هذا الاتصال (إن وُجدت) — تُستعمل لتشغيل/إطفاء الكاميرا. */
 function videoChannel() {
   if (!pc) return null;
@@ -311,7 +501,7 @@ function startRefreshLoop(mode) {
     }
     try {
       refreshes += 1;
-      if (mode === 'answer') await send(peerId, 'answer', { d: await pack(pc.localDescription.sdp) });
+      if (mode === 'answer') await send(peerId, 'answer', { d: await pack(pc.localDescription.sdp), i: callId });
       else await send(peerId, 'ice', { d: await pack(pc.localDescription.sdp) });
       dbg('refresh', mode, refreshes);
     } catch { /* ignore */ }
@@ -331,7 +521,9 @@ async function writeLog(d) {
 /* ---------------- الواجهة العامة ---------------- */
 export async function startCall(peer, kind = 'audio', opts = {}) {
   if (S.phase !== 'idle') return;
-  peerId = peer.id; callId = Math.random().toString(36).slice(2, 10);
+  peerId = peer.id; callId = rid(); groupId = rid();
+  extras.forEach((l) => { try { l.pc.close(); } catch { /* ignore */ } });
+  extras.clear(); known.clear();
   seen = new Set(); addedCand = new Set(); queuedCand = []; pendingOffer = null; refreshes = 0;
   ringSent = false; busySent = false; connectedLogged = false; endLogged = false;
   set({
@@ -345,9 +537,11 @@ export async function startCall(peer, kind = 'audio', opts = {}) {
     newPeer();
     await attachLocal(kind);
     ensureVideoChannel();
+    if (S.touchUp) { await buildTouchUp(); await applyAudioTrack(); }
+    set({ groupId, peers: listPeers() });
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    await send(peerId, 'offer', { d: await pack(pc.localDescription.sdp) });
+    await send(peerId, 'offer', { d: await pack(pc.localDescription.sdp), g: groupId });
     startRefreshLoop('ice');
     timeoutTimer = setTimeout(() => { if (S.phase === 'outgoing' || S.phase === 'connecting') endCall('noanswer'); }, 60000);
   } catch (e) {
@@ -362,14 +556,19 @@ export async function acceptCall() {
   set({ phase: 'connecting', status: 'connecting', incoming: false });
   try {
     grabWakeLock();
+    groupId = pendingGroup || rid();
     newPeer();
     await attachLocal(S.kind);
+    known.clear();
+    if (pendingList?.length) pendingList.forEach((m) => { if (Number(m.id) !== Number(peerId)) known.set(Number(m.id), { id: Number(m.id), user: { id: Number(m.id), username: m.u, fullName: m.f } }); });
+    if (S.touchUp) { await buildTouchUp(); await applyAudioTrack(); }
+    set({ groupId, peers: listPeers() });
     await pc.setRemoteDescription({ type: 'offer', sdp: pendingOffer });
     pendingOffer = null;
     await flushCandidates();
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-    await send(peerId, 'answer', { d: await pack(pc.localDescription.sdp) });
+    await send(peerId, 'answer', { d: await pack(pc.localDescription.sdp), i: callId });
     startRefreshLoop('answer');
     timeoutTimer = setTimeout(() => { if (S.phase === 'connecting') endCall('failed'); }, 45000);
   } catch (e) {
@@ -381,7 +580,7 @@ export async function declineCall() {
   stopTone();
   const to = peerId;
   if (to) { try { await send(to, 'decline'); } catch { /* ignore */ } }
-  pendingOffer = null;
+  pendingOffer = null; pendingGroup = ''; pendingList = null;
   cleanup(); resetIds();
   set({ ...IDLE, phase: 'ended', status: 'declined', reason: 'declined' });
   setTimeout(() => { if (S.phase === 'ended') set({ ...IDLE }); }, 1500);
@@ -393,6 +592,7 @@ export async function endCall(reason = 'hangup') {
   const mine = S.outgoing;
   const to = peerId;
   if (to && reason === 'hangup') { try { await send(to, 'bye'); } catch { /* ignore */ } }
+  for (const leg of extras.values()) { try { await send(leg.id, 'bye', { i: leg.i }); } catch { /* ignore */ } }
   if (mine) {
     if (wasConnected) await writeLog('ended');
     else await writeLog('missed');
@@ -402,19 +602,24 @@ export async function endCall(reason = 'hangup') {
   setTimeout(() => { if (S.phase === 'ended') set({ ...IDLE }); }, 1700);
 }
 
-function resetIds() { peerId = null; signalPeer = null; pendingOffer = null; }
+function resetIds() { peerId = null; signalPeer = null; pendingOffer = null; set({ peers: [], speakerId: 0 }); }
 function cleanup() {
   stopTone();
   try { wakeLock?.release?.(); } catch { /* ignore */ }
   wakeLock = null;
-  clearTimeout(refreshTimer); refreshTimer = null;
+  clearInterval(refreshTimer); refreshTimer = null;
   clearTimeout(timeoutTimer); timeoutTimer = null;
   clearTimeout(ringTimeout); ringTimeout = null;
+  clearInterval(statsTimer); statsTimer = null;
+  extras.forEach((l) => { try { l.pc.close(); } catch { /* ignore */ } });
+  extras.clear(); known.clear();
+  groupId = '';
   try { pc?.close(); } catch { /* ignore */ }
   pc = null;
   localStream?.getTracks().forEach((t) => t.stop());
   localStream = null; remoteStream = null;
   queuedCand = []; addedCand = new Set();
+  destroyTouchUp();
 }
 
 /* ---------------- أوامر داخل المكالمة ---------------- */
@@ -438,6 +643,11 @@ export async function toggleCam() {
       if (live) { live.stop(); localStream.removeTrack(live); }
       localStream.addTrack(cam);
       if (tx) await tx.sender.replaceTrack(cam);
+      for (const p of allPcs()) {
+        const sender = p.getSenders().find((x) => x.track && x.track.kind === 'video');
+        if (sender) await sender.replaceTrack(cam).catch(() => {});
+      }
+      await applyAudioTrack();
       set({ kind: 'video', camOn: true, speaker: true });
       try { send(peerId, 'cam1', { k: 'video' }); } catch { /* ignore */ }
       try { navigator.vibrate?.(12); } catch { /* ignore */ }
@@ -449,6 +659,10 @@ export async function toggleCam() {
   }
   if (live) { live.stop(); localStream.removeTrack(live); }
   try { if (tx) await tx.sender.replaceTrack(null); } catch { /* ignore */ }
+  for (const p of allPcs()) {
+    const sender = p.getSenders().find((x) => x.track && x.track.kind === 'video');
+    if (sender) await sender.replaceTrack(null).catch(() => {});
+  }
   set({ camOn: false });
   try { send(peerId, 'cam1x', { k: 'video' }); } catch { /* ignore */ }
   try { navigator.vibrate?.(12); } catch { /* ignore */ }
@@ -503,6 +717,11 @@ async function handleSignal(env, from) {
   if (sdp) await harvest(sdp);
   switch (env.t) {
     case 'offer': {
+      // دعوة إلى مكالمة جماعية قائمة (ساق إضافية بلا رنين)
+      if (env.grp && S.phase !== 'idle' && env.g && env.g === groupId && !extras.has(Number(from))) {
+        await joinLeg(env, from, env.nm || signalPeer);
+        break;
+      }
       if (env.r) {
         if (pc && pc.signalingState === 'stable' && sdp) {
           await pc.setRemoteDescription({ type: 'offer', sdp });
@@ -516,6 +735,7 @@ async function handleSignal(env, from) {
       }
       if (S.phase === 'idle') {
         callId = env.i; peerId = from; pendingOffer = sdp;
+        pendingGroup = env.g || ''; pendingList = env.lst || null;
         ringSent = false; busySent = false; endLogged = false; connectedLogged = false; refreshes = 0;
         set({
           ...IDLE, phase: 'incoming', incoming: true, outgoing: false, status: 'incoming',
@@ -539,6 +759,14 @@ async function handleSignal(env, from) {
       break;
     }
     case 'answer': {
+      const leg = [...extras.values()].find((l) => l.i === env.i);
+      if (leg && sdp) {
+        try {
+          await leg.pc.setRemoteDescription({ type: 'answer', sdp });
+          await flushCandFor(leg.pc, sdp);
+        } catch { /* ignore */ }
+        break;
+      }
       if (pc && sdp) {
         if (pc.signalingState === 'have-local-offer') {
           await pc.setRemoteDescription({ type: 'answer', sdp });
@@ -549,12 +777,42 @@ async function handleSignal(env, from) {
       break;
     }
     case 'ice': if (sdp) await harvest(sdp); break;
+    case 'syn': {
+      const leg = [...extras.values()].find((l) => l.i === env.i);
+      if (leg && sdp) await flushCandFor(leg.pc, sdp);
+      else if (sdp) await harvest(sdp);
+      break;
+    }
+    case 'dial': {
+      if (S.phase === 'idle' || !env.u) break;
+      if (env.lst) env.lst.forEach((m) => { if (Number(m.id) !== Number(meId)) known.set(Number(m.id), { id: Number(m.id), user: { id: Number(m.id), username: m.u, fullName: m.f } }); });
+      pushPeers();
+      if (!extras.has(Number(env.u)) && Number(env.u) !== Number(peerId)) {
+        inviteToCall({ id: Number(env.u), username: env.n || '', fullName: env.n || '' }).catch(() => {});
+      }
+      break;
+    }
     case 'cam1': if (sameCall) set({ kind: 'video', peerCam: true }); break;
     case 'cam1x': if (sameCall) set({ peerCam: false }); break;   // كاميرا الطرف أُطفئت
     case 'ring': if (S.phase === 'outgoing') set({ status: 'ringing' }); break;
     case 'busy': if (sameCall && (S.phase === 'outgoing' || S.phase === 'connecting')) endCall('busy'); break;
-    case 'decline': if (sameCall && S.phase !== 'idle' && S.phase !== 'ended') endCall('declined'); break;
-    case 'bye': if (sameCall && S.phase !== 'idle' && S.phase !== 'ended') endCall('remote'); break;
+    case 'decline': {
+      const leg = [...extras.values()].find((l) => l.i === env.i);
+      if (leg) { dropLeg(leg.id); set({ notice: { k: 'declinedPeer', name: leg.user?.fullName || leg.user?.username } }); break; }
+      if (sameCall && S.phase !== 'idle' && S.phase !== 'ended') endCall('declined');
+      break;
+    }
+    case 'bye': {
+      const leg = [...extras.values()].find((l) => l.i === env.i);
+      if (leg) {
+        const who = leg.user?.fullName || leg.user?.username || '';
+        dropLeg(leg.id);
+        if (S.phase === 'connected' && who) set({ notice: { k: 'peerLeft', name: who } });
+        break;
+      }
+      if (sameCall && S.phase !== 'idle' && S.phase !== 'ended') endCall('remote');
+      break;
+    }
     default: break;
   }
 }
@@ -565,16 +823,12 @@ async function poll() {
   let convs = [];
   try { const r = await api('conversations'); convs = r.conversations || []; } catch { return; }
   const targets = [];
-  if (peerId) {
-    const c = convs.find((x) => Number(x.user.id) === Number(peerId));
-    if (c && c.last && !c.last.mine) targets.push([c.last, c.user]);
-  } else {
-    for (const c of convs) {
-      if (c.last && !c.last.mine && isCallSignal(c.last.text)) {
-        const age = Date.now() - new Date(c.last.createdAt).getTime();
-        if (age < 60000) { targets.push([c.last, c.user]); break; }
-      }
-    }
+  const watching = new Set([peerId, ...extras.keys(), ...known.keys()].filter(Boolean).map(Number));
+  for (const c of convs) {
+    if (!c.last || c.last.mine) continue;
+    const age = Date.now() - new Date(c.last.createdAt).getTime();
+    if (isCallSignal(c.last.text) && age < 60000) targets.push([c.last, c.user]);
+    else if (watching.has(Number(c.user.id))) targets.push([c.last, c.user]);
   }
   for (const [last, user] of targets) {
     let env = envOf(last.text);
@@ -614,7 +868,11 @@ export function startCallLoop() {
   return () => { loopStarted = false; clearTimeout(loopTimer); };
 }
 
+/** قائمة المشاركين الحالية (للعرض) */
+export const getPeersList = () => listPeers();
+export function clearNotice() { if (S.notice) set({ notice: null }); }
+
 /* hook للتطوير فقط — يُحذف تلقائياً في نسخة الإنتاج */
 if (import.meta.env && import.meta.env.DEV) {
-  window.__nxCall = { getCall, getStreams, startCall, acceptCall, endCall, toggleCam, switchCamera, setMuted, setSpeaker, dbg: () => DBG };
+  window.__nxCall = { getCall, getStreams, startCall, acceptCall, endCall, toggleCam, switchCamera, setMuted, setSpeaker, inviteToCall, setAudioTouchUp, getPeersList, dbg: () => DBG };
 }

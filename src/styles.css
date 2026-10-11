@@ -977,3 +977,54 @@ html:not([data-theme='dark']) .msg-menu-time { color: #737373; }
 .adj-btns { display: flex; justify-content: space-between; margin-top: 12px; }
 .adj-btns button { font-size: 15px; padding: 6px 4px; }
 .adj-btns .strong { font-weight: 700; }
+/* ================= صندوق الرسائل (إنستغرام) ================= */
+.msgs-search {
+  display: flex; align-items: center; gap: 10px; margin: 8px 16px 4px;
+  background: var(--chip); border-radius: 12px; height: 44px; padding: 0 13px; color: var(--text);
+}
+.msgs-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 15.5px; color: var(--text); }
+.msgs-requests { background: none; border: 0; color: #4150f6; font: inherit; font-size: 15.5px; font-weight: 600; cursor: pointer; padding: 2px 2px; }
+
+/* شريط الملاحظات */
+.notes-rail { display: flex; gap: 14px; overflow-x: auto; padding: 12px 16px 4px; scrollbar-width: none; }
+.notes-rail::-webkit-scrollbar { display: none; }
+.note-item {
+  display: flex; flex-direction: column; align-items: center; gap: 5px; flex: none;
+  background: none; border: 0; padding: 0; color: var(--text); font: inherit; cursor: pointer;
+  width: 74px;
+}
+.note-item b { font-size: 12.5px; font-weight: 500; color: var(--muted); max-width: 74px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-item.me b, .note-item.add b { color: var(--muted); }
+.note-bubble-sm {
+  position: relative; max-width: 74px; min-height: 24px; padding: 6px 9px; margin-bottom: 8px;
+  background: var(--card2, var(--chip)); color: var(--text); border-radius: 14px;
+  font-size: 11.5px; line-height: 1.25; text-align: center; z-index: 2;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,.28);
+}
+.note-bubble-sm.empty { color: var(--muted); }
+.note-bubble-sm.plus { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; font-size: 20px; }
+.note-add-avatar {
+  width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--chip); color: var(--text); border: 1.8px solid var(--border, color-mix(in srgb, var(--text) 18%, transparent)); box-sizing: border-box;
+}
+.note-item .avatar, .note-item .note-add-avatar { margin-top: 0; }
+.note-item { padding-top: 2px; }
+.note-item .avatar { box-shadow: 0 0 0 2px var(--bg, #000); border-radius: 50%; }
+.note-input { width: 100%; background: var(--chip); border: 0; border-radius: 12px; color: var(--text); font: inherit; font-size: 15.5px; padding: 11px 12px; resize: none; outline: 0; }
+.ck-note.small { font-size: 13px; margin: 8px 2px 12px; }
+
+/* رأس صندوق الرسائل: اسم المستخدم + سهم قائمة الحسابات */
+.msgs-title { display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; color: inherit; font: inherit; padding: 0; cursor: pointer; }
+.topbar.start-title { position: relative; }
+.topbar.start-title .topbar-title { position: absolute; left: 0; right: 0; justify-content: center; padding: 0; text-align: center; pointer-events: none; }
+.topbar.start-title .topbar-title .msgs-title { pointer-events: auto; }
+.topbar.start-title > .icon-btn, .topbar.start-title > span { position: relative; z-index: 1; }
+.msgs-title b { font-size: 21px; font-weight: 700; }
+.msgs-title svg { opacity: .9; margin-top: 3px; }
+.acct-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.acct-row { display: flex; align-items: center; gap: 12px; padding: 6px 2px; }
+.acct-row.cur { opacity: .75; }
+.acct-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.acct-txt b { font-size: 15.5px; font-weight: 600; }
+.acct-txt small { font-size: 13px; }

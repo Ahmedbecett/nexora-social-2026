@@ -3,12 +3,16 @@
  * الجانبي + شريط الأزرار السفلي) وفق تصميم إنستغرام، إضافة إلى فقاعات سجل
  * المكالمة داخل المحادثة.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useApp, Avatar } from '../components.jsx';
+import { useApp, Avatar, Spinner } from '../components.jsx';
+import { api } from '../api.js';
+import { KitSheet } from './ChatKit.jsx';
+import { ISearch } from '../icons.jsx';
 import {
   getCall, subscribeCall, startCallLoop, clearError, acceptCall, declineCall, endCall,
   setMuted, toggleCam, setSpeaker, switchCamera, getStreams, parseCallLog,
+  inviteToCall, setAudioTouchUp, clearNotice, setMyId,
 } from './call.js';
 import { ct, fmtClock } from './callText.js';
 
@@ -58,6 +62,22 @@ export const ISpkOn = (p) => (
     <path d="M4 9.4h3.3L12 5.5v13l-4.7-3.9H4z" />
     <path d="M15.5 9.4a3.7 3.7 0 0 1 0 5.2" />
     <path d="M18.2 6.7a7.3 7.3 0 0 1 0 10.6" />
+  </Svg>
+);
+/** دعوة أشخاص: شخص + */
+export const IInvitePeer = ({ size = 25 }) => (
+  <Svg size={size}>
+    <circle cx="9.6" cy="8.4" r="3.6" />
+    <path d="M3.2 19.6c0-3.2 2.9-5.4 6.4-5.4 1.5 0 2.9.4 4 1.1" />
+    <path d="M17.4 14.2v6.2M14.3 17.3h6.2" />
+  </Svg>
+);
+/** بريق (تحسين الصوت) */
+export const ISparkle = ({ size = 22 }) => (
+  <Svg size={size} strokeWidth="1.7">
+    <path d="M12 3.4c.5 3.3 1.4 4.2 4.7 4.7-3.3.5-4.2 1.4-4.7 4.7-.5-3.3-1.4-4.2-4.7-4.7 3.3-.5 4.2-1.4 4.7-4.7Z" />
+    <path d="M18.4 14.6c.25 1.6.7 2.05 2.3 2.3-1.6.25-2.05.7-2.3 2.3-.25-1.6-.7-2.05-2.3-2.3 1.6-.25 2.05-.7 2.3-2.3Z" />
+    <path d="M8.2 15.6c.18 1.15.5 1.47 1.65 1.65-1.15.18-1.47.5-1.65 1.65-.18-1.15-.5-1.47-1.65-1.65 1.15-.18 1.47-.5 1.65-1.65Z" />
   </Svg>
 );
 export const IDeviceWaves = (p) => (
@@ -143,15 +163,34 @@ function statusText(s) {
 function bindStream(el, stream) {
   if (!el) return;
   if (el.srcObject !== stream) el.srcObject = stream || null;
-  if (stream) { try { el.play?.(); } catch { /* ignore */ } }
+  if (stream) {
+    try { const pr = el.play?.(); if (pr && pr.catch) pr.catch(() => {}); } catch { /* ignore */ }
+  }
 }
 
 function CallOverlay({ s }) {
-  const { toast } = useApp();
-  const [menu, setMenu] = useState(false);
+  const { toast, me } = useApp();
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [setOpen, setSetOpen] = useState(false);
+  const [hideUi, setHideUi] = useState(false);
+  const [vidSize, setVidSize] = useState(null);   // أبعاد فيديو الطرف الآخر (لمكان صورة كاميرتي)
   const { local, remote } = getStreams();
   useTick(s.phase === 'connected');
   const errShown = useRef('');
+  const noticeShown = useRef(null);
+  useEffect(() => { setMyId(me?.id); }, [me?.id]);
+  useEffect(() => {
+    if (!s.notice) return;
+    const key = s.notice.k + (s.notice.name || '');
+    if (noticeShown.current === key) return;
+    noticeShown.current = key;
+    const txt = s.notice.k === 'invited' ? ct('ckCallInviteSent', { n: s.notice.name || '' })
+      : s.notice.k === 'declinedPeer' ? ct('ckCallInviteDeclined', { n: s.notice.name || '' })
+        : s.notice.k === 'peerLeft' ? ct('ckCallPeerLeft', { n: s.notice.name || '' })
+          : s.notice.k === 'full' ? ct('ckCallFull') : '';
+    if (txt) toast(txt);
+    clearNotice();
+  }, [s.notice]); // eslint-disable-line
   useEffect(() => {
     if (!s.error || errShown.current === s.error) return;
     errShown.current = s.error;
@@ -160,37 +199,82 @@ function CallOverlay({ s }) {
   }, [s.error]); // eslint-disable-line
 
   const video = s.kind === 'video';
-  const remoteTrack = remote ? remote.getVideoTracks()[0] : null;
+  const peers = useMemo(() => (s.peers || []).filter((p) => Number(p.id) !== Number(me?.id)), [s.peers, me?.id]);
+  const many = peers.length > 1;
+  // مع عدة مشاركين: نعرض المتحدث النشط (من إحصاءات WebRTC)، وإلا الأساسي
+  const mainPeer = useMemo(() => {
+    if (!many) return null;
+    const byVoice = peers.find((p) => Number(p.id) === Number(s.speakerId));
+    return byVoice || peers.find((p) => p.connected && p.stream && p.stream.getVideoTracks().length) || peers[0] || null;
+  }, [many, peers, s.speakerId]);
+  const mainId = many && mainPeer ? mainPeer.id : s.peer?.id;
+  const remoteStream = many && mainPeer ? mainPeer.stream : remote;
+  const remoteTrack = remoteStream ? remoteStream.getVideoTracks()[0] : null;
   const remoteLive = !!(remoteTrack && remoteTrack.readyState === 'live' && !remoteTrack.muted);
   const localCam = local ? local.getVideoTracks().find((t) => t.readyState === 'live') : null;
-  const showRemote = video && remoteLive && s.peerCam !== false;   // فيديو الطرف الآخر (يتوقف فوراً إذا أطفأ كاميرته)
+  const showRemote = video && remoteLive;
   const showSelf = video && !showRemote && !!localCam;        // كاميرتي أثناء الانتظار
   const showPip = video && showRemote && !!localCam;          // صورتي الصغيرة مع الفيديو
-  const name = s.peer?.fullName || s.peer?.username || ct('ckCallSomeone');
+  // مكان صورة كاميرتي: أعلى يمين إطار الفيديو المعروض (مثل إنستغرام)، لا يخرج عن الشاشة أبداً
+  const pipPos = useMemo(() => {
+    const W = typeof window === 'undefined' ? 390 : window.innerWidth;
+    const H = typeof window === 'undefined' ? 844 : window.innerHeight;
+    const PW = 92, PH = 128;
+    let left = W - PW - 12, top = 62;
+    if (vidSize && vidSize.w && vidSize.h) {
+      const sc = Math.min(W / vidSize.w, H / vidSize.h);
+      const vw = vidSize.w * sc, vh = vidSize.h * sc;
+      left = (W - vw) / 2 + vw - PW - 10;
+      top = (H - vh) / 2 + 10;
+    }
+    return { left: Math.max(10, Math.min(left, W - PW - 10)), top: Math.max(58, Math.min(top, H - PH - 150)) };
+  }, [vidSize]);
+  const mainUser = many && mainPeer ? mainPeer.user : s.peer;
+  const name = mainUser?.fullName || mainUser?.username || ct('ckCallSomeone');
 
   return (
-    <div className="ck-call" dir="ltr">
+    <div className={`ck-call ${showRemote ? 'vidmode' : ''} ${hideUi ? 'ui-hidden' : ''}`} dir="ltr"
+      onClick={(e) => { if (e.target.closest('button') || e.target.closest('.ck-sheet') || e.target.closest('.ck-sheet-wrap')) return; setHideUi((v) => !v); }}>
       {s.peer?.avatarUrl
         ? <div className="ck-call-bg" style={{ backgroundImage: `url(${s.peer.avatarUrl})` }} />
         : <div className="ck-call-bg plain" />}
       <div className="ck-call-shade" />
 
       {showRemote && (
-        <video className="ck-call-remotevid" muted playsInline autoPlay
-          ref={(el) => bindStream(el, remote)} onLoadedMetadata={(e) => e.currentTarget.play?.().catch(() => {})} />
+        <video className="ck-call-remotevid" muted playsInline
+          ref={(el) => bindStream(el, remoteStream)}
+          onLoadedMetadata={(e) => {
+            const v = e.currentTarget;
+            if (v.videoWidth) setVidSize({ w: v.videoWidth, h: v.videoHeight });
+            v.play?.()?.catch?.(() => {});
+          }} />
       )}
       {showSelf && (
-        <video className="ck-call-selfvid" muted playsInline autoPlay
+        <video className="ck-call-selfvid" muted playsInline
           style={{ transform: s.facing === 'user' ? 'scaleX(-1)' : 'none' }}
           ref={(el) => bindStream(el, local)} onLoadedMetadata={(e) => e.currentTarget.play?.().catch(() => {})} />
       )}
       {showPip && (
-        <video className="ck-call-localvid" muted playsInline autoPlay
-          style={{ transform: s.facing === 'user' ? 'scaleX(-1)' : 'none' }}
-          ref={(el) => bindStream(el, local)} />
+        <video className="ck-call-localvid" muted playsInline
+          style={{ left: pipPos.left, top: pipPos.top, transform: s.facing === 'user' ? 'scaleX(-1)' : 'none' }}
+          ref={(el) => bindStream(el, local)}
+          onClick={(e) => e.stopPropagation()} />
       )}
 
-      <button className="ck-call-more" onClick={() => setMenu((v) => !v)} aria-label={ct('ckCallMore')}><IDots size={26} /></button>
+      {many && (
+        <div className="ck-call-tiles">
+          {peers.map((p) => (
+            <span key={p.id} className={`ck-call-tile ${p.connected ? 'on' : ''} ${Number(p.id) === Number(s.speakerId) ? 'speaking' : ''}`}>
+              <Avatar src={p.user?.avatarUrl} name={p.user?.username || '?'} size={26} />
+              <b>{(p.user?.fullName || p.user?.username || '').slice(0, 10)}</b>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="ck-call-top">
+        <button className="ck-call-icon" onClick={() => setInviteOpen(true)} aria-label={ct('ckCallInvite')}><IInvitePeer size={25} /></button>
+        <button className="ck-call-icon" onClick={() => setSetOpen(true)} aria-label={ct('ckCallMore')}><IDots size={24} /></button>
+      </div>
 
       {!(showRemote || showSelf) && (
         <div className="ck-call-id">
@@ -206,21 +290,8 @@ function CallOverlay({ s }) {
         </div>
       )}
 
-      {menu && (
-        <div className="ck-call-menu">
-          <button onClick={() => { setSpeaker(!s.speaker); setMenu(false); }}>
-            {s.speaker ? <ISpkOn size={20} /> : <IDeviceWaves size={20} />}<span>{ct('ckCallSpeaker')}</span>
-          </button>
-          {video && (
-            <button onClick={() => { switchCamera(); setMenu(false); }}>
-              <ICamOn size={20} /><span>{ct('ckCallSwitchCam')}</span>
-            </button>
-          )}
-          <button onClick={() => { endCall('hangup'); setMenu(false); }}>
-            <IEndCall size={20} /><span>{ct('ckCallEnd')}</span>
-          </button>
-        </div>
-      )}
+      <CallSettingsSheet open={setOpen} onClose={() => setSetOpen(false)} s={s} />
+      <InviteSheet open={inviteOpen} onClose={() => setInviteOpen(false)} s={s} toast={toast} />
 
       {s.incoming ? (
         <div className="ck-call-bar incoming">
@@ -243,8 +314,87 @@ function CallOverlay({ s }) {
         </div>
       )}
 
-      <audio id="nx-call-audio" autoPlay playsInline ref={(el) => bindStream(el, remote)} />
+      <audio className="ck-call-audio" playsInline ref={(el) => bindStream(el, remote)} />
+      {peers.map((p) => <PeerAudio key={p.id} stream={p.stream} />)}
     </div>
+  );
+}
+
+function PeerAudio({ stream }) {
+  const ref = useRef(null);
+  useEffect(() => { bindStream(ref.current, stream); }, [stream]);
+  return <audio className="ck-call-audio" playsInline ref={ref} />;
+}
+
+/** ورقة "الإعدادات" داخل المكالمة (تحسين الصوت) */
+function CallSettingsSheet({ open, onClose, s }) {
+  return (
+    <KitSheet open={open} onClose={onClose} title={ct('ckCallSettings')} above noClose center>
+      <div className="ck-set-wrap">
+      <div className="ck-setrow">
+        <span className="ck-setrow-ic"><ISparkle size={24} /></span>
+        <span className="ck-setrow-txt">{ct('ckCallTouchUp')}</span>
+        <button className={`ck-switch ${s.touchUp ? 'on' : ''}`} role="switch" aria-checked={!!s.touchUp}
+          aria-label={ct('ckCallTouchUp')} onClick={() => setAudioTouchUp()}>
+          <i />
+        </button>
+      </div>
+      </div>
+    </KitSheet>
+  );
+}
+
+/** ورقة "دعوة أشخاص": قائمة حقيقية من محادثاتك ومقترحاتك ونتائج البحث */
+function InviteSheet({ open, onClose, s, toast }) {
+  const [q, setQ] = useState('');
+  const [users, setUsers] = useState(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    setQ(''); setUsers(null);
+    Promise.all([
+      api('conversations').catch(() => ({ conversations: [] })),
+      api('suggestions').catch(() => ({ users: [] })),
+    ]).then(([c, sg]) => {
+      const seen = new Set(); const out = [];
+      for (const u of [...(c.conversations || []).map((x) => x.user), ...(sg.users || [])]) {
+        if (u?.id && !seen.has(u.id)) { seen.add(u.id); out.push(u); }
+      }
+      setUsers(out);
+    });
+    return undefined;
+  }, [open]);
+  useEffect(() => {
+    if (!open || !q.trim()) return undefined;
+    const tm = setTimeout(() => api(`search/users?q=${encodeURIComponent(q)}`).then((r) => setUsers(r.users || [])).catch(() => {}), 250);
+    return () => clearTimeout(tm);
+  }, [q, open]);
+  const inCall = new Set([s.peer?.id, ...(s.peers || []).map((p) => p.id)].filter(Boolean).map(Number));
+  const list = (users || []).filter((u) => !inCall.has(Number(u.id)));
+  const call = async (u) => {
+    const ok = await inviteToCall(u);
+    if (ok) { toast(ct('ckCallInviteSent', { n: u.fullName || u.username })); onClose(); }
+  };
+  return (
+    <KitSheet open={open} onClose={onClose} title={ct('ckCallInvite')} above noClose center>
+      <div className="ck-invite-search">
+        <ISearch size={19} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={ct('ckCallSearch')} dir="auto" />
+      </div>
+      <div className="ck-invite-list">
+        {users === null ? <div className="ck-invite-load"><Spinner /></div> : list.length === 0 ? (
+          <div className="ck-note">{ct('ckCallNoUsers')}</div>
+        ) : list.map((u) => (
+          <div className="ck-invite-row" key={u.id}>
+            <Avatar src={u.avatarUrl} name={u.username} size={54} />
+            <div className="ck-invite-txt">
+              <b className="ellipsis">{u.fullName || u.username}</b>
+              <span className="ellipsis">{u.username}</span>
+            </div>
+            <button className="ck-invite-btn" onClick={() => call(u)}>{ct('ckCallPill')}</button>
+          </div>
+        ))}
+      </div>
+    </KitSheet>
   );
 }
 
