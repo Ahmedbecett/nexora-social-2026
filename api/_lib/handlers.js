@@ -644,7 +644,7 @@ route('GET', 'me/badges', async ({ req }) => {
   const u = await authUser(req);
   const r = await one(`select
       (select count(*) from notifications where user_id=$1 and read=false)::int as notifications,
-      (select count(distinct sender_id) from messages where receiver_id=$1 and read=false)::int as messages,
+      (select count(distinct sender_id) from messages where receiver_id=$1 and read=false and not unsent)::int as messages,
       (select count(*) from follows where following_id=$1 and status='pending')::int as requests`, [u.id]);
   return r;
 });
@@ -1118,12 +1118,14 @@ route('POST', 'notifications/read', async ({ req }) => {
 });
 
 /* ---------- messages ---------- */
+const MSG_VISIBLE = `not m.unsent and not ($1 = any(m.hidden_for))`;
 route('GET', 'conversations', async ({ req }) => {
   const me = await authUser(req);
   const rows = await q(`select distinct on (partner) partner, m.id, m.text, m.media_url, m.post_id, m.created_at, m.sender_id, m.read,
         u.username, u.full_name, u.avatar_url, u.verified,
-        (select count(*) from messages x where x.sender_id=partner and x.receiver_id=$1 and x.read=false)::int as unread
-     from (select *, case when sender_id=$1 then receiver_id else sender_id end as partner from messages where sender_id=$1 or receiver_id=$1) m
+        (select count(*) from messages x where x.sender_id=partner and x.receiver_id=$1 and x.read=false and not x.unsent)::int as unread
+     from (select *, case when sender_id=$1 then receiver_id else sender_id end as partner from messages m
+           where (sender_id=$1 or receiver_id=$1) and ${MSG_VISIBLE}) m
      join users u on u.id=m.partner
      order by partner, m.id desc`, [me.id]);
   rows.sort((a, b) => Number(b.id) - Number(a.id));
@@ -1135,24 +1137,45 @@ route('GET', 'conversations', async ({ req }) => {
     })),
   };
 });
+
+function msgOut(m, meId) {
+  const reply = m.reply_to ? (m.r_id && !m.r_unsent
+    ? { id: Number(m.r_id), mine: Number(m.r_sender) === Number(meId), text: m.r_text || '', media: !!m.r_media, post: !!m.r_post }
+    : { id: Number(m.reply_to), gone: true }) : null;
+  return {
+    id: Number(m.id), mine: Number(m.sender_id) === Number(meId), text: m.text, mediaUrl: m.media_url,
+    post: m.post_id ? { id: Number(m.post_id), thumb: m.post_media?.[0]?.poster || m.post_media?.[0]?.url, type: m.post_media?.[0]?.poster ? 'image' : m.post_media?.[0]?.type, username: m.post_user } : null,
+    read: m.read, createdAt: m.created_at, pinned: !!m.pinned_at, reply,
+    reactions: (m.reactions || []).map((x) => ({ emoji: x.e, mine: Number(x.u) === Number(meId) })),
+  };
+}
+const MSG_SELECT = `select m.id, m.sender_id, m.text, m.media_url, m.post_id, m.read, m.created_at, m.unsent, m.hidden_for, m.pinned_at, m.reply_to,
+        p.media as post_media, pu.username as post_user,
+        r.id as r_id, r.sender_id as r_sender, r.text as r_text, r.media_url as r_media, r.post_id as r_post, r.unsent as r_unsent,
+        (select coalesce(json_agg(json_build_object('u', mr.user_id, 'e', mr.emoji) order by mr.created_at), '[]'::json)
+           from message_reactions mr where mr.message_id=m.id) as reactions
+      from messages m left join posts p on p.id=m.post_id left join users pu on pu.id=p.user_id
+      left join messages r on r.id=m.reply_to`;
+
 route('GET', 'messages/:userId', async ({ req, params, query }) => {
   const me = await authUser(req);
   const after = Number(query.after) || 0;
-  const rows = await q(`select m.id, m.sender_id, m.text, m.media_url, m.post_id, m.read, m.created_at,
-        p.media as post_media, pu.username as post_user
-      from messages m left join posts p on p.id=m.post_id left join users pu on pu.id=p.user_id
-      where ((m.sender_id=$1 and m.receiver_id=$2) or (m.sender_id=$2 and m.receiver_id=$1)) and m.id > $3
-      order by m.id desc limit 200`, [me.id, params.userId, after]);
+  const since = query.since && !Number.isNaN(Date.parse(query.since)) ? new Date(query.since).toISOString() : null;
+  const { now } = await one('select now() as now');
+  const rows = await q(`${MSG_SELECT}
+      where ((m.sender_id=$1 and m.receiver_id=$2) or (m.sender_id=$2 and m.receiver_id=$1))
+        and (m.id > $3 or ($4::timestamptz is not null and m.updated_at > $4::timestamptz))
+      order by m.id desc limit 200`, [me.id, params.userId, after, since]);
   await q('update messages set read=true where sender_id=$2 and receiver_id=$1 and read=false', [me.id, params.userId]);
   const partner = await one('select * from users where id=$1', [params.userId]);
-  return {
-    user: publicUser(partner),
-    messages: rows.reverse().map((m) => ({
-      id: Number(m.id), mine: Number(m.sender_id) === Number(me.id), text: m.text, mediaUrl: m.media_url,
-      post: m.post_id ? { id: Number(m.post_id), thumb: m.post_media?.[0]?.poster || m.post_media?.[0]?.url, type: m.post_media?.[0]?.poster ? 'image' : m.post_media?.[0]?.type, username: m.post_user } : null,
-      read: m.read, createdAt: m.created_at,
-    })),
-  };
+  const initial = !after && !since;
+  const out = [];
+  for (const m of rows.reverse()) {
+    const gone = m.unsent || (m.hidden_for || []).map(Number).includes(Number(me.id));
+    if (gone) { if (!initial) out.push({ id: Number(m.id), gone: true }); continue; }
+    out.push(msgOut(m, me.id));
+  }
+  return { user: publicUser(partner), messages: out, serverTime: now };
 });
 route('POST', 'messages/:userId', async ({ req, params, body }) => {
   const me = await authUser(req);
@@ -1174,8 +1197,67 @@ route('POST', 'messages/:userId', async ({ req, params, body }) => {
     if (!po) throw new HttpError(404, 'post_not_found');
     if (Number(po.user_id) !== Number(me.id) && !settingsOf(po).allowSharing) throw new HttpError(403, 'sharing_disabled');
   }
-  const m = await one('insert into messages(sender_id, receiver_id, text, media_url, post_id) values ($1,$2,$3,$4,$5) returning id, created_at', [me.id, target.id, text, mediaUrl, postId]);
-  return { message: { id: Number(m.id), mine: true, text, mediaUrl, post: postId ? { id: postId } : null, createdAt: m.created_at } };
+  let replyTo = Number(body.replyTo) || null;
+  if (replyTo) {
+    const r = await one(`select id from messages where id=$1 and not unsent and
+      ((sender_id=$2 and receiver_id=$3) or (sender_id=$3 and receiver_id=$2))`, [replyTo, me.id, target.id]);
+    if (!r) replyTo = null;
+  }
+  const m = await one('insert into messages(sender_id, receiver_id, text, media_url, post_id, reply_to) values ($1,$2,$3,$4,$5,$6) returning id', [me.id, target.id, text, mediaUrl, postId, replyTo]);
+  const full = await one(`${MSG_SELECT} where m.id=$1`, [m.id]);
+  return { message: msgOut(full, me.id) };
+});
+
+async function myMessage(id, meId) {
+  const m = await one('select * from messages where id=$1 and (sender_id=$2 or receiver_id=$2) and not unsent', [Number(id) || 0, meId]);
+  if (!m) throw new HttpError(404, 'message_not_found');
+  return m;
+}
+// Unsend: removes the message for everyone (sender only)
+route('DELETE', 'message/:id', async ({ req, params }) => {
+  const me = await authUser(req);
+  const m = await myMessage(params.id, me.id);
+  if (Number(m.sender_id) !== Number(me.id)) throw new HttpError(403, 'forbidden');
+  await q('delete from message_reactions where message_id=$1', [m.id]);
+  await q(`update messages set unsent=true, text='', media_url=null, post_id=null, pinned_at=null, updated_at=now() where id=$1`, [m.id]);
+  return { ok: true };
+});
+// Delete for you: hides the message only in my chat
+route('POST', 'message/:id/hide', async ({ req, params }) => {
+  const me = await authUser(req);
+  const m = await myMessage(params.id, me.id);
+  await q('update messages set hidden_for = array_append(hidden_for, $2::bigint) where id=$1 and not ($2::bigint = any(hidden_for))', [m.id, me.id]);
+  return { ok: true };
+});
+const EMOJI_RE = /^[\p{Extended_Pictographic}\p{Emoji_Component}\u200d\ufe0f]{1,16}$/u;
+route('POST', 'message/:id/react', async ({ req, params, body }) => {
+  const me = await authUser(req);
+  const m = await myMessage(params.id, me.id);
+  const emoji = String(body.emoji || '').trim();
+  if (!EMOJI_RE.test(emoji) || !/\p{Extended_Pictographic}/u.test(emoji)) throw bad('invalid_emoji');
+  await q(`insert into message_reactions(message_id, user_id, emoji) values ($1,$2,$3)
+    on conflict (message_id, user_id) do update set emoji=excluded.emoji, created_at=now()`, [m.id, me.id, emoji]);
+  await q('update messages set updated_at=now() where id=$1', [m.id]);
+  return { ok: true };
+});
+route('DELETE', 'message/:id/react', async ({ req, params }) => {
+  const me = await authUser(req);
+  const m = await myMessage(params.id, me.id);
+  await q('delete from message_reactions where message_id=$1 and user_id=$2', [m.id, me.id]);
+  await q('update messages set updated_at=now() where id=$1', [m.id]);
+  return { ok: true };
+});
+route('POST', 'message/:id/pin', async ({ req, params }) => {
+  const me = await authUser(req);
+  const m = await myMessage(params.id, me.id);
+  await q('update messages set pinned_at=now(), updated_at=now() where id=$1', [m.id]);
+  return { ok: true };
+});
+route('DELETE', 'message/:id/pin', async ({ req, params }) => {
+  const me = await authUser(req);
+  const m = await myMessage(params.id, me.id);
+  await q('update messages set pinned_at=null, updated_at=now() where id=$1', [m.id]);
+  return { ok: true };
 });
 
 route('GET', 'follow-requests', async ({ req }) => {

@@ -129,11 +129,18 @@ export default function App() {
     setAdSlot(!!token && !booting && !adding && !topName && (tab === 'home' || tab === 'search' || tab === 'profile'));
   }, [token, booting, adding, tab, topName]);
 
+  // native feel: no browser long-press menu (copy / select all / web search) outside text fields
+  useEffect(() => {
+    const h = (e) => { const el = e.target; if (!(el.closest && el.closest('input, textarea, [contenteditable="true"]'))) e.preventDefault(); };
+    document.addEventListener('contextmenu', h);
+    return () => document.removeEventListener('contextmenu', h);
+  }, []);
+
   // Android hardware back button
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const h = CapApp.addListener('backButton', () => {
-      if (document.querySelector('.sheet-wrap.open, .dialog-wrap')) { document.dispatchEvent(new CustomEvent('nx-close-overlay')); document.querySelector('.sheet-wrap.open, .dialog-wrap')?.click(); return; }
+      if (document.querySelector('.msg-menu-wrap, .sheet-wrap.open, .dialog-wrap')) { document.dispatchEvent(new CustomEvent('nx-close-overlay')); document.querySelector('.sheet-wrap.open, .dialog-wrap')?.click(); return; }
       if (stackRef.current.length) { setStack((s) => s.slice(0, -1)); return; }
       if (tabRef.current !== 'home') { setTab('home'); return; }
       CapApp.exitApp();

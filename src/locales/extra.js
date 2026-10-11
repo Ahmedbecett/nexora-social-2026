@@ -487,3 +487,29 @@ export const extraAr = {
     invalid_contact: 'أدخل بريداً إلكترونياً صحيحاً.',
   },
 };
+
+// 2.4.3 — chat message actions
+Object.assign(extraEn, {
+  msgReply: 'Reply', msgForward: 'Forward', msgCopy: 'Copy', msgPin: 'Pin', msgUnpin: 'Unpin',
+  msgDeleteForYou: 'Delete for you', msgUnsend: 'Unsend', msgCopied: 'Copied',
+  msgReplyingTo: 'Replying to {u}', msgReplyingYourself: 'Replying to yourself',
+  msgYouReplied: 'You replied', msgYouRepliedTo: 'You replied to {u}', msgRepliedToYou: '{u} replied to you', msgRepliedToSelf: '{u} replied',
+  msgPinned: 'Pinned message', msgForwardTo: 'Forward to', msgSent: 'Sent',
+  msgUnsendQ: 'Unsend message?', msgUnsendDesc: 'This will remove the message for everyone in the chat.',
+  msgDeleteQ: 'Delete for you?', msgDeleteDesc: 'This message will be removed from your chat. Others in the chat can still see it.',
+  msgPhoto: 'Photo', msgPost: 'Post', msgUnavailable: 'Original message unavailable',
+  msgReactions: 'Reactions', msgTapToRemove: 'Tap to remove', msgSwipeHint: 'Swipe a message to reply',
+});
+Object.assign(extraEn.errors, { message_not_found: 'This message is no longer available.', invalid_emoji: 'Choose an emoji.' });
+Object.assign(extraAr, {
+  msgReply: 'رد', msgForward: 'إعادة توجيه', msgCopy: 'نسخ', msgPin: 'تثبيت', msgUnpin: 'إلغاء التثبيت',
+  msgDeleteForYou: 'حذف لديك', msgUnsend: 'إلغاء الإرسال', msgCopied: 'تم النسخ',
+  msgReplyingTo: 'الرد على {u}', msgReplyingYourself: 'الرد على نفسك',
+  msgYouReplied: 'لقد رددت', msgYouRepliedTo: 'لقد رددت على {u}', msgRepliedToYou: 'ردّ {u} عليك', msgRepliedToSelf: 'ردّ {u}',
+  msgPinned: 'رسالة مثبّتة', msgForwardTo: 'إعادة توجيه إلى', msgSent: 'تم الإرسال',
+  msgUnsendQ: 'إلغاء إرسال الرسالة؟', msgUnsendDesc: 'ستُحذف الرسالة لدى جميع من في المحادثة.',
+  msgDeleteQ: 'حذف لديك؟', msgDeleteDesc: 'ستُحذف هذه الرسالة من محادثتك فقط، وسيظل الطرف الآخر يراها.',
+  msgPhoto: 'صورة', msgPost: 'منشور', msgUnavailable: 'الرسالة الأصلية غير متاحة',
+  msgReactions: 'التفاعلات', msgTapToRemove: 'اضغط للإزالة', msgSwipeHint: 'اسحب الرسالة للرد',
+});
+Object.assign(extraAr.errors, { message_not_found: 'هذه الرسالة لم تعد متاحة.', invalid_emoji: 'اختر رمزاً تعبيرياً.' });

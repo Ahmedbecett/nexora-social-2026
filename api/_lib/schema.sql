@@ -221,3 +221,18 @@ create table if not exists world_views (
   primary key (user_id, media_id)
 );
 create index if not exists world_views_media_idx on world_views(media_id);
+
+-- 2.4.3: chat reply / reactions / pin / unsend / delete for you
+alter table messages add column if not exists reply_to bigint references messages(id) on delete set null;
+alter table messages add column if not exists unsent boolean not null default false;
+alter table messages add column if not exists hidden_for bigint[] not null default '{}';
+alter table messages add column if not exists pinned_at timestamptz;
+alter table messages add column if not exists updated_at timestamptz not null default now();
+create index if not exists messages_updated_idx on messages(updated_at);
+create table if not exists message_reactions (
+  message_id bigint not null references messages(id) on delete cascade,
+  user_id    bigint not null references users(id) on delete cascade,
+  emoji      text not null,
+  created_at timestamptz not null default now(),
+  primary key (message_id, user_id)
+);
