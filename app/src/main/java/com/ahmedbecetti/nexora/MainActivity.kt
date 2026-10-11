@@ -1058,18 +1058,8 @@ class MainActivity : Activity() {
         settingsRow("✉", "Messages", "Open your conversations") {
             selectedTab = "Messages"; render()
         }
-        settingsRow("＠", "Tags and mentions", "Manage how people find you") {
-            AlertDialog.Builder(this).setTitle("Tags and mentions")
-                .setMessage("NEXORA interaction controls are being expanded. Your account and posts remain available.")
-                .setPositiveButton("OK", null).show()
-        }
         settingsRow("♡", "Likes and comments", "Review recent activity") {
             selectedTab = "Activity"; render()
-        }
-        settingsRow("🔒", "Account privacy", "Privacy options") {
-            AlertDialog.Builder(this).setTitle("Account privacy")
-                .setMessage("Privacy controls depend on the account settings currently supported by NEXORA.")
-                .setPositiveButton("OK", null).show()
         }
         body.addView(sectionTitle("Support"))
         settingsRow("ⓘ", "Help", "NEXORA account and app help") {
