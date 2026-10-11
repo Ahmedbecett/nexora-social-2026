@@ -142,3 +142,17 @@ create table if not exists user_lists (
   primary key (owner_id, target_id, kind)
 );
 create index if not exists user_lists_target_idx on user_lists(target_id, kind);
+
+-- own phone OTP (free SMS through the owner's Android gateway)
+create table if not exists phone_otps (
+  phone      text primary key,
+  code_hash  text not null,
+  expires_at timestamptz not null,
+  attempts   int not null default 0
+);
+create table if not exists otp_limits (
+  key          text primary key,
+  window_start timestamptz not null default now(),
+  count        int not null default 0,
+  last_at      timestamptz not null default now()
+);

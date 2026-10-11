@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { api, getAccounts, forgetAccount, dropAccountToken } from '../api.js';
-import { t, errText, LANGUAGES } from '../i18n.js';
+import { t, errText, LANGUAGES, getLang } from '../i18n.js';
 import { useApp, Wordmark, Spinner, Sheet, Avatar, Glyph, FromBrand, ActionSheet } from '../components.jsx';
 import { IEye, IEyeOff, IDown, IBack, ICheck, IClose, IMoreH, IChevron, IGoogle, IPhone, IMail, ISearch, ITrash } from '../icons.jsx';
 
@@ -350,6 +350,11 @@ function guessCountry() {
   return COUNTRIES.find((c) => c[0] === region) || COUNTRIES[0];
 }
 
+// Our own SMS gateway (free, via the owner's Android phone) is preferred when the server has it configured;
+// otherwise Firebase phone auth is used.
+let phoneCfg = null;
+const serverPhoneEnabled = () => (phoneCfg ||= api('auth/phone/config').then((r) => !!r.enabled).catch(() => { phoneCfg = null; return false; }));
+
 function PhoneAuth({ back, finish }) {
   const [country, setCountry] = useState(guessCountry);
   const [pickOpen, setPickOpen] = useState(false);
@@ -373,6 +378,13 @@ function PhoneAuth({ back, finish }) {
     if (busy) return;
     setError(''); setBusy(true);
     try {
+      if (await serverPhoneEnabled()) {
+        const phone = e164;
+        await api('auth/phone/send', { method: 'POST', body: { phone, lang: getLang() } });
+        confirmRef.current = (c) => api('auth/phone/verify', { method: 'POST', body: { phone, code: c } });
+        setStep('code'); setCooldown(60); setBusy(false);
+        return;
+      }
       const { sendPhoneCode } = await import('../firebase.js');
       let done = false;
       const onAuto = (result) => { if (done) return; done = true; finish(result); };

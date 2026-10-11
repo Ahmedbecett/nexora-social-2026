@@ -56,6 +56,13 @@
 ### متغيرات البيئة على Vercel
 `DATABASE_URL` · `JWT_SECRET` · `BLOB_READ_WRITE_TOKEN` (مضبوطة بالفعل على مشروع `nexora-social-2026`).
 
+### رمز الهاتف (OTP) مجاناً عبر هاتفك
+بدلاً من رسائل Firebase المدفوعة، يرسل الخادم رمز التحقق عبر شريحة هاتف أندرويد خاص بك باستخدام تطبيق
+[SMS Gateway for Android](https://sms-gate.app) (مفتوح المصدر ومجاني):
+1. ثبّت التطبيق على هاتف أندرويد فيه شريحة (Djezzy / Mobilis / Ooredoo)، وفعّل **Cloud server** ثم **Online**.
+2. انسخ **Username** و**Password** الظاهرين وضعهما في Vercel: `SMSGATE_USER` و`SMSGATE_PASS` (بديل: `TEXTBEE_API_KEY` + `TEXTBEE_DEVICE_ID`).
+3. أعد النشر. عندها يستخدم التطبيق `POST /api/auth/phone/send` و`/verify` تلقائياً (رمز من 6 أرقام صالح 10 دقائق، 5 محاولات، حدود لكل رقم ولكل IP). إن لم تُضبط هذه المتغيرات يعود التطبيق إلى Firebase.
+
 ### الترجمات
 ملفات اللغات في `src/locales/<code>.json`. لإعادة توليدها بعد إضافة نصوص جديدة:
 ```bash

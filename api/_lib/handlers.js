@@ -2,7 +2,9 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client';
 import { del as blobDel } from '@vercel/blob';
+import crypto from 'node:crypto';
 import { q, one } from './db.js';
+import { smsProvider, sendSms } from './sms.js';
 import { fbSignUp, fbSignIn, fbUpdate, fbDelete, fbSendVerify, fbSendReset, fbSignInWithGoogle, verifyFirebaseIdToken } from './firebase.js';
 
 export class HttpError extends Error {
@@ -317,6 +319,66 @@ route('POST', 'auth/firebase', async ({ body }) => {
   let claims;
   try { claims = await verifyFirebaseIdToken(String(body.idToken || '')); } catch (e) { throw fbErr(e); }
   return resolveIdentity({ uid: claims.sub, email: claims.email, emailVerified: !!claims.email_verified, phone: claims.phone_number, name: claims.name, photo: claims.picture });
+});
+
+/* ---------- phone OTP through our own SMS gateway (free, no Firebase billing) ---------- */
+const OTP_TTL_MIN = 10;
+const otpHash = (phone, code) => crypto.createHmac('sha256', JWT_SECRET()).update(`${phone}:${code}`).digest('hex');
+function toE164(raw) {
+  const s = String(raw || '').replace(/[\s()-]/g, '');
+  if (!/^\+[1-9]\d{7,14}$/.test(s)) throw bad('invalid_phone');
+  return s;
+}
+/** Sliding window counter; throws 429 when `max` per `windowMin` is exceeded or `cooldownSec` not elapsed. */
+async function hitLimit(key, max, windowMin, cooldownSec = 0) {
+  const r = await one(`insert into otp_limits(key, window_start, count, last_at) values ($1, now(), 1, now())
+    on conflict (key) do update set
+      count = case when otp_limits.window_start < now() - make_interval(mins => $2) then 1 else otp_limits.count + 1 end,
+      window_start = case when otp_limits.window_start < now() - make_interval(mins => $2) then now() else otp_limits.window_start end,
+      last_at = now()
+    returning count, (select last_at from otp_limits where key=$1) as prev_at`, [key, windowMin]);
+  if (r.count > max) throw new HttpError(429, 'too_many_attempts');
+  if (cooldownSec && r.count > 1 && r.prev_at && (Date.now() - new Date(r.prev_at).getTime()) < cooldownSec * 1000) throw new HttpError(429, 'too_many_attempts');
+}
+const clientIp = (req) => String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || 'unknown';
+const SMS_TEXT = {
+  ar: (c) => `${c} هو رمز التحقق الخاص بك في Nexora. لا تشاركه مع أحد.`,
+  fr: (c) => `${c} est votre code de vérification Nexora. Ne le partagez pas.`,
+  en: (c) => `${c} is your Nexora verification code. Don't share it.`,
+};
+
+route('GET', 'auth/phone/config', async () => ({ enabled: !!smsProvider() }));
+
+route('POST', 'auth/phone/send', async ({ req, body }) => {
+  if (!smsProvider()) throw new HttpError(503, 'phone_billing');
+  const phone = toE164(body.phone);
+  await hitLimit(`ip:${clientIp(req)}`, 10, 60);
+  await hitLimit(`ph:${phone}`, 5, 60, 45);
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  await q(`insert into phone_otps(phone, code_hash, expires_at, attempts) values ($1,$2, now() + make_interval(mins => $3), 0)
+    on conflict (phone) do update set code_hash=excluded.code_hash, expires_at=excluded.expires_at, attempts=0`, [phone, otpHash(phone, code), OTP_TTL_MIN]);
+  const lang = String(body.lang || '').slice(0, 2);
+  try { await sendSms(phone, (SMS_TEXT[lang] || SMS_TEXT.en)(code)); } catch (e) {
+    console.error('sms send failed', e.message);
+    throw new HttpError(502, 'sms_failed');
+  }
+  return { ok: true, expiresIn: OTP_TTL_MIN * 60 };
+});
+
+route('POST', 'auth/phone/verify', async ({ body }) => {
+  const phone = toE164(body.phone);
+  const code = String(body.code || '').replace(/\D/g, '');
+  const row = await one('select * from phone_otps where phone=$1', [phone]);
+  if (!row) throw bad('code_expired');
+  if (new Date(row.expires_at) < new Date()) { await q('delete from phone_otps where phone=$1', [phone]); throw bad('code_expired'); }
+  if (row.attempts >= 5) { await q('delete from phone_otps where phone=$1', [phone]); throw new HttpError(429, 'too_many_attempts'); }
+  const ok = code.length === 6 && crypto.timingSafeEqual(Buffer.from(row.code_hash), Buffer.from(otpHash(phone, code)));
+  if (!ok) { await q('update phone_otps set attempts=attempts+1 where phone=$1', [phone]); throw bad('invalid_code'); }
+  await q('delete from phone_otps where phone=$1', [phone]);
+  const tail = phone.replace(/\D/g, '').slice(-9);
+  const u = await one(`select * from users where phone=$1 or right(regexp_replace(coalesce(phone, ''), '\\D', '', 'g'), 9) = $2 order by (phone=$1) desc, id limit 1`, [phone, tail]);
+  if (u) return session(u);
+  return { needsProfile: true, pending: pendingToken({ uid: `phone:${phone}`, email: null, phone, name: '', photo: null }), suggested: { fullName: '', username: 'user', email: null, phone } };
 });
 
 route('POST', 'auth/complete', async ({ body }) => {
