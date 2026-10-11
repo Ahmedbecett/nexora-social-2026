@@ -825,3 +825,7 @@ html[lang='ar'] .profile-buttons .btn, html[lang='fa'] .profile-buttons .btn, ht
 .world-post .post-head .uname { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .world-post .post-media { max-height: none; background: #000; }
 .world-post .post-info .likes { font-weight: 600; font-size: 14px; }
+
+/* ---------- AdMob banner slot (Android): lift the UI above the native banner ---------- */
+:root { --ad-h: 0px; }
+.app { padding-bottom: var(--ad-h); transition: padding-bottom .15s ease; }

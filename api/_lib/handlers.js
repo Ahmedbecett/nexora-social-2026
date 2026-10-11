@@ -356,6 +356,16 @@ const SMS_TEXT = {
   en: (c) => `${c} is your Nexora verification code. Don't share it.`,
 };
 
+// Ads config (served from the server so the banner unit can be changed / switched off without a new APK).
+// Set ADMOB_BANNER_ANDROID on Vercel, or edit ADS_DEFAULT below. Empty = no ads.
+const ADS_DEFAULT = { appId: 'ca-app-pub-6858364141205978~9239771129', androidBanner: '' };
+route('GET', 'app/config', async () => ({
+  ads: {
+    enabled: process.env.ADS_ENABLED !== '0',
+    androidBanner: (process.env.ADMOB_BANNER_ANDROID ?? ADS_DEFAULT.androidBanner).trim(),
+  },
+}));
+
 route('GET', 'auth/phone/config', async () => ({ enabled: !!smsProvider() }));
 
 route('POST', 'auth/phone/send', async ({ req, body }) => {

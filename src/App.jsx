@@ -8,6 +8,7 @@ import { IHome, ISearch, IReels, ISend } from './icons.jsx';
 import { applyTheme, onThemeChange } from './theme.js';
 import AuthFlow from './screens/Auth.jsx';
 import { addUsage, limitReminderDue } from './usage.js';
+import { initAds, setAdSlot } from './ads.js';
 import Feed from './screens/Feed.jsx';
 import Search, { TagScreen } from './screens/Search.jsx';
 import Reels, { ReelsViewer } from './screens/Reels.jsx';
@@ -121,6 +122,12 @@ export default function App() {
     const immersive = (!topName && tab === 'reels') || topName === 'stories' || topName === 'reelsViewer' || (topName === 'create');
     applyTheme({ immersive });
   }, [tab, topName, themeTick, token, booting]);
+
+  // AdMob banner: only on the Home / Search / Profile tabs (never on Reels, stories, chats or open screens)
+  useEffect(() => { if (token && !booting && !adding) initAds(); }, [token, booting, adding]);
+  useEffect(() => {
+    setAdSlot(!!token && !booting && !adding && !topName && (tab === 'home' || tab === 'search' || tab === 'profile'));
+  }, [token, booting, adding, tab, topName]);
 
   // Android hardware back button
   useEffect(() => {
