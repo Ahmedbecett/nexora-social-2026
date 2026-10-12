@@ -2,7 +2,7 @@
 
 A full native rebuild of NEXORA, with **no WebView and no web UI**. It talks to the same backend as the web/Capacitor app (`https://nexora-social-2026.vercel.app/api/`, Vercel + Neon), uses the same accounts and data, and copies the same Instagram-style design.
 
-> Test build: package `com.ahmedbecetti.nexora.kt`. It installs **side-by-side** with the current app (`com.ahmedbecetti.nexora`, v2.6.0) and does not replace it.
+> Official build since **v3.0.0**: package `com.ahmedbecetti.nexora` (versionCode 15), signed with the same key as v2.6.0, so it installs as an update over it.
 
 ## Stack
 - Kotlin 2.x, Jetpack Compose (Material 3), single-activity, a state-driven navigation stack
@@ -21,8 +21,14 @@ A full native rebuild of NEXORA, with **no WebView and no web UI**. It talks to 
 - Edit profile, notifications, follow requests, saved posts, settings (theme, language, privacy, logout)
 - Messages: inbox, requests, new message, chat (text, replies, reactions, unsend, delete-for-you, seen and typing, shared posts, photos, videos, voice playback, call log lines)
 
-## Later rounds
-Create post, reel and story (camera and gallery upload), sending media and voice in chat, audio and video calls, the full settings set, AdMob, Google and phone login, avatar upload.
+## v3.0.0
+- Instagram structure everywhere: bottom bar Home / Reels / Messages / Search / Profile, profile note bubble, multiple links, reposts tab, account switcher with badges, saved-profiles login screen
+- Inbox tab with notes rail, Message requests (+ Spam folder kept on the device, delete, block), notifications grouped by Today / Yesterday / Last 7 days / Last 30 days
+- Full "Settings and activity" (Accounts Center, Archive, Your activity, Time management, privacy and interaction controls, lists, Hidden Words, Account Status…) backed by the API
+- Native Google sign-in (Credential Manager → `auth/google` / `auth/complete`)
+
+## Not yet native
+Audio and video calls (WebRTC), AdMob, chat stickers / GIFs / AI images.
 
 ## Build
 ```bash

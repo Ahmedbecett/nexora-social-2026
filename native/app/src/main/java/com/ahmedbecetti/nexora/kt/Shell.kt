@@ -79,6 +79,13 @@ fun MainShell() {
     val holder = rememberSaveableStateHolder()
     val visited = remember { mutableStateMapOf(Tab.Home to true) }
     LaunchedEffect(app.tab) { visited[app.tab] = true }
+    val ctxTime = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000)
+            if (com.ahmedbecetti.nexora.kt.ui.screens.Usage.shouldRemind()) android.widget.Toast.makeText(ctxTime, t("limitReached"), android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
 
     BackHandler(enabled = app.stack.isNotEmpty() || app.tab != Tab.Home) {
         if (!app.pop()) app.tab = Tab.Home
@@ -96,6 +103,7 @@ fun MainShell() {
                             when (t) {
                                 Tab.Home -> FeedScreen(active)
                                 Tab.Reels -> ReelsTab(active)
+                                Tab.Messages -> InboxScreen(active, isTab = true)
                                 Tab.Search -> SearchScreen(active)
                                 Tab.Profile -> ProfileScreen(app.me!!.username, isTab = true, active = active)
                             }
@@ -108,7 +116,7 @@ fun MainShell() {
         // pushed screens stack over the tabs; only the top one is "active"
         app.stack.forEachIndexed { i, r ->
             val isTop = i == app.stack.lastIndex
-            val full = r is Route.Chat || r is Route.Stories || r is Route.ReelsAt || r is Route.Inbox || r is Route.Create || r is Route.NewHighlight
+            val full = r is Route.Chat || r is Route.Stories || r is Route.ReelsAt || r is Route.Create || r is Route.NewHighlight
             Column(Modifier.fillMaxSize().background(c.bg).noRippleClick {}) {
                 Box(Modifier.weight(1f).fillMaxWidth()) { RouteScreen(r, isTop) }
                 if (!full) BottomNav()
@@ -129,7 +137,9 @@ fun RouteScreen(r: Route, active: Boolean) {
         Route.FollowRequests -> FollowRequestsScreen()
         Route.Settings -> SettingsScreen()
         is Route.SettingsPage -> SettingsPage(r.key)
-        Route.Inbox -> InboxScreen(active)
+        Route.Inbox -> InboxScreen(active, isTab = false)
+        Route.MessageRequests -> MessageRequestsScreen()
+        Route.Spam -> SpamScreen()
         Route.Discover -> UserListScreen(t("suggested"), "suggestions", t("noFollowersYet"))
         Route.NewHighlight -> NewHighlightScreen()
         is Route.Create -> CreateScreen(r.uris, r.reel)
@@ -149,19 +159,29 @@ fun BottomNav() {
     val reels = app.tab == Tab.Reels && app.stack.isEmpty()
     val bg = if (reels) Color.Black else c.bg
     val fg = if (reels) Color.White else c.text
-    val pick = rememberMediaPicker(multi = true) { uris -> app.push(Route.Create(uris, reel = false)) }
     Column(Modifier.fillMaxWidth().background(bg).navigationBarsPadding()) {
         if (!reels) Box(Modifier.fillMaxWidth().height(0.5.dp).background(c.sep))
-        Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().height(54.dp), verticalAlignment = Alignment.CenterVertically) {
             @Composable
             fun Item(content: @Composable () -> Unit, onClick: () -> Unit) =
-                Box(Modifier.weight(1f).height(52.dp).noRippleClick(onClick), contentAlignment = Alignment.Center) { content() }
+                Box(Modifier.weight(1f).height(54.dp).noRippleClick(onClick), contentAlignment = Alignment.Center) { content() }
             val top = app.stack.isEmpty()
-            Item({ Icon(if (app.tab == Tab.Home && top) NxIcons.HomeFill else NxIcons.Home, "home", tint = fg, modifier = Modifier.size(27.dp)) }) { app.selectTab(Tab.Home) }
-            Item({ Icon(if (app.tab == Tab.Search && top) NxIcons.SearchBold else NxIcons.Search, "search", tint = fg, modifier = Modifier.size(26.dp)) }) { app.selectTab(Tab.Search) }
-            Item({ Icon(NxIcons.PlusSquare, "create", tint = fg, modifier = Modifier.size(27.dp)) }) { pick() }
-            Item({ Icon(if (app.tab == Tab.Reels && top) NxIcons.ReelsFill else NxIcons.Reels, "reels", tint = fg, modifier = Modifier.size(27.dp)) }) { app.selectTab(Tab.Reels) }
-            Item({ Icon(if (app.tab == Tab.Profile && top) NxIcons.UserFill else NxIcons.User, "profile", tint = fg, modifier = Modifier.size(27.dp)) }) { app.selectTab(Tab.Profile) }
+            fun on(t: Tab) = app.tab == t && top
+            Item({ Icon(if (on(Tab.Home)) NxIcons.HomeFill else NxIcons.Home, "home", tint = fg, modifier = Modifier.size(28.dp)) }) { app.selectTab(Tab.Home) }
+            Item({ Icon(if (on(Tab.Reels)) NxIcons.ReelsFill else NxIcons.Reels, "reels", tint = fg, modifier = Modifier.size(28.dp)) }) { app.selectTab(Tab.Reels) }
+            Item({
+                Box {
+                    Icon(if (on(Tab.Messages)) NxIcons.SendFill else NxIcons.Send, "messages", tint = fg, modifier = Modifier.size(28.dp))
+                    if (app.msgBadge > 0) Box(Modifier.align(Alignment.BottomEnd).offset(x = 3.dp, y = 1.dp).size(9.dp).clip(CircleShape).background(Red).border(1.5.dp, bg, CircleShape))
+                }
+            }) { app.selectTab(Tab.Messages) }
+            Item({ Icon(if (on(Tab.Search)) NxIcons.SearchBold else NxIcons.Search, "search", tint = fg, modifier = Modifier.size(27.dp)) }) { app.selectTab(Tab.Search) }
+            Item({
+                val sel = on(Tab.Profile)
+                Box(Modifier.size(30.dp).clip(CircleShape).then(if (sel) Modifier.border(2.dp, fg, CircleShape) else Modifier).padding(if (sel) 2.5.dp else 0.dp), contentAlignment = Alignment.Center) {
+                    AvatarImage(app.me?.avatarUrl, if (sel) 25.dp else 30.dp)
+                }
+            }) { app.selectTab(Tab.Profile) }
         }
     }
 }

@@ -1,5 +1,9 @@
 package com.ahmedbecetti.nexora.kt.ui.screens
 
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+
 import com.ahmedbecetti.nexora.kt.ui.rememberMediaPicker
 import com.ahmedbecetti.nexora.kt.ui.PickKind
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -89,7 +93,7 @@ import kotlinx.coroutines.launch
 
 private data class Highlight(val title: String, val items: List<Story>)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ProfileScreen(username: String, isTab: Boolean, active: Boolean) {
     val app = LocalApp.current
@@ -102,6 +106,9 @@ fun ProfileScreen(username: String, isTab: Boolean, active: Boolean) {
     val posts = remember(username) { mutableStateListOf<Post>() }
     val reels = remember(username) { mutableStateListOf<Post>() }
     val tagged = remember(username) { mutableStateListOf<Post>() }
+    val reposts = remember(username) { mutableStateListOf<Post>() }
+    var noteDialog by remember { mutableStateOf(false) }
+    var linkDialog by remember { mutableStateOf(false) }
     val highlights = remember(username) { mutableStateListOf<Highlight>() }
     var postsLoaded by remember(username) { mutableStateOf(false) }
     var extraLoaded by remember(username) { mutableStateOf(setOf<Int>()) }
@@ -109,7 +116,6 @@ fun ProfileScreen(username: String, isTab: Boolean, active: Boolean) {
     var menu by remember { mutableStateOf(false) }
     var accounts by remember { mutableStateOf(false) }
     var create by remember { mutableStateOf(false) }
-    var confirmAdd by remember { mutableStateOf(false) }
     val pickPost = rememberMediaPicker(multi = true) { uris -> app.push(Route.Create(uris, reel = false)) }
     val pickReel = rememberMediaPicker(multi = false, kind = PickKind.Video) { uris -> app.push(Route.Create(uris, reel = true)) }
     val pickStory = rememberMediaPicker(multi = false) { uris -> app.addStory(uris.first()) }
@@ -145,26 +151,33 @@ fun ProfileScreen(username: String, isTab: Boolean, active: Boolean) {
         if (prof?.canView != true || tab == 0 || tab in extraLoaded) return@LaunchedEffect
         try {
             if (tab == 1) { reels.clear(); reels.addAll(Post.list(Api.get("users/${Uri.encode(username)}/posts?kind=reel"))) }
-            if (tab == 2) { tagged.clear(); tagged.addAll(Post.list(Api.get("users/${Uri.encode(username)}/tagged"))) }
+            if (tab == 2) { reposts.clear(); reposts.addAll(Post.list(Api.get("users/${Uri.encode(username)}/reposts"))) }
+            if (tab == 3) { tagged.clear(); tagged.addAll(Post.list(Api.get("users/${Uri.encode(username)}/tagged"))) }
             extraLoaded = extraLoaded + tab
         } catch (_: Exception) {}
     }
 
     val p = prof
     Column(Modifier.fillMaxSize().background(c.bg)) {
-        // top bar
-        Row(Modifier.fillMaxWidth().statusBarsPadding().height(54.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (!isTab) IconBtn(NxIcons.Back, { app.pop() }, size = 26.dp) else Spacer(Modifier.width(12.dp))
-            Row(Modifier.weight(1f).noRippleClick { if (p?.isMe == true) accounts = true }, verticalAlignment = Alignment.CenterVertically) {
-                if (p?.user?.isPrivate == true) Icon(NxIcons.Lock, null, tint = c.text, modifier = Modifier.padding(end = 4.dp).size(16.dp))
-                Text(username, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        // top bar (IG: + · lock username ▾ • · ☰)
+        Box(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 4.dp)) {
+            if (!isTab) IconBtn(NxIcons.Back, { app.pop() }, size = 26.dp, modifier = Modifier.align(Alignment.CenterStart))
+            else if (p?.isMe == true) IconBtn(NxIcons.Plus, { create = true }, size = 28.dp, modifier = Modifier.align(Alignment.CenterStart))
+            val otherBadges = app.accountBadges.filterKeys { it != app.me?.id }.values.any { it.first + it.second > 0 }
+            Row(Modifier.align(Alignment.Center).fillMaxWidth(0.66f).wrapContentWidth().noRippleClick { if (p?.isMe == true) { accounts = true } },
+                verticalAlignment = Alignment.CenterVertically) {
+                if (p?.user?.isPrivate == true) Icon(NxIcons.Lock, null, tint = c.text, modifier = Modifier.padding(end = 6.dp).size(18.dp))
+                Text(username, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (p?.user?.verified == true) VerifiedBadge(16.dp)
-                if (p?.isMe == true) Icon(NxIcons.Down, null, tint = c.text, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+                if (p?.isMe == true) {
+                    Icon(NxIcons.Down, null, tint = c.text, modifier = Modifier.padding(start = 6.dp).size(18.dp))
+                    if (otherBadges) Box(Modifier.padding(start = 8.dp).size(8.dp).clip(CircleShape).background(Red))
+                }
             }
-            if (p?.isMe == true) {
-                IconBtn(NxIcons.PlusSquare, { create = true }, size = 26.dp)
-                IconBtn(NxIcons.Menu, { app.push(Route.Settings) }, size = 26.dp)
-            } else if (p != null) IconBtn(NxIcons.MoreH, { menu = true }, size = 26.dp)
+            Row(Modifier.align(Alignment.CenterEnd)) {
+                if (p?.isMe == true) IconBtn(NxIcons.Menu, { app.push(Route.Settings) }, size = 28.dp)
+                else if (p != null) IconBtn(NxIcons.MoreH, { menu = true }, size = 26.dp)
+            }
         }
         if (p == null) {
             if (error != null) Empty(NxIcons.Account, error!!, null) else Loader(Modifier.padding(top = 40.dp))
@@ -174,34 +187,48 @@ fun ProfileScreen(username: String, isTab: Boolean, active: Boolean) {
             LazyVerticalGrid(GridCells.Fixed(3), state = grid, modifier = Modifier.fillMaxSize()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
-                            Avatar(p.user.avatarUrl, 90.dp, ring = if (storyGroup != null) ringOf(storyGroup) else Ring.None,
-                                onClick = { storyGroup?.let { app.push(Route.Stories(listOf(it), 0)) } })
-                            Row(Modifier.weight(1f).padding(start = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                Stat(p.posts, t("posts")) {}
-                                Stat(p.followers, t("followers")) { if (p.canView) app.push(Route.FollowList(p.user.username, "followers")) }
-                                Stat(p.following, t("following")) { if (p.canView) app.push(Route.FollowList(p.user.username, "following")) }
+                        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 4.dp)) {
+                            // avatar with the note bubble on top and the + (add story) badge — like IG
+                            Box(Modifier.width(100.dp).height(124.dp)) {
+                                Box(Modifier.align(Alignment.BottomStart)) {
+                                    Avatar(p.user.avatarUrl, 92.dp, ring = if (storyGroup != null) ringOf(storyGroup) else Ring.None,
+                                        onClick = { storyGroup?.let { app.push(Route.Stories(listOf(it), 0)) } ?: run { if (p.isMe) pickStory() } })
+                                    if (p.isMe) Box(Modifier.align(Alignment.BottomEnd).offset(x = 2.dp, y = 2.dp).size(28.dp).clip(CircleShape).background(c.bg).padding(2.5.dp)
+                                        .clip(CircleShape).background(c.text).noRippleClick { pickStory() }, contentAlignment = Alignment.Center) {
+                                        Icon(NxIcons.Plus, null, tint = c.bg, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                val note = if (p.isMe) app.me?.note ?: p.note else p.note
+                                if (p.isMe || !note.isNullOrBlank()) NoteBubble(note, Modifier.align(Alignment.TopStart).padding(start = 2.dp)) { if (p.isMe) noteDialog = true }
+                            }
+                            Column(Modifier.weight(1f).padding(start = 16.dp, bottom = 14.dp)) {
+                                if (!p.user.fullName.isNullOrBlank()) Text(p.user.fullName!!, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.text, maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 6.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Stat(p.posts, t("posts")) {}
+                                    Stat(p.followers, t("followers")) { if (p.canView) app.push(Route.FollowList(p.user.username, "followers")) }
+                                    Stat(p.following, t("following")) { if (p.canView) app.push(Route.FollowList(p.user.username, "following")) }
+                                    Spacer(Modifier.width(4.dp))
+                                }
                             }
                         }
-                        if (!p.user.fullName.isNullOrBlank()) Text(p.user.fullName!!, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.text, modifier = Modifier.padding(top = 10.dp))
-                        if (!p.note.isNullOrBlank()) Text("💬 " + p.note, fontSize = 13.sp, color = c.muted, modifier = Modifier.padding(top = 2.dp))
                         if (!p.user.bio.isNullOrBlank()) Text(richText(app, p.user.bio!!, com.ahmedbecetti.nexora.kt.ui.theme.Blue), fontSize = 14.sp, color = c.text, modifier = Modifier.padding(top = 2.dp))
                         val links = (listOfNotNull(p.user.website?.takeIf { it.isNotBlank() }?.let { it to it }) + p.links).distinctBy { it.second }
-                        links.forEach { (title, url) ->
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp).noRippleClick {
-                                val u = if (url.startsWith("http")) url else "https://$url"
-                                try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
-                            }) {
-                                Icon(NxIcons.Link, null, tint = Color(0xFF00376B).takeIf { !c.dark } ?: Color(0xFFE0F1FF), modifier = Modifier.size(14.dp))
-                                Text(" " + title.removePrefix("https://").removePrefix("http://"), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                                    color = if (c.dark) Color(0xFFE0F1FF) else Color(0xFF00376B), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (links.isNotEmpty() || p.isMe) androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            links.forEach { (title, url) ->
+                                LinkChip(NxIcons.Link, (title.ifBlank { url }).removePrefix("https://").removePrefix("http://").removeSuffix("/")) {
+                                    val u = if (url.startsWith("http")) url else "https://$url"
+                                    try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
+                                }
                             }
+                            if (p.isMe && p.links.size < 5) LinkChip(NxIcons.Plus, t("add"), muted = true) { linkDialog = true }
                         }
                         if (!p.isMe && p.mutuals.isNotEmpty()) Text(t("mutualsFollowedBy", "u" to p.mutuals.joinToString(", ")), fontSize = 13.sp, color = c.muted, modifier = Modifier.padding(top = 6.dp))
-                        Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                             if (p.isMe) {
-                                NxButton(t("editProfile"), { app.push(Route.EditProfile) }, Modifier.weight(1f), primary = false)
-                                NxButton(t("shareProfile"), { shareText(ctx, profileLink(p.user.username)) }, Modifier.weight(1f), primary = false)
+                                NxButton(t("editProfile"), { app.push(Route.EditProfile) }, Modifier.weight(1f), primary = false, height = 38.dp, radius = 10.dp, fontSize = 15.sp)
+                                NxButton(t("shareProfile"), { shareText(ctx, profileLink(p.user.username)) }, Modifier.weight(1f), primary = false, height = 38.dp, radius = 10.dp, fontSize = 15.sp)
                             } else {
                                 FollowButton(p.followStatus, p.followsYou, onClick = {
                                     val st = p.followStatus
@@ -215,11 +242,11 @@ fun ProfileScreen(username: String, isTab: Boolean, active: Boolean) {
                                 }, modifier = Modifier.weight(1f))
                                 if (p.canMessage) NxButton(t("message"), { app.push(Route.Chat(p.user)) }, Modifier.weight(1f), primary = false)
                             }
-                            Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(c.btn).noRippleClick { app.push(Route.Discover) }, contentAlignment = Alignment.Center) {
-                                Icon(NxIcons.UserPlus, null, tint = c.text, modifier = Modifier.size(18.dp))
+                            Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(c.btn).noRippleClick { app.push(Route.Discover) }, contentAlignment = Alignment.Center) {
+                                Icon(NxIcons.UserPlus, null, tint = c.text, modifier = Modifier.size(20.dp))
                             }
                         }
-                        if (highlights.isNotEmpty() || p.isMe) LazyRow(contentPadding = PaddingValues(vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (highlights.isNotEmpty()) LazyRow(contentPadding = PaddingValues(vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(highlights) { h ->
                                 Column(Modifier.width(76.dp).noRippleClick {
                                     app.push(Route.Stories(listOf(StoryGroup(p.user, h.items, true, false)), 0))
@@ -230,14 +257,6 @@ fun ProfileScreen(username: String, isTab: Boolean, active: Boolean) {
                                         else AsyncImage(first.url, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                                     }
                                     Text(h.title, fontSize = 12.sp, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
-                                }
-                            }
-                            if (p.isMe) item {
-                                Column(Modifier.width(76.dp).noRippleClick { app.push(Route.NewHighlight) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box(Modifier.size(68.dp).border(1.dp, c.border, CircleShape), contentAlignment = Alignment.Center) {
-                                        Icon(NxIcons.Plus, null, tint = c.text, modifier = Modifier.size(28.dp))
-                                    }
-                                    Text(t("new"), fontSize = 12.sp, color = c.text, modifier = Modifier.padding(top = 5.dp))
                                 }
                             }
                         } else Spacer(Modifier.height(12.dp))
@@ -253,21 +272,22 @@ fun ProfileScreen(username: String, isTab: Boolean, active: Boolean) {
                 } else {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Row(Modifier.fillMaxWidth()) {
-                            listOf(NxIcons.Grid, NxIcons.Reels, NxIcons.Tagged).forEachIndexed { i, ic ->
+                            listOf(NxIcons.Grid, NxIcons.Reels, NxIcons.Repost, NxIcons.Tagged).forEachIndexed { i, ic ->
                                 Column(Modifier.weight(1f).noRippleClick { tab = i }, horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(ic, null, tint = if (tab == i) c.text else c.muted, modifier = Modifier.padding(vertical = 11.dp).size(24.dp))
-                                    Box(Modifier.fillMaxWidth(0.62f).height(1.5.dp).background(if (tab == i) c.text else Color.Transparent))
+                                    Icon(ic, null, tint = if (tab == i) c.text else c.muted, modifier = Modifier.padding(vertical = 12.dp).size(26.dp))
+                                    Box(Modifier.fillMaxWidth(0.6f).height(2.dp).background(if (tab == i) c.text else Color.Transparent))
                                 }
                             }
                         }
                     }
-                    val list = when (tab) { 0 -> posts; 1 -> reels; else -> tagged }
+                    val list = when (tab) { 0 -> posts; 1 -> reels; 2 -> reposts; else -> tagged }
                     val loadedTab = if (tab == 0) postsLoaded else tab in extraLoaded
                     if (!loadedTab) item(span = { GridItemSpan(maxLineSpan) }) { Loader() }
                     else if (list.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
                         when (tab) {
                             0 -> Empty(NxIcons.Camera, t("noPosts"), if (p.isMe) t("noPostsSub") else null)
                             1 -> Empty(NxIcons.Reels, t("noReels"))
+                            2 -> Empty(NxIcons.Repost, t("noReposts"))
                             else -> Empty(NxIcons.Tagged, t("noTagged"), t("noTaggedSub"))
                         }
                     }
@@ -295,27 +315,9 @@ fun ProfileScreen(username: String, isTab: Boolean, active: Boolean) {
             }
         }
     }
-    if (accounts) ModalBottomSheet(onDismissRequest = { accounts = false }, containerColor = c.elevated) {
-        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Avatar(app.me?.avatarUrl, 52.dp)
-                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                    Text(app.me?.username ?: "", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.text)
-                    Text(t("currentAccount"), fontSize = 13.sp, color = c.muted)
-                }
-                Box(Modifier.size(24.dp).clip(CircleShape).background(com.ahmedbecetti.nexora.kt.ui.theme.Blue), contentAlignment = Alignment.Center) {
-                    Icon(NxIcons.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                }
-            }
-            Row(Modifier.fillMaxWidth().noRippleClick { accounts = false; confirmAdd = true }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(52.dp).border(1.dp, c.border, CircleShape), contentAlignment = Alignment.Center) { Icon(NxIcons.Plus, null, tint = c.text, modifier = Modifier.size(24.dp)) }
-                Text(t("addAccount"), fontSize = 15.sp, color = c.text, modifier = Modifier.padding(horizontal = 12.dp))
-            }
-        }
-    }
-    if (confirmAdd) com.ahmedbecetti.nexora.kt.ui.ConfirmDialog(t("addAccount"), t("logout"), text = t("logoutOf", "u" to (app.me?.username ?: "")), onDismiss = { confirmAdd = false }) {
-        confirmAdd = false; app.logout()
-    }
+    if (accounts) AccountsSheet(onDismiss = { accounts = false })
+    if (noteDialog) NoteDialog(onDismiss = { noteDialog = false })
+    if (linkDialog && p != null) LinksDialog(p.links, onDismiss = { linkDialog = false }) { app.scope.launch { load() } }
     if (create) ModalBottomSheet(onDismissRequest = { create = false }, containerColor = c.elevated) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
             Text(t("create"), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.text, modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp))
@@ -331,9 +333,9 @@ fun ProfileScreen(username: String, isTab: Boolean, active: Boolean) {
 @Composable
 private fun Stat(n: Int, label: String, onClick: () -> Unit) {
     val c = Nx.c
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.noRippleClick(onClick)) {
+    Column(horizontalAlignment = Alignment.Start, modifier = Modifier.noRippleClick(onClick)) {
         Text(fmtNum(n), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.text)
-        Text(label, fontSize = 14.sp, color = c.text)
+        Text(label, fontSize = 15.sp, color = c.text)
     }
 }
 

@@ -27,6 +27,8 @@ data class User(
     val followStatus: String? = null,
     val followers: Int = 0,
     val followsYou: Boolean = false,
+    val note: String? = null,
+    val links: List<Pair<String, String>> = emptyList(),
 ) {
     companion object {
         fun from(o: JSONObject?): User? {
@@ -44,6 +46,8 @@ data class User(
                 followStatus = o.str("followStatus"),
                 followers = o.optInt("followers"),
                 followsYou = o.optBoolean("followsYou"),
+                note = o.str("note"),
+                links = o.optJSONArray("links").mapObj { l -> l.str("url")?.let { (l.str("title") ?: "") to it } },
             )
         }
     }
@@ -159,8 +163,8 @@ data class Conversation(
     companion object {
         fun from(o: JSONObject) = User.from(o.optJSONObject("user"))?.let { u ->
             val l = o.optJSONObject("last") ?: JSONObject()
-            Conversation(u, o.str("activeAt"), l.str("text"), l.str("media"), l.str("mediaType"),
-                !l.isNull("post") && l.has("post"), l.optBoolean("mine"), l.str("createdAt"), o.optInt("unread"))
+            Conversation(u, o.str("activeAt"), l.str("text"), if (l.optBoolean("media")) "1" else null, l.str("mediaType"),
+                l.optBoolean("post"), l.optBoolean("mine"), l.str("createdAt"), o.optInt("unread"))
         }
     }
 }

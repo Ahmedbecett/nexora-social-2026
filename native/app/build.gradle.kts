@@ -16,11 +16,11 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.ahmedbecetti.nexora.kt"
+        applicationId = "com.ahmedbecetti.nexora"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "3.0.0-native.2"
+        versionCode = 15
+        versionName = "3.0.0"
         buildConfigField("String", "API_BASE", "\"https://nexora-social-2026.vercel.app/api/\"")
     }
 
@@ -66,6 +66,10 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // Google sign-in (same Firebase project / OAuth clients as 2.6 — nothing changed in Firebase)
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     testImplementation(composeBom)
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")

@@ -68,16 +68,28 @@ import kotlinx.coroutines.launch
 @Composable
 fun AuthScreen() {
     val app = LocalApp.current
-    var mode by rememberSaveable { mutableStateOf("login") }
+    var mode by rememberSaveable { mutableStateOf(if (app.authStart == null && app.accounts.isNotEmpty()) "saved" else app.authStart ?: "login") }
+    var prefill by rememberSaveable { mutableStateOf(app.accounts.firstOrNull()?.takeIf { it.token == null && app.accounts.size == 1 }?.username ?: "") }
+    var pending by remember { mutableStateOf<org.json.JSONObject?>(null) }
     var langSheet by remember { mutableStateOf(false) }
     val c = Nx.c
-    androidx.activity.compose.BackHandler(enabled = mode != "login") { mode = "login" }
+    if (mode == "saved") {
+        SavedProfilesScreen(onUseAnother = { u -> prefill = u ?: ""; mode = "login" }, onCreate = { mode = "signup" })
+        return
+    }
+    if (pending != null) {
+        CompleteProfileForm(pending!!, onCancel = { pending = null })
+        return
+    }
+    androidx.activity.compose.BackHandler(enabled = mode != "login" || app.accounts.isNotEmpty()) {
+        mode = if (mode == "login" && app.accounts.isNotEmpty()) "saved" else "login"
+    }
     Column(Modifier.fillMaxSize().background(c.bg).statusBarsPadding().navigationBarsPadding().imePadding()) {
         Box(Modifier.fillMaxWidth().height(52.dp)) {
             if (mode == "login") Row(Modifier.align(Alignment.Center).noRippleClick { langSheet = true }, verticalAlignment = Alignment.CenterVertically) {
                 Text(I18n.languages.firstOrNull { it.first == I18n.lang }?.second ?: I18n.lang, color = c.muted, fontSize = 15.sp)
                 Icon(NxIcons.Down, null, tint = c.muted, modifier = Modifier.padding(start = 4.dp).size(16.dp))
-            } else IconBtn(NxIcons.Back, { mode = "login" }, size = 26.dp, modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp).mirrorIfRtl(NxIcons.Back))
+            } else IconBtn(NxIcons.Back, { mode = "login" }, size = 26.dp, modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp))
         }
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
@@ -88,9 +100,9 @@ fun AuthScreen() {
                     Spacer(Modifier.height(64.dp))
                     GradientWordmark(size = 62.sp)
                     Spacer(Modifier.height(44.dp))
-                    LoginForm(onForgot = { mode = "forgot" })
+                    LoginForm(prefill, onForgot = { mode = "forgot" }, onPending = { pending = it })
                 }
-                "signup" -> SignupForm()
+                "signup" -> SignupForm(onPending = { pending = it })
                 else -> { Spacer(Modifier.height(24.dp)); ForgotForm(onBack = { mode = "login" }) }
             }
         }
@@ -153,10 +165,10 @@ private fun ErrorText(err: String?) {
 }
 
 @Composable
-private fun LoginForm(onForgot: () -> Unit) {
+private fun LoginForm(prefill: String, onForgot: () -> Unit, onPending: (org.json.JSONObject) -> Unit) {
     val app = LocalApp.current
     val scope = rememberCoroutineScope()
-    var id by rememberSaveable { mutableStateOf("") }
+    var id by rememberSaveable(prefill) { mutableStateOf(prefill) }
     var pw by rememberSaveable { mutableStateOf("") }
     var busy by rememberSaveable { mutableStateOf(false) }
     var err by rememberSaveable { mutableStateOf<String?>(null) }
@@ -174,11 +186,14 @@ private fun LoginForm(onForgot: () -> Unit) {
     }, enabled = id.isNotBlank() && pw.length >= 6, loading = busy, modifier = Modifier.fillMaxWidth(), height = 54.dp, radius = 14.dp, fontSize = 17.sp)
     ErrorText(err)
     Spacer(Modifier.height(26.dp))
+    OrDivider()
+    GoogleButton(onPending)
+    Spacer(Modifier.height(22.dp))
     Text(t("forgot"), color = Blue, fontWeight = FontWeight.Medium, fontSize = 15.sp, modifier = Modifier.noRippleClick(onForgot))
 }
 
 @Composable
-private fun SignupForm() {
+private fun SignupForm(onPending: (org.json.JSONObject) -> Unit) {
     val app = LocalApp.current
     val c = Nx.c
     val scope = rememberCoroutineScope()
@@ -208,6 +223,8 @@ private fun SignupForm() {
     }, enabled = email.isNotBlank() && name.isNotBlank() && user.isNotBlank() && pw.length >= 6, loading = busy,
         modifier = Modifier.fillMaxWidth(), height = 54.dp, radius = 14.dp, fontSize = 17.sp)
     ErrorText(err)
+    OrDivider()
+    GoogleButton(onPending)
     Text(t("termsShort"), color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center,
         modifier = Modifier.padding(top = 16.dp).noRippleClick { terms = true })
     if (terms) androidx.compose.material3.AlertDialog(
@@ -246,4 +263,91 @@ private fun ForgotForm(onBack: () -> Unit) {
     }
     Spacer(Modifier.height(18.dp))
     Text(t("backToLogin"), color = c.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.noRippleClick(onBack))
+}
+
+
+@Composable
+private fun OrDivider() {
+    val c = Nx.c
+    Row(Modifier.fillMaxWidth().padding(vertical = 22.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f).height(1.dp).background(c.border))
+        Text(t("or").lowercase().replaceFirstChar { it.uppercase() }, color = c.muted, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 18.dp))
+        Box(Modifier.weight(1f).height(1.dp).background(c.border))
+    }
+}
+
+/** "Continue with Google" — native Credential Manager → server `auth/google` (same as 2.6). */
+@Composable
+private fun GoogleButton(onPending: (org.json.JSONObject) -> Unit) {
+    val app = LocalApp.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var busy by remember { mutableStateOf(false) }
+    Row(Modifier.noRippleClick {
+        if (busy) return@noRippleClick
+        busy = true
+        app.scope.launch {
+            try {
+                val idToken = com.ahmedbecetti.nexora.kt.data.GoogleAuth.idToken(ctx)
+                val r = Api.post("auth/google", json("idToken" to idToken))
+                if (r.optBoolean("needsProfile")) onPending(r)
+                else app.onLoggedIn(r.getString("token"), User.from(r.optJSONObject("user")))
+            } catch (_: com.ahmedbecetti.nexora.kt.data.GoogleAuth.Cancelled) {
+            } catch (e: ApiException) { com.ahmedbecetti.nexora.kt.ui.toast(ctx, I18n.err(e.code))
+            } catch (e: Exception) { com.ahmedbecetti.nexora.kt.ui.toast(ctx, I18n.err("google_failed")) } finally { busy = false }
+        }
+    }, verticalAlignment = Alignment.CenterVertically) {
+        if (busy) androidx.compose.material3.CircularProgressIndicator(color = Blue, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+        else GoogleG(Modifier.size(24.dp))
+        Text(t("continueGoogle"), color = Blue, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, modifier = Modifier.padding(start = 12.dp))
+    }
+}
+
+/** Google "G" logo drawn with the four brand colours. */
+@Composable
+private fun GoogleG(modifier: Modifier) {
+    androidx.compose.foundation.Canvas(modifier) {
+        val sw = size.minDimension * 0.2f
+        val inset = sw / 2
+        val tl = androidx.compose.ui.geometry.Offset(inset, inset)
+        val sz = androidx.compose.ui.geometry.Size(size.width - sw, size.height - sw)
+        val st = androidx.compose.ui.graphics.drawscope.Stroke(width = sw)
+        drawArc(androidx.compose.ui.graphics.Color(0xFFEA4335), 200f, 120f, false, tl, sz, style = st)
+        drawArc(androidx.compose.ui.graphics.Color(0xFFFBBC05), 140f, 60f, false, tl, sz, style = st)
+        drawArc(androidx.compose.ui.graphics.Color(0xFF34A853), 50f, 90f, false, tl, sz, style = st)
+        drawArc(androidx.compose.ui.graphics.Color(0xFF4285F4), -10f, 60f, false, tl, sz, style = st)
+        drawRect(androidx.compose.ui.graphics.Color(0xFF4285F4), androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2 - sw / 2),
+            androidx.compose.ui.geometry.Size(size.width / 2 - inset / 2, sw))
+    }
+}
+
+/** First Google sign-in: choose name + username (server `auth/complete`). */
+@Composable
+private fun CompleteProfileForm(r: org.json.JSONObject, onCancel: () -> Unit) {
+    val app = LocalApp.current
+    val c = Nx.c
+    val sug = r.optJSONObject("suggested") ?: org.json.JSONObject()
+    var name by rememberSaveable { mutableStateOf(sug.optString("fullName")) }
+    var user by rememberSaveable { mutableStateOf(sug.optString("username")) }
+    var busy by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf<String?>(null) }
+    androidx.activity.compose.BackHandler(onBack = onCancel)
+    Column(Modifier.fillMaxSize().background(c.bg).statusBarsPadding().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.fillMaxWidth().height(52.dp)) { IconBtn(NxIcons.Back, onCancel, size = 26.dp, modifier = Modifier.align(Alignment.CenterStart)) }
+        Text(t("createAccount"), color = c.text, fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
+        Text(sug.optString("email"), color = c.muted, fontSize = 15.sp, modifier = Modifier.padding(top = 8.dp, bottom = 24.dp))
+        AuthField(name, { name = it; err = null }, t("fullName"))
+        AuthField(user, { user = it.lowercase().replace(" ", ""); err = null }, t("username"), ime = ImeAction.Done)
+        Spacer(Modifier.height(14.dp))
+        NxButton(t("next"), onClick = {
+            busy = true
+            app.scope.launch {
+                try {
+                    val res = Api.post("auth/complete", json("pending" to r.optString("pending"), "fullName" to name.trim(), "username" to user.trim()))
+                    app.onLoggedIn(res.getString("token"), User.from(res.optJSONObject("user")))
+                } catch (e: ApiException) { err = I18n.err(e.code) } finally { busy = false }
+            }
+        }, enabled = name.isNotBlank() && user.isNotBlank(), loading = busy, modifier = Modifier.fillMaxWidth(), height = 54.dp, radius = 14.dp, fontSize = 17.sp)
+        ErrorText(err)
+    }
 }

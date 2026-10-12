@@ -143,19 +143,13 @@ fun FeedScreen(active: Boolean) {
     }
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
-        Row(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { Wordmark(size = 36.sp) }
-            Box {
+        val pickPost = com.ahmedbecetti.nexora.kt.ui.rememberMediaPicker(multi = true) { uris -> app.push(Route.Create(uris, reel = false)) }
+        Box(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 4.dp)) {
+            IconBtn(NxIcons.Plus, { pickPost() }, size = 28.dp, modifier = Modifier.align(Alignment.CenterStart))
+            Box(Modifier.align(Alignment.Center)) { Wordmark(size = 36.sp) }
+            Box(Modifier.align(Alignment.CenterEnd)) {
                 IconBtn(NxIcons.Heart, { app.push(Route.Notifications) }, size = 27.dp)
                 if (app.notifBadge > 0 || app.requestBadge > 0) Box(Modifier.align(Alignment.TopEnd).offset(x = (-9).dp, y = 10.dp).size(8.dp).clip(CircleShape).background(Red))
-            }
-            Box {
-                IconBtn(NxIcons.Send, { app.push(Route.Inbox) }, size = 26.dp)
-                if (app.msgBadge > 0) Box(
-                    Modifier.align(Alignment.TopEnd).offset(x = (-2).dp, y = 4.dp).sizeIn(minWidth = 18.dp, minHeight = 18.dp)
-                        .clip(CircleShape).background(Red).border(2.dp, c.bg, CircleShape).padding(horizontal = 4.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Text(if (app.msgBadge > 9) "9+" else "${app.msgBadge}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
             }
         }
         app.uploading?.let { p ->

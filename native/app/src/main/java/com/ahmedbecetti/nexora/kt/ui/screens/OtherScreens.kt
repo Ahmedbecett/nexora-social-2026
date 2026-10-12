@@ -1,5 +1,8 @@
 package com.ahmedbecetti.nexora.kt.ui.screens
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.style.TextOverflow
+
 import com.ahmedbecetti.nexora.kt.ui.rememberMediaPicker
 import com.ahmedbecetti.nexora.kt.ui.PickKind
 import com.ahmedbecetti.nexora.kt.data.Upload
@@ -189,43 +192,59 @@ fun NotificationsScreen() {
     val app = LocalApp.current
     val c = Nx.c
     val list = remember { mutableStateListOf<Notif>() }
+    val requests = remember { mutableStateListOf<User>() }
     var loaded by remember { mutableStateOf(false) }
-    var tab by rememberSaveable { mutableStateOf(0) }
     LaunchedEffect(Unit) {
         try {
             list.addAll(Api.get("notifications").optJSONArray("notifications").mapObj { Notif.from(it) })
+            try { requests.addAll(Api.get("follow-requests").optJSONArray("users").mapObj { User.from(it) }) } catch (_: Exception) {}
             Api.post("notifications/read"); app.refreshBadges()
         } catch (e: Exception) { app.errToast(e) } finally { loaded = true }
     }
-    val shown = when (tab) {
-        1 -> list.filter { it.type == "follow" || it.type == "follow_request" || it.type == "follow_accepted" }
-        2 -> list.filter { it.type == "like" || it.type == "comment_like" || it.type == "repost" }
-        3 -> list.filter { it.type == "comment" || it.type == "reply" || it.type == "mention" }
-        else -> list
+    // IG groups activity by recency
+    val groups = remember(list.toList()) {
+        val now = java.util.Calendar.getInstance()
+        fun dayIndex(ms: Long) = java.util.Calendar.getInstance().apply { timeInMillis = ms }.let { it.get(java.util.Calendar.YEAR) * 400 + it.get(java.util.Calendar.DAY_OF_YEAR) }
+        val today = dayIndex(now.timeInMillis)
+        list.filter { it.type != "follow_request" }.groupBy { n ->
+            val ms = parseTime(n.createdAt)
+            val d = today - dayIndex(ms)
+            when { d <= 0 -> 0; d == 1 -> 1; d < 7 -> 2; d < 30 -> 3; else -> 4 }
+        }.toSortedMap()
     }
+    val titles = listOf(t("today"), t("yesterday"), t("last7days"), t("last30days"), t("earlier"))
     Column(Modifier.fillMaxSize().background(c.bg)) {
-        Row(Modifier.fillMaxWidth().statusBarsPadding().height(54.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconBtn(NxIcons.Back, { app.pop() }, size = 26.dp)
-            Text(t("notifications"), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = c.text, modifier = Modifier.padding(start = 4.dp))
+            Text(t("notifications"), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = c.text, modifier = Modifier.padding(start = 6.dp))
         }
-        NxTabs(listOf(t("all"), t("follows"), t("likesTab"), t("commentsTab")), tab, { tab = it })
         LazyColumn(Modifier.fillMaxSize()) {
-            if (app.requestBadge > 0 && tab <= 1) item {
+            if (requests.isNotEmpty()) item {
                 Row(Modifier.fillMaxWidth().clickable { app.push(Route.FollowRequests) }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(46.dp).clip(RoundedCornerShape(23.dp)).background(c.sep), contentAlignment = Alignment.Center) {
-                        Icon(NxIcons.UserPlus, null, tint = c.text, modifier = Modifier.size(22.dp))
+                    Box(Modifier.size(52.dp)) {
+                        if (requests.size > 1) Box(Modifier.align(Alignment.TopEnd)) { Avatar(requests[1].avatarUrl, 38.dp) }
+                        Box(Modifier.align(Alignment.BottomStart).clip(CircleShape).background(c.bg).padding(2.dp)) { Avatar(requests[0].avatarUrl, if (requests.size > 1) 38.dp else 48.dp) }
                     }
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                        Text(t("followRequests"), fontWeight = FontWeight.SemiBold, color = c.text)
-                        Text("${app.requestBadge}", color = c.muted, fontSize = 13.sp)
+                        Text(t("followRequests"), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.text)
+                        Text(requests[0].username + if (requests.size > 1) " " + t("plusOthers", "n" to "${requests.size - 1}") else "", color = c.muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Red))
+                    Box(Modifier.size(9.dp).clip(CircleShape).background(Blue))
                     Icon(NxIcons.Chevron, null, tint = c.muted, modifier = Modifier.padding(start = 8.dp).size(18.dp).mirrorIfRtl(NxIcons.Chevron))
                 }
             }
             if (!loaded) item { Loader() }
-            if (loaded && shown.isEmpty()) item { Empty(NxIcons.Heart, t("noNotifications"), t("noNotificationsSub")) }
-            items(shown, key = { "n:" + it.id }) { n -> NotifRow(n) { st -> val i = list.indexOfFirst { it.id == n.id }; if (i >= 0) list[i] = n.copy(followStatus = st) } }
+            if (loaded && groups.isEmpty() && requests.isEmpty()) item { Empty(NxIcons.Heart, t("noNotifications"), t("noNotificationsSub")) }
+            groups.forEach { (g, items) ->
+                item(key = "h$g") {
+                    if (g > 0 || requests.isNotEmpty()) Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(0.5.dp).background(c.sep))
+                    Text(titles[g], fontWeight = FontWeight.Bold, fontSize = 17.sp, color = c.text, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp))
+                }
+                items(items, key = { "n:" + it.id }) { n -> NotifRow(n) { st -> val i = list.indexOfFirst { it.id == n.id }; if (i >= 0) list[i] = n.copy(followStatus = st) } }
+            }
+            if (loaded && groups.isNotEmpty()) item {
+                Text(t("caughtUpNotif"), color = c.muted, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(24.dp))
+            }
         }
     }
 }
@@ -246,14 +265,14 @@ private fun NotifRow(n: Notif, onStatus: (String) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val story = app.storyOf(n.actor.id)
-        Avatar(n.actor.avatarUrl, 46.dp, ring = if (story != null && !story.allSeen) com.ahmedbecetti.nexora.kt.ui.Ring.Unseen else com.ahmedbecetti.nexora.kt.ui.Ring.None,
+        Avatar(n.actor.avatarUrl, 50.dp, ring = if (story != null && !story.allSeen) com.ahmedbecetti.nexora.kt.ui.Ring.Unseen else com.ahmedbecetti.nexora.kt.ui.Ring.None,
             onClick = { if (story != null) app.push(Route.Stories(listOf(story), 0)) else app.openProfile(n.actor.username) })
         Text(buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(n.actor.username) }
             append(" $msg ")
             withStyle(SpanStyle(color = c.muted)) { append(timeAgo(n.createdAt)) }
-        }, fontSize = 14.sp, color = c.text, maxLines = 3, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
-        if (n.postThumb != null) AsyncImage(n.postThumb, null, contentScale = ContentScale.Crop, modifier = Modifier.size(width = 42.dp, height = 52.dp).clip(RoundedCornerShape(4.dp)).background(c.sep))
+        }, fontSize = 15.sp, color = c.text, maxLines = 3, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+        if (n.postThumb != null) AsyncImage(n.postThumb, null, contentScale = ContentScale.Crop, modifier = Modifier.size(width = 46.dp, height = 46.dp).clip(RoundedCornerShape(8.dp)).background(c.sep))
         else if (n.type == "follow" || n.type == "follow_accepted") FollowButton(n.followStatus, false, height = 30.dp, onClick = {
             val st = n.followStatus
             app.scope.launch { try { onStatus(app.toggleFollow(n.actor.id, st)) } catch (e: Exception) { app.errToast(e) } }

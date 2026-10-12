@@ -55,9 +55,12 @@ object Api {
     suspend fun delete(path: String): JSONObject = call("DELETE", path, null)
     suspend fun patch(path: String, body: JSONObject): JSONObject = call("PATCH", path, body)
 
-    suspend fun call(method: String, path: String, body: JSONObject?): JSONObject = withContext(Dispatchers.IO) {
+    /** GET with another saved account's token (badges for the account switcher). Never touches the session. */
+    suspend fun getAs(tok: String, path: String): JSONObject = call("GET", path, null, tok)
+
+    suspend fun call(method: String, path: String, body: JSONObject?, asToken: String? = null): JSONObject = withContext(Dispatchers.IO) {
         val b = Request.Builder().url(BASE + path)
-        token?.let { b.header("Authorization", "Bearer $it") }
+        (asToken ?: token)?.let { b.header("Authorization", "Bearer $it") }
         b.header("Accept", "application/json")
         val rb = body?.toString()?.toRequestBody(JSON)
         when (method) {
@@ -71,7 +74,7 @@ object Api {
             val data = try { if (text.isBlank()) JSONObject() else JSONObject(text) } catch (e: Exception) { JSONObject() }
             if (!r.isSuccessful) {
                 val code = data.optString("error").ifBlank { if (r.code >= 500) "server_error" else "error" }
-                if (r.code == 401 && token != null) unauthorized.value = true
+                if (r.code == 401 && token != null && asToken == null) unauthorized.value = true
                 throw ApiException(code, r.code)
             }
             data

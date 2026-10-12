@@ -1,5 +1,11 @@
 package com.ahmedbecetti.nexora.kt.ui.screens
 
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.PaddingValues
+import com.ahmedbecetti.nexora.kt.ui.TopBar
+import com.ahmedbecetti.nexora.kt.data.str
+
 import com.ahmedbecetti.nexora.kt.ui.mirrorIfRtl
 
 import android.util.Base64
@@ -124,80 +130,162 @@ fun previewOf(c: Conversation): String {
 
 /* ---------------- inbox ---------------- */
 
+/** Message requests rule (same as the web app): the other person wrote and I never replied. Cached per session. */
+object MsgRequests {
+    private val answered = HashMap<Long, Boolean>()
+    suspend fun requestsOf(convs: List<Conversation>): Set<Long> {
+        val out = HashSet<Long>()
+        for (cv in convs) {
+            if (cv.lastMine) { answered[cv.user.id] = true; continue }
+            val known = answered[cv.user.id]
+            if (known == true) continue
+            if (known == false) { out.add(cv.user.id); continue }
+            try {
+                val r = Api.get("messages/${cv.user.id}?after=0")
+                val mine = r.optJSONArray("messages").mapObj { if (it.optBoolean("mine")) it else null }.isNotEmpty()
+                answered[cv.user.id] = mine
+                if (!mine) out.add(cv.user.id)
+            } catch (_: Exception) {}
+        }
+        return out
+    }
+    fun markAnswered(id: Long) { answered[id] = true }
+    /** Spam folder: kept on this device per account (requests you moved to Spam never come back to Requests). */
+    fun spam(meId: Long?): Set<Long> = (Api.pref("spam_$meId", "") ?: "").split(',').mapNotNull { it.toLongOrNull() }.toSet()
+    fun setSpam(meId: Long?, ids: Set<Long>) = Api.setPref("spam_$meId", ids.joinToString(","))
+    /** Delete a conversation for me: hide every message (server `message/:id/hide`). */
+    suspend fun deleteForMe(userId: Long) {
+        val r = Api.get("messages/$userId?after=0")
+        r.optJSONArray("messages").mapObj { it.optLong("id").takeIf { id -> id > 0 } }.forEach { id -> try { Api.post("message/$id/hide") } catch (_: Exception) {} }
+    }
+}
+
 @Composable
-fun InboxScreen(active: Boolean) {
+fun InboxScreen(active: Boolean, isTab: Boolean = false) {
     val app = LocalApp.current
     val c = Nx.c
     val convs = remember { mutableStateListOf<Conversation>() }
     var loaded by remember { mutableStateOf(false) }
     var q by remember { mutableStateOf("") }
     var newMsg by remember { mutableStateOf(false) }
-    var requests by remember { mutableStateOf(false) }
+    var accounts by remember { mutableStateOf(false) }
+    var requestIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var noteDialog by remember { mutableStateOf(false) }
+    val notes = remember { mutableStateMapOf<Long, String>() }
 
     suspend fun load() {
         try {
             val r = Api.get("conversations")
-            convs.clear(); convs.addAll(r.optJSONArray("conversations").mapObj { Conversation.from(it) })
+            val list = r.optJSONArray("conversations").mapObj { Conversation.from(it) }
+            convs.clear(); convs.addAll(list)
+            requestIds = MsgRequests.requestsOf(list.take(30)) + MsgRequests.spam(app.me?.id)
         } catch (_: Exception) {} finally { loaded = true }
     }
     LaunchedEffect(active) {
         while (active && isActive) { load(); app.refreshBadges(); delay(10_000) }
     }
-    val shown = convs.filter { q.isBlank() || it.user.username.contains(q.trim().lowercase()) || (it.user.fullName ?: "").lowercase().contains(q.trim().lowercase()) }
+    // notes rail: real notes (24h) of people you talk to
+    LaunchedEffect(loaded, app.profileVersion) {
+        if (!loaded) return@LaunchedEffect
+        for (cv in convs.filter { it.user.id !in requestIds }.take(12)) {
+            try { Api.get("users/" + android.net.Uri.encode(cv.user.username)).optJSONObject("user")?.str("note")?.let { notes[cv.user.id] = it } ?: notes.remove(cv.user.id) } catch (_: Exception) {}
+        }
+    }
+    val term = q.trim().lowercase()
+    val main = convs.filter { it.user.id !in requestIds }
+    val shown = main.filter { term.isEmpty() || it.user.username.contains(term) || (it.user.fullName ?: "").lowercase().contains(term) }
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
-        Row(Modifier.fillMaxWidth().statusBarsPadding().height(54.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(NxIcons.Back, { app.pop() }, size = 26.dp, modifier = Modifier.mirrorIfRtl(NxIcons.Back))
-            Spacer(Modifier.width(6.dp))
-            Text(app.me?.username ?: "", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = c.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            IconBtn(NxIcons.Edit, { newMsg = true }, size = 26.dp)
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).height(38.dp).clip(RoundedCornerShape(19.dp)).background(c.input).padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Icon(NxIcons.Search, null, tint = c.muted, modifier = Modifier.size(18.dp))
-            Box(Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                if (q.isEmpty()) Text(t("searchPh"), color = c.muted, fontSize = 15.sp)
-                BasicTextField(q, { q = it }, singleLine = true, textStyle = TextStyle(color = c.text, fontSize = 15.sp), cursorBrush = SolidColor(c.text), modifier = Modifier.fillMaxWidth())
+        Box(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 4.dp)) {
+            if (!isTab) IconBtn(NxIcons.Back, { app.pop() }, size = 26.dp, modifier = Modifier.align(Alignment.CenterStart))
+            Row(Modifier.align(Alignment.Center).noRippleClick { accounts = true }, verticalAlignment = Alignment.CenterVertically) {
+                Text(app.me?.username ?: "", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 220.dp))
+                Icon(NxIcons.Down, null, tint = c.text, modifier = Modifier.padding(start = 6.dp).size(18.dp))
             }
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(t("messages"), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.text, modifier = Modifier.weight(1f))
-            Text(t("msgsRequests"), color = Blue, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.noRippleClick { requests = true })
+            IconBtn(NxIcons.Edit, { newMsg = true }, size = 27.dp, modifier = Modifier.align(Alignment.CenterEnd))
         }
         LazyColumn(Modifier.fillMaxSize()) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).height(44.dp).clip(RoundedCornerShape(22.dp)).background(c.input).padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Icon(NxIcons.Search, null, tint = c.text, modifier = Modifier.size(20.dp))
+                    Box(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                        if (q.isEmpty()) Text(t("search"), color = c.muted, fontSize = 16.sp)
+                        BasicTextField(q, { q = it }, singleLine = true, textStyle = TextStyle(color = c.text, fontSize = 16.sp), cursorBrush = SolidColor(c.text), modifier = Modifier.fillMaxWidth())
+                    }
+                    if (q.isNotEmpty()) Icon(NxIcons.Close, null, tint = c.muted, modifier = Modifier.size(18.dp).noRippleClick { q = "" })
+                }
+            }
+            if (term.isEmpty()) item {
+                LazyRow(contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    item { NoteItem(app.me?.avatarUrl, app.me?.note, t("msgsYourNote"), mine = true) { noteDialog = true } }
+                    items(main.filter { notes[it.user.id] != null }.take(12), key = { "n" + it.user.id }) { cv ->
+                        NoteItem(cv.user.avatarUrl, notes[cv.user.id], cv.user.username, mine = false) { app.push(Route.Chat(cv.user)) }
+                    }
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(t("messages"), fontWeight = FontWeight.Bold, fontSize = 17.sp, color = c.text, modifier = Modifier.weight(1f))
+                    Text(t("msgsRequests") + (requestIds.count { id -> id !in MsgRequests.spam(app.me?.id) }.takeIf { it > 0 }?.let { " ($it)" } ?: ""),
+                        color = Blue, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, modifier = Modifier.noRippleClick { app.push(Route.MessageRequests) })
+                }
+            }
             if (!loaded) item { Loader() }
-            if (loaded && convs.isEmpty()) item {
+            if (loaded && main.isEmpty()) item {
                 Empty(NxIcons.Send, t("noMessages"), t("noMessagesSub")) { NxButton(t("newMessage"), { newMsg = true }) }
             }
             items(shown, key = { it.user.id }) { cv -> ConversationRow(cv) { app.push(Route.Chat(cv.user)) } }
         }
     }
     if (newMsg) NewMessageSheet(onDismiss = { newMsg = false }) { u -> newMsg = false; app.push(Route.Chat(u)) }
-    if (requests) RequestsSheet(convs.toList(), onDismiss = { requests = false }) { u -> requests = false; app.push(Route.Chat(u)) }
+    if (accounts) AccountsSheet(onDismiss = { accounts = false })
+    if (noteDialog) NoteDialog(onDismiss = { noteDialog = false })
 }
 
 @Composable
-private fun ConversationRow(cv: Conversation, onClick: () -> Unit) {
+private fun NoteItem(avatar: String?, note: String?, label: String, mine: Boolean, onClick: () -> Unit) {
+    val c = Nx.c
+    Column(Modifier.width(96.dp).noRippleClick(onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.height(120.dp).fillMaxWidth()) {
+            Box(Modifier.align(Alignment.BottomCenter)) { AvatarImage(avatar, 84.dp) }
+            NoteBubble(note, Modifier.align(Alignment.TopCenter), placeholder = t("msgsYourThoughts"), onClick = onClick)
+        }
+        Text(label, fontSize = 13.sp, color = if (mine) c.muted else c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
+private fun ConversationRow(cv: Conversation, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+    val app = LocalApp.current
     val c = Nx.c
     val online = cv.activeAt != null && System.currentTimeMillis() - parseTime(cv.activeAt) < ACTIVE_MS
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    val story = app.storyOf(cv.user.id)
+    Row(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
         Box {
-            Avatar(cv.user.avatarUrl, 56.dp)
-            if (online) Box(Modifier.align(Alignment.BottomEnd).size(16.dp).clip(CircleShape).background(c.bg).padding(2.5.dp).clip(CircleShape).background(Online))
+            Avatar(cv.user.avatarUrl, 62.dp, ring = if (story != null && !story.allSeen) com.ahmedbecetti.nexora.kt.ui.Ring.Unseen else com.ahmedbecetti.nexora.kt.ui.Ring.None, onClick = if (story != null) ({ app.push(Route.Stories(listOf(story), 0)) }) else null)
+            if (online) Box(Modifier.align(Alignment.BottomEnd).size(17.dp).clip(CircleShape).background(c.bg).padding(2.5.dp).clip(CircleShape).background(Online))
         }
-        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(cv.user.fullName?.takeIf { it.isNotBlank() } ?: cv.user.username, fontSize = 14.sp, color = c.text,
+                Text(cv.user.fullName?.takeIf { it.isNotBlank() } ?: cv.user.username, fontSize = 16.sp, color = c.text,
                     fontWeight = if (cv.unread > 0) FontWeight.Bold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (cv.user.verified) VerifiedBadge()
             }
-            Row {
-                Text(if (cv.unread > 1) "${cv.unread}+ ${t("msgsNew")}" else previewOf(cv), fontSize = 13.sp, color = if (cv.unread > 0) c.text else c.muted,
-                    fontWeight = if (cv.unread > 0) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                Text(" · " + timeAgo(cv.lastAt), fontSize = 13.sp, color = c.muted, maxLines = 1)
+            Row(Modifier.padding(top = 2.dp)) {
+                val line = when {
+                    cv.unread > 1 -> (if (cv.unread > 4) "4+" else "${cv.unread}") + " " + t("msgsNew")
+                    cv.unread == 0 && !cv.lastMine && online -> t("activeNowLive")
+                    else -> previewOf(cv)
+                }
+                Text(line, fontSize = 15.sp, color = if (cv.unread > 0) c.text else c.muted,
+                    fontWeight = if (cv.unread > 0) FontWeight.Bold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text(" · " + timeAgo(cv.lastAt), fontSize = 15.sp, color = if (cv.unread > 0) c.text else c.muted, maxLines = 1)
             }
         }
-        if (cv.unread > 0) Box(Modifier.size(9.dp).clip(CircleShape).background(Blue))
+        if (cv.unread > 0) Box(Modifier.size(10.dp).clip(CircleShape).background(Blue))
     }
 }
 
@@ -229,31 +317,112 @@ private fun NewMessageSheet(onDismiss: () -> Unit, onPick: (User) -> Unit) {
     }
 }
 
-/** Same rule as the web app: conversations where the other person wrote and I never replied. */
+/** IG "Message requests": banner about Spam, Spam row, requests list (long-press → delete / move to spam). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RequestsSheet(convs: List<Conversation>, onDismiss: () -> Unit, onPick: (User) -> Unit) {
+fun MessageRequestsScreen() {
+    val app = LocalApp.current
     val c = Nx.c
+    val ctx = LocalContext.current
     var rows by remember { mutableStateOf<List<Conversation>?>(null) }
-    LaunchedEffect(Unit) {
-        val cands = convs.filter { !it.lastMine }.take(15)
-        val out = mutableListOf<Conversation>()
-        for (cv in cands) {
-            try { val r = Api.get("messages/${cv.user.id}?after=0"); if (r.optJSONArray("messages").mapObj { if (it.optBoolean("mine")) it else null }.isEmpty()) out.add(cv) } catch (_: Exception) {}
-        }
-        rows = out
+    var banner by remember { mutableStateOf(Api.pref("spamBanner", "1") == "1") }
+    var menuFor by remember { mutableStateOf<Conversation?>(null) }
+    var spamIds by remember { mutableStateOf(MsgRequests.spam(app.me?.id)) }
+    suspend fun load() {
+        try {
+            val list = Api.get("conversations").optJSONArray("conversations").mapObj { Conversation.from(it) }
+            val req = MsgRequests.requestsOf(list.take(30))
+            rows = list.filter { it.user.id in req && it.user.id !in spamIds }
+        } catch (e: Exception) { rows = emptyList(); app.errToast(e) }
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.elevated, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxSize(0.9f)) {
-            Text(t("msgsRequests"), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.text, modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp))
+    LaunchedEffect(spamIds) { load() }
+    Column(Modifier.fillMaxSize().background(c.bg)) {
+        Row(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(NxIcons.Back, { app.pop() }, size = 26.dp)
+            Text(t("msgRequestsTitle"), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = c.text, modifier = Modifier.weight(1f).padding(start = 8.dp))
+            IconBtn(NxIcons.Prefs, { app.push(Route.SettingsPage("messages")) }, size = 26.dp)
+        }
+        LazyColumn(Modifier.fillMaxSize()) {
+            if (banner) item {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).clip(RoundedCornerShape(16.dp)).border(1.dp, c.border, RoundedCornerShape(16.dp)).padding(16.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(t("spamBannerTitle"), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.text)
+                        Text(t("spamBannerText"), fontSize = 15.sp, color = c.text, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    Icon(NxIcons.Close, null, tint = c.muted, modifier = Modifier.size(20.dp).noRippleClick { banner = false; Api.setPref("spamBanner", "0") })
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth().clickable { app.push(Route.Spam) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(56.dp).clip(CircleShape).background(c.btn), contentAlignment = Alignment.Center) { Icon(NxIcons.EyeOff, null, tint = c.text, modifier = Modifier.size(26.dp)) }
+                    Text(t("spam") + if (spamIds.isNotEmpty()) " (${spamIds.size})" else "", fontSize = 16.sp, color = c.text, modifier = Modifier.weight(1f).padding(horizontal = 14.dp))
+                    Icon(NxIcons.Chevron, null, tint = c.muted, modifier = Modifier.size(18.dp).mirrorIfRtl(NxIcons.Chevron))
+                }
+            }
             val r = rows
             when {
-                r == null -> Loader()
-                r.isEmpty() -> Empty(NxIcons.Comment, t("msgsNoRequests"), t("msgsNoRequestsSub"))
-                else -> LazyColumn { items(r, key = { it.user.id }) { cv -> ConversationRow(cv) { onPick(cv.user) } } }
+                r == null -> item { Loader() }
+                r.isEmpty() -> item { Empty(NxIcons.Send, t("noMsgRequestsYet"), t("noMsgRequestsSub")) }
+                else -> {
+                    item { Text(t("msgRequestsHint"), color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+                    items(r, key = { it.user.id }) { cv -> ConversationRow(cv, onLongClick = { menuFor = cv }) { app.push(Route.Chat(cv.user)) } }
+                }
             }
         }
     }
+    menuFor?.let { cv ->
+        ModalBottomSheet(onDismissRequest = { menuFor = null }, containerColor = c.elevated) {
+            Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+                SheetItem(NxIcons.EyeOff, t("moveToSpam")) {
+                    menuFor = null
+                    spamIds = spamIds + cv.user.id; MsgRequests.setSpam(app.me?.id, spamIds); toast(ctx, t("movedToSpam"))
+                }
+                SheetItem(NxIcons.Trash, t("delete"), danger = true) {
+                    menuFor = null
+                    app.scope.launch { try { MsgRequests.deleteForMe(cv.user.id); rows = rows?.filter { it.user.id != cv.user.id }; toast(ctx, t("removed")) } catch (e: Exception) { app.errToast(e) } }
+                }
+                SheetItem(NxIcons.Block, t("block"), danger = true) {
+                    menuFor = null
+                    app.scope.launch { try { Api.post("users/${cv.user.id}/block"); rows = rows?.filter { it.user.id != cv.user.id }; toast(ctx, t("blockedToast")) } catch (e: Exception) { app.errToast(e) } }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SpamScreen() {
+    val app = LocalApp.current
+    val c = Nx.c
+    val ctx = LocalContext.current
+    var ids by remember { mutableStateOf(MsgRequests.spam(app.me?.id)) }
+    var rows by remember { mutableStateOf<List<Conversation>?>(null) }
+    LaunchedEffect(ids) {
+        rows = try { Api.get("conversations").optJSONArray("conversations").mapObj { Conversation.from(it) }.filter { it.user.id in ids } } catch (_: Exception) { emptyList() }
+    }
+    Column(Modifier.fillMaxSize().background(c.bg)) {
+        TopBar(t("spam"), onBack = { app.pop() })
+        LazyColumn(Modifier.fillMaxSize()) {
+            val r = rows
+            when {
+                r == null -> item { Loader() }
+                r.isEmpty() -> item { Empty(NxIcons.EyeOff, t("noSpam"), t("noSpamSub")) }
+                else -> items(r, key = { it.user.id }) { cv ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f)) { ConversationRow(cv) { app.push(Route.Chat(cv.user)) } }
+                        TextButtonSmall(t("notSpam")) {
+                            ids = ids - cv.user.id; MsgRequests.setSpam(app.me?.id, ids); toast(ctx, t("movedToRequests"))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TextButtonSmall(label: String, onClick: () -> Unit) {
+    Text(label, color = Blue, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(end = 16.dp).noRippleClick(onClick))
 }
 
 /* ---------------- chat ---------------- */

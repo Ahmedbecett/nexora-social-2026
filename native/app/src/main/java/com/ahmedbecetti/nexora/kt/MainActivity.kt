@@ -58,4 +58,14 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        com.ahmedbecetti.nexora.kt.ui.screens.Usage.resume()
+    }
+
+    override fun onPause() {
+        com.ahmedbecetti.nexora.kt.ui.screens.Usage.pause()
+        super.onPause()
+    }
 }
