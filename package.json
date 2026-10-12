@@ -11,7 +11,9 @@
     "build": "vite build",
     "api:local": "node scripts/local-api.mjs",
     "db:migrate": "node scripts/migrate.mjs",
-    "android:sync": "vite build && rm -rf dist/download && npx cap sync android"
+    "android:sync": "vite build && rm -rf dist/download && npx cap sync android",
+    "build:webapp": "VITE_API_BASE=https://nexora-social-2026.vercel.app vite build",
+    "deploy:webapp": "npm run build:webapp && npx firebase-tools@latest deploy --only hosting"
   },
   "dependencies": {
     "@capacitor-community/admob": "^7.2.0",
