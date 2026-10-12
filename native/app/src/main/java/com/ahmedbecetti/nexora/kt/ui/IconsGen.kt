@@ -62,4 +62,13 @@ object NxIcons {
     val Star: ImageVector by lazy { nxIcon("Star", 2f, P("m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z", false, true)) }
     val Help: ImageVector by lazy { nxIcon("Help", 2f, P("M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0Z", false, true), P("M3 12h18M12 3c2.5 2.5 3.8 5.5 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.5-3.8-9S9.5 5.5 12 3Z", false, true)) }
     val Shield: ImageVector by lazy { nxIcon("Shield", 2f, P("M12 3 4.5 6v5.5c0 4.8 3.2 8.3 7.5 9.5 4.3-1.2 7.5-4.7 7.5-9.5V6z", false, true), P("m9 12 2.2 2.2L15.5 10", false, true)) }
+    val UserFill: ImageVector by lazy { nxIcon("UserFill", 2f, P("M7.8 8a4.2 4.2 0 1 0 8.4 0a4.2 4.2 0 1 0 -8.4 0Z", true, true), P("M3.8 21c.8-4.2 4.2-6.5 8.2-6.5s7.4 2.3 8.2 6.5z", true, true)) }
+    val SearchBold: ImageVector by lazy { nxIcon("SearchBold", 3f, P("M19 10.5A8.5 8.5 0 1 1 10.5 2a8.5 8.5 0 0 1 8.5 8.5Z", false, true), P("M16.511 16.511 22 22", false, true)) }
+    val Key: ImageVector by lazy { nxIcon("Key", 2f, P("M3 15.5a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0Z", false, true), P("m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2 2", false, true)) }
+    val Block: ImageVector by lazy { nxIcon("Block", 2f, P("M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0Z", false, true), P("m5.6 5.6 12.8 12.8", false, true)) }
+    val Users: ImageVector by lazy { nxIcon("Users", 2f, P("M5.5 8a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0Z", false, true), P("M2.5 20c.6-3.5 3.2-5.5 6.5-5.5s5.9 2 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.7.8 2.7 2.5 3 5.2", false, true)) }
+    val Clock: ImageVector by lazy { nxIcon("Clock", 2f, P("M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0Z", false, true), P("M12 7v5l3.5 2", false, true)) }
+    val BellOff: ImageVector by lazy { nxIcon("BellOff", 2f, P("M8.7 4.1A6 6 0 0 1 18 9c0 3.4.8 5.4 1.5 6.5M6.1 7A6 6 0 0 0 6 9c0 6-2.5 7.5-2.5 7.5H16.5", false, true), P("M10 20a2.2 2.2 0 0 0 4 0M3 3l18 18", false, true)) }
+    val Lifebuoy: ImageVector by lazy { nxIcon("Lifebuoy", 2f, P("M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0Z", false, true), P("M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0Z", false, true), P("m5.6 5.6 3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6", false, true)) }
+    val Phone2: ImageVector by lazy { nxIcon("Phone2", 2f, P("M8.5 2.5h7a2.5 2.5 0 0 1 2.5 2.5v14a2.5 2.5 0 0 1 -2.5 2.5h-7a2.5 2.5 0 0 1 -2.5 -2.5v-14a2.5 2.5 0 0 1 2.5 -2.5Z", false, true), P("M11 18.5h2", false, true)) }
 }

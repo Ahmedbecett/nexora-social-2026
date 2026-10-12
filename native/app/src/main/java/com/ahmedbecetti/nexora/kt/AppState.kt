@@ -15,6 +15,9 @@ import com.ahmedbecetti.nexora.kt.data.Post
 import com.ahmedbecetti.nexora.kt.data.StoryGroup
 import com.ahmedbecetti.nexora.kt.data.User
 import com.ahmedbecetti.nexora.kt.data.json
+import com.ahmedbecetti.nexora.kt.data.mapObj
+import com.ahmedbecetti.nexora.kt.data.Upload
+import com.ahmedbecetti.nexora.kt.data.t
 import com.ahmedbecetti.nexora.kt.ui.toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +26,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-enum class Tab { Home, Reels, Messages, Search, Profile }
+enum class Tab { Home, Search, Reels, Profile }
 
 sealed interface Route {
     data class Profile(val username: String) : Route
@@ -40,6 +43,11 @@ sealed interface Route {
     data class Chat(val user: User) : Route
     data class Stories(val groups: List<StoryGroup>, val start: Int) : Route
     data class Tag(val tag: String) : Route
+    data object Inbox : Route
+    data object Discover : Route
+    data object NewHighlight : Route
+    data class Create(val uris: List<android.net.Uri>, val reel: Boolean) : Route
+    data class SettingsPage(val key: String) : Route
 }
 
 /** App-wide state: session, navigation stack, tab, badges and per-tab caches. */
@@ -60,6 +68,27 @@ class AppState(val ctx: Context) {
     var tabReselect by mutableIntStateOf(0)
     /** Bumped after actions that should refresh the own profile (follow, edit...). */
     var profileVersion by mutableIntStateOf(0)
+    /** Bumped after creating a post / story so the feed reloads. */
+    var feedVersion by mutableIntStateOf(0)
+    /** Story tray shared by the feed, post headers and profiles (rings). */
+    var storyTray by mutableStateOf<List<StoryGroup>>(emptyList())
+    fun storyOf(userId: Long): StoryGroup? = storyTray.firstOrNull { it.user.id == userId && it.stories.isNotEmpty() }
+    /** Progress (0..1) of a background story upload, or null. Shown as a thin bar on the home screen. */
+    var uploading by mutableStateOf<Float?>(null)
+    fun addStory(uri: android.net.Uri) {
+        if (uploading != null) return
+        uploading = 0f
+        scope.launch {
+            try {
+                val r = Upload.media(ctx, uri) { p -> scope.launch { uploading = p * 0.95f } }
+                Api.post("stories", json("url" to r.url, "type" to r.type))
+                loadStories(); toast(ctx, t("posted"))
+            } catch (e: Exception) { errToast(e) } finally { uploading = null }
+        }
+    }
+    suspend fun loadStories() {
+        try { storyTray = Api.get("stories").optJSONArray("tray").mapObj { StoryGroup.from(it) } } catch (_: Exception) {}
+    }
 
     fun push(r: Route) { stack.add(r) }
     fun pop(): Boolean { if (stack.isEmpty()) return false; stack.removeAt(stack.lastIndex); return true }

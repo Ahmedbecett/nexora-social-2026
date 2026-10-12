@@ -1,7 +1,15 @@
 package com.ahmedbecetti.nexora.kt.ui.screens
 
-import androidx.compose.foundation.background
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Color
+import com.ahmedbecetti.nexora.kt.ui.noRippleClick
+
+import com.ahmedbecetti.nexora.kt.ui.rememberMediaPicker
+import com.ahmedbecetti.nexora.kt.ui.Ring
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.sizeIn
+
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,7 +67,6 @@ import com.ahmedbecetti.nexora.kt.ui.IconBtn
 import com.ahmedbecetti.nexora.kt.ui.Loader
 import com.ahmedbecetti.nexora.kt.ui.NxIcons
 import com.ahmedbecetti.nexora.kt.ui.PostCard
-import com.ahmedbecetti.nexora.kt.ui.Ring
 import com.ahmedbecetti.nexora.kt.ui.UserNameText
 import com.ahmedbecetti.nexora.kt.ui.Wordmark
 import com.ahmedbecetti.nexora.kt.ui.theme.Nx
@@ -80,7 +87,7 @@ fun FeedScreen(active: Boolean) {
     val c = Nx.c
     val scope = rememberCoroutineScope()
     val posts = remember { mutableStateListOf<Post>() }
-    val tray = remember { mutableStateListOf<StoryGroup>() }
+    val tray = app.storyTray
     val suggestions = remember { mutableStateListOf<User>() }
     var cursor by remember { mutableStateOf<Long?>(null) }
     var loaded by remember { mutableStateOf(false) }
@@ -89,9 +96,8 @@ fun FeedScreen(active: Boolean) {
     var error by remember { mutableStateOf<String?>(null) }
     val list = rememberLazyListState()
 
-    suspend fun loadStories() {
-        try { val r = Api.get("stories"); tray.clear(); tray.addAll(r.optJSONArray("tray").mapObj { StoryGroup.from(it) }) } catch (_: Exception) {}
-    }
+    suspend fun loadStories() = app.loadStories()
+    val pickStory = rememberMediaPicker(multi = false) { uris -> app.addStory(uris.first()) }
     suspend fun loadSuggestions() {
         try { val r = Api.get("suggestions"); suggestions.clear(); suggestions.addAll(r.optJSONArray("users").mapObj { User.from(it) }) } catch (_: Exception) {}
     }
@@ -117,7 +123,7 @@ fun FeedScreen(active: Boolean) {
         } catch (_: Exception) {} finally { loadingMore = false }
     }
 
-    LaunchedEffect(Unit) { refresh() }
+    LaunchedEffect(app.feedVersion) { refresh() }
     LaunchedEffect(app.tabReselect) {
         if (app.tabReselect > 0 && active) { list.animateScrollToItem(0); refresh() }
     }
@@ -137,21 +143,50 @@ fun FeedScreen(active: Boolean) {
     }
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
-        Row(Modifier.fillMaxWidth().statusBarsPadding().height(54.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f).padding(start = 8.dp)) { Wordmark(size = 34.sp) }
+        Row(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { Wordmark(size = 36.sp) }
             Box {
-                IconBtn(NxIcons.Heart, { app.push(Route.Notifications) }, size = 26.dp)
-                if (app.notifBadge > 0 || app.requestBadge > 0) Box(Modifier.align(Alignment.TopEnd).offset(x = (-9).dp, y = 9.dp).size(8.dp).clip(CircleShape).background(Red))
+                IconBtn(NxIcons.Heart, { app.push(Route.Notifications) }, size = 27.dp)
+                if (app.notifBadge > 0 || app.requestBadge > 0) Box(Modifier.align(Alignment.TopEnd).offset(x = (-9).dp, y = 10.dp).size(8.dp).clip(CircleShape).background(Red))
             }
+            Box {
+                IconBtn(NxIcons.Send, { app.push(Route.Inbox) }, size = 26.dp)
+                if (app.msgBadge > 0) Box(
+                    Modifier.align(Alignment.TopEnd).offset(x = (-2).dp, y = 4.dp).sizeIn(minWidth = 18.dp, minHeight = 18.dp)
+                        .clip(CircleShape).background(Red).border(2.dp, c.bg, CircleShape).padding(horizontal = 4.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(if (app.msgBadge > 9) "9+" else "${app.msgBadge}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+            }
+        }
+        app.uploading?.let { p ->
+            androidx.compose.material3.LinearProgressIndicator(progress = { p }, color = com.ahmedbecetti.nexora.kt.ui.theme.Blue, trackColor = c.sep,
+                modifier = Modifier.fillMaxWidth().height(2.dp))
         }
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = { refreshing = true; scope.launch { refresh(); refreshing = false } }, modifier = Modifier.weight(1f)) {
             LazyColumn(state = list, modifier = Modifier.fillMaxSize()) {
-                if (tray.isNotEmpty()) item(key = "stories") {
-                    LazyRow(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
-                        itemsIndexed(tray, key = { _, g -> g.user.id }) { i, g ->
-                            Column(Modifier.width(84.dp).padding(horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Avatar(g.user.avatarUrl, 80.dp, ring = ringOf(g), onClick = { app.push(Route.Stories(tray.toList(), i)) })
-                                Text(if (g.user.id == app.me?.id) t("yourStory") else g.user.username, fontSize = 12.sp, color = if (g.allSeen) c.muted else c.text,
+                item(key = "stories") {
+                    val me = app.me
+                    val mine = tray.firstOrNull { it.user.id == me?.id }
+                    val others = tray.filter { it.user.id != me?.id }
+                    LazyRow(contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)) {
+                        item(key = "me") {
+                            Column(Modifier.width(86.dp).padding(horizontal = 3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(Modifier.size(80.dp)) {
+                                    Avatar(me?.avatarUrl, 80.dp, ring = if (mine != null) ringOf(mine) else Ring.None, onClick = {
+                                        if (mine != null) app.push(Route.Stories(listOfNotNull(mine) + others, 0)) else pickStory()
+                                    })
+                                    Box(Modifier.align(Alignment.BottomEnd).offset(x = (-2).dp, y = (-2).dp).size(24.dp).clip(CircleShape).background(c.bg).padding(2.dp)
+                                        .clip(CircleShape).background(com.ahmedbecetti.nexora.kt.ui.theme.Blue).noRippleClick { pickStory() }, contentAlignment = Alignment.Center) {
+                                        Icon(NxIcons.Plus, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                    }
+                                }
+                                Text(t("yourStory"), fontSize = 12.sp, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                            }
+                        }
+                        itemsIndexed(others, key = { _, g -> g.user.id }) { i, g ->
+                            Column(Modifier.width(86.dp).padding(horizontal = 3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Avatar(g.user.avatarUrl, 80.dp, ring = ringOf(g), onClick = { app.push(Route.Stories(others, i)) })
+                                Text(g.user.username, fontSize = 12.sp, color = c.text,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                             }
                         }

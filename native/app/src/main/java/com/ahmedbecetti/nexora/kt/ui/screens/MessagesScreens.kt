@@ -1,5 +1,7 @@
 package com.ahmedbecetti.nexora.kt.ui.screens
 
+import com.ahmedbecetti.nexora.kt.ui.mirrorIfRtl
+
 import android.util.Base64
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -145,7 +147,8 @@ fun InboxScreen(active: Boolean) {
 
     Column(Modifier.fillMaxSize().background(c.bg)) {
         Row(Modifier.fillMaxWidth().statusBarsPadding().height(54.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.width(10.dp))
+            IconBtn(NxIcons.Back, { app.pop() }, size = 26.dp, modifier = Modifier.mirrorIfRtl(NxIcons.Back))
+            Spacer(Modifier.width(6.dp))
             Text(app.me?.username ?: "", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = c.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             IconBtn(NxIcons.Edit, { newMsg = true }, size = 26.dp)
         }

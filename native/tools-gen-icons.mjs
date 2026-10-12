@@ -13,6 +13,8 @@ const want = [
   ['Info', 'IInfo', 0], ['Reply', 'IReply', 0], ['Copy', 'ICopy', 0], ['Unsend', 'IUnsend', 0], ['Mic', 'IMic', 0], ['Pause', 'IPause', 0],
   ['ArrowUp', 'IArrowUp', 0], ['Prefs', 'IPrefs', 0], ['Account', 'IAccount', 0], ['Archive', 'IArchive', 0], ['Edit', 'IEdit', 0], ['Mail', 'IMail', 0],
   ['Activity', 'IActivity', 0], ['Star', 'IStar', 0], ['Help', 'IHelp', 0], ['Shield', 'IShield', 0],
+  ['UserFill', 'IUser', 0], ['SearchBold', 'ISearch', 0, '3'], ['Key', 'IKey', 0], ['Block', 'IBlock', 0], ['Users', 'IUsers', 0],
+  ['Clock', 'IClock', 0], ['BellOff', 'IBellOff', 0], ['Lifebuoy', 'ILifebuoy', 0], ['Phone2', 'IPhone', 0],
 ];
 const num = (s) => parseFloat(s);
 const attr = (tag, a) => { const m = tag.match(new RegExp(`\\b${a}=(?:"([^"]*)"|\\{([^}]*)\\})`)); return m ? (m[1] ?? m[2]) : null; };
@@ -34,7 +36,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 
 object NxIcons {
 `;
-for (const [kt, exp, idx] of want) {
+for (const [kt, exp, idx, swOverride] of want) {
   const s = src.indexOf(`export const ${exp} =`); if (s < 0) throw new Error(exp);
   const e = src.indexOf('\nexport const', s + 10);
   const block = src.slice(s, e < 0 ? undefined : e);
@@ -43,7 +45,7 @@ for (const [kt, exp, idx] of want) {
   const sAttrs = seg[1];
   const fill = /fill=(\{filled \? 'currentColor' : 'none'\}|"currentColor"|"#ff3040")/.test(sAttrs) && !/'none'\}/.test(sAttrs) ? true : /fill="(currentColor|#ff3040)"/.test(sAttrs);
   const stroke = !/stroke="none"/.test(sAttrs);
-  const swM = sAttrs.match(/sw=\{(?:active \? \d+ : )?([\d.]+)\}/); const sw = swM ? swM[1] : '2';
+  const swM = sAttrs.match(/sw=\{(?:active \? \d+ : )?([\d.]+)\}/); const sw = swOverride || (swM ? swM[1] : '2');
   const items = [...seg[2].matchAll(/<(path|circle|rect)\b[^>]*\/>/g)].map((m) => {
     const tag = m[0]; const d = el2d(tag);
     const own = attr(tag, 'fill'); const f = own === 'currentColor' ? true : own === 'none' ? false : fill;

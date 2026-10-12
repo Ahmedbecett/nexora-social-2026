@@ -43,3 +43,11 @@ A Robolectric test boots the real app against the production API and saves scree
 ```bash
 NX_TOKEN=<jwt> NX_THEME=light ./gradlew :app:testDebugUnitTest --tests '*SmokeTest*'   # → /tmp/shots
 ```
+
+## Round 1.1 — 3.0.0-native.2 (UI redesign)
+Screens rebuilt to match the reference mockups: login / sign-up (language picker, gradient wordmark),
+home (story tray with "Your story", notifications + messages shortcuts), post card, reels, search
+(For you / Accounts / Audio / Tags + staggered explore grid), profile (accounts switcher, create menu,
+highlights, discover people), notifications (All / Follows / Likes / Comments), settings and activity
+(invite, notifications, privacy, security, account, help, about), new post (real upload to the same
+Vercel Blob storage, location, tag people, also post to Feed / Reels / Story), new highlight, change profile photo.

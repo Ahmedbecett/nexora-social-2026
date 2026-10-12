@@ -1,5 +1,12 @@
 package com.ahmedbecetti.nexora.kt.ui.screens
 
+import com.ahmedbecetti.nexora.kt.ui.GradientWordmark
+import com.ahmedbecetti.nexora.kt.ui.IconBtn
+import com.ahmedbecetti.nexora.kt.ui.mirrorIfRtl
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.items
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -57,32 +64,56 @@ import com.ahmedbecetti.nexora.kt.ui.theme.Nx
 import com.ahmedbecetti.nexora.kt.ui.theme.Red
 import kotlinx.coroutines.launch
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AuthScreen() {
+    val app = LocalApp.current
     var mode by rememberSaveable { mutableStateOf("login") }
+    var langSheet by remember { mutableStateOf(false) }
     val c = Nx.c
+    androidx.activity.compose.BackHandler(enabled = mode != "login") { mode = "login" }
     Column(Modifier.fillMaxSize().background(c.bg).statusBarsPadding().navigationBarsPadding().imePadding()) {
+        Box(Modifier.fillMaxWidth().height(52.dp)) {
+            if (mode == "login") Row(Modifier.align(Alignment.Center).noRippleClick { langSheet = true }, verticalAlignment = Alignment.CenterVertically) {
+                Text(I18n.languages.firstOrNull { it.first == I18n.lang }?.second ?: I18n.lang, color = c.muted, fontSize = 15.sp)
+                Icon(NxIcons.Down, null, tint = c.muted, modifier = Modifier.padding(start = 4.dp).size(16.dp))
+            } else IconBtn(NxIcons.Back, { mode = "login" }, size = 26.dp, modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp).mirrorIfRtl(NxIcons.Back))
+        }
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(56.dp))
-            Wordmark(size = 54.sp)
-            Spacer(Modifier.height(28.dp))
             when (mode) {
-                "login" -> LoginForm(onForgot = { mode = "forgot" })
+                "login" -> {
+                    Spacer(Modifier.height(64.dp))
+                    GradientWordmark(size = 62.sp)
+                    Spacer(Modifier.height(44.dp))
+                    LoginForm(onForgot = { mode = "forgot" })
+                }
                 "signup" -> SignupForm()
-                else -> ForgotForm(onBack = { mode = "login" })
+                else -> { Spacer(Modifier.height(24.dp)); ForgotForm(onBack = { mode = "login" }) }
             }
         }
-        Box(Modifier.fillMaxWidth().height(0.5.dp).background(c.border))
-        Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalArrangement = Arrangement.Center) {
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 20.dp), horizontalArrangement = Arrangement.Center) {
             if (mode == "signup") {
-                Text(t("haveAccount") + " ", color = c.muted, fontSize = 14.sp)
-                Text(t("loginLink"), color = Blue, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.noRippleClick { mode = "login" })
+                Text(t("haveAccount") + " ", color = c.muted, fontSize = 15.sp)
+                Text(t("loginLink"), color = Blue, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.noRippleClick { mode = "login" })
             } else {
-                Text(t("noAccount") + " ", color = c.muted, fontSize = 14.sp)
-                Text(t("createNew"), color = Blue, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.noRippleClick { mode = "signup" })
+                Text(t("noAccount") + " ", color = c.muted, fontSize = 15.sp)
+                Text(t("createNew"), color = Blue, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.noRippleClick { mode = "signup" })
+            }
+        }
+    }
+    if (langSheet) androidx.compose.material3.ModalBottomSheet(onDismissRequest = { langSheet = false }, containerColor = c.elevated) {
+        androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxWidth().fillMaxSize(0.8f)) {
+            items(I18n.languages, key = { it.first }) { (code, native, english) ->
+                Row(Modifier.fillMaxWidth().clickable { app.setLanguage(code); langSheet = false }.padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(native, color = c.text, fontSize = 16.sp)
+                        Text(english, color = c.muted, fontSize = 13.sp)
+                    }
+                    if (code == I18n.lang) Icon(NxIcons.Check, null, tint = Blue, modifier = Modifier.size(22.dp))
+                }
             }
         }
     }
@@ -96,23 +127,23 @@ fun AuthField(
     val c = Nx.c
     var show by rememberSaveable { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp).height(52.dp).clip(RoundedCornerShape(10.dp))
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).height(56.dp).clip(RoundedCornerShape(12.dp))
             .background(if (c.dark) c.surface else androidx.compose.ui.graphics.Color(0xFFFAFAFA))
-            .border(1.dp, c.border, RoundedCornerShape(10.dp)).padding(horizontal = 14.dp),
+            .border(1.dp, c.border, RoundedCornerShape(12.dp)).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.weight(1f)) {
-            if (value.isEmpty()) Text(placeholder, color = c.muted, fontSize = 14.sp, maxLines = 1)
+            if (value.isEmpty()) Text(placeholder, color = c.muted, fontSize = 15.sp, maxLines = 1)
             BasicTextField(
-                value, onChange, singleLine = true, textStyle = TextStyle(color = c.text, fontSize = 15.sp),
+                value, onChange, singleLine = true, textStyle = TextStyle(color = c.text, fontSize = 16.sp),
                 cursorBrush = SolidColor(c.text),
                 visualTransformation = if (password && !show) PasswordVisualTransformation() else VisualTransformation.None,
                 keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboard, imeAction = ime),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        if (password && value.isNotEmpty()) Icon(if (show) NxIcons.EyeOff else NxIcons.Eye, null, tint = c.text,
-            modifier = Modifier.size(22.dp).noRippleClick { show = !show })
+        if (password) Icon(if (show) NxIcons.Eye else NxIcons.EyeOff, null, tint = c.muted,
+            modifier = Modifier.padding(start = 8.dp).size(22.dp).noRippleClick { show = !show })
     }
 }
 
@@ -131,7 +162,7 @@ private fun LoginForm(onForgot: () -> Unit) {
     var err by rememberSaveable { mutableStateOf<String?>(null) }
     AuthField(id, { id = it; err = null }, t("loginId"), keyboard = KeyboardType.Email)
     AuthField(pw, { pw = it; err = null }, t("password"), password = true, ime = ImeAction.Done)
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(14.dp))
     NxButton(t("login"), onClick = {
         busy = true; err = null
         scope.launch {
@@ -140,10 +171,10 @@ private fun LoginForm(onForgot: () -> Unit) {
                 app.onLoggedIn(r.getString("token"), User.from(r.optJSONObject("user")))
             } catch (e: ApiException) { err = I18n.err(e.code) } finally { busy = false }
         }
-    }, enabled = id.isNotBlank() && pw.length >= 6, loading = busy, modifier = Modifier.fillMaxWidth(), height = 46.dp, radius = 22.dp)
+    }, enabled = id.isNotBlank() && pw.length >= 6, loading = busy, modifier = Modifier.fillMaxWidth(), height = 54.dp, radius = 14.dp, fontSize = 17.sp)
     ErrorText(err)
-    Spacer(Modifier.height(14.dp))
-    Text(t("forgot"), color = Nx.c.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.noRippleClick(onForgot))
+    Spacer(Modifier.height(26.dp))
+    Text(t("forgot"), color = Blue, fontWeight = FontWeight.Medium, fontSize = 15.sp, modifier = Modifier.noRippleClick(onForgot))
 }
 
 @Composable
@@ -157,13 +188,16 @@ private fun SignupForm() {
     var pw by rememberSaveable { mutableStateOf("") }
     var busy by rememberSaveable { mutableStateOf(false) }
     var err by rememberSaveable { mutableStateOf<String?>(null) }
-    Text(t("createSub"), color = c.muted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 14.dp))
-    AuthField(email, { email = it; err = null }, t("email"), keyboard = KeyboardType.Email)
+    var terms by remember { mutableStateOf(false) }
+    Spacer(Modifier.height(10.dp))
+    Text(t("createAccount"), color = c.text, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+    Text(t("createSub"), color = c.muted, fontSize = 15.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 10.dp, bottom = 26.dp))
     AuthField(name, { name = it; err = null }, t("fullName"))
     AuthField(user, { user = it.lowercase().replace(" ", ""); err = null }, t("username"))
+    AuthField(email, { email = it; err = null }, t("email"), keyboard = KeyboardType.Email)
     AuthField(pw, { pw = it; err = null }, t("password"), password = true, ime = ImeAction.Done)
-    Text(t("terms"), color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(vertical = 12.dp))
-    NxButton(t("createAccount"), onClick = {
+    Spacer(Modifier.height(14.dp))
+    NxButton(t("next"), onClick = {
         busy = true; err = null
         scope.launch {
             try {
@@ -172,8 +206,16 @@ private fun SignupForm() {
             } catch (e: ApiException) { err = I18n.err(e.code) } finally { busy = false }
         }
     }, enabled = email.isNotBlank() && name.isNotBlank() && user.isNotBlank() && pw.length >= 6, loading = busy,
-        modifier = Modifier.fillMaxWidth(), height = 46.dp, radius = 22.dp)
+        modifier = Modifier.fillMaxWidth(), height = 54.dp, radius = 14.dp, fontSize = 17.sp)
     ErrorText(err)
+    Text(t("termsShort"), color = c.muted, fontSize = 12.sp, textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 16.dp).noRippleClick { terms = true })
+    if (terms) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { terms = false }, containerColor = c.elevated,
+        title = { Text(t("termsOfUse"), fontWeight = FontWeight.SemiBold, color = c.text) },
+        text = { Text(t("termsText"), color = c.muted, fontSize = 14.sp) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { terms = false }) { Text("OK", color = Blue) } },
+    )
 }
 
 @Composable
@@ -199,7 +241,7 @@ private fun ForgotForm(onBack: () -> Unit) {
                 try { sent = Api.post("auth/reset", json("identifier" to id.trim())).optString("sentTo") }
                 catch (e: ApiException) { err = I18n.err(e.code) } finally { busy = false }
             }
-        }, enabled = id.isNotBlank(), loading = busy, modifier = Modifier.fillMaxWidth(), height = 46.dp, radius = 22.dp)
+        }, enabled = id.isNotBlank(), loading = busy, modifier = Modifier.fillMaxWidth(), height = 54.dp, radius = 14.dp, fontSize = 17.sp)
         ErrorText(err)
     }
     Spacer(Modifier.height(18.dp))

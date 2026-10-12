@@ -176,7 +176,7 @@ fun Empty(icon: ImageVector, title: String, sub: String? = null, modifier: Modif
 @Composable
 fun NxButton(
     text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = true, enabled: Boolean = true,
-    loading: Boolean = false, height: Dp = 34.dp, radius: Dp = 8.dp,
+    loading: Boolean = false, height: Dp = 34.dp, radius: Dp = 8.dp, fontSize: TextUnit = 14.sp,
 ) {
     val c = Nx.c
     val bg = if (primary) Blue else c.btn
@@ -187,7 +187,7 @@ fun NxButton(
         contentAlignment = Alignment.Center,
     ) {
         if (loading) CircularProgressIndicator(color = fg, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-        else Text(text, color = fg, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1)
+        else Text(text, color = fg, fontWeight = FontWeight.SemiBold, fontSize = fontSize, maxLines = 1)
     }
 }
 

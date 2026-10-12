@@ -1,5 +1,11 @@
 package com.ahmedbecetti.nexora.kt.ui.screens
 
+import com.ahmedbecetti.nexora.kt.ui.rememberMediaPicker
+import com.ahmedbecetti.nexora.kt.ui.PickKind
+import com.ahmedbecetti.nexora.kt.Route
+import com.ahmedbecetti.nexora.kt.ui.Avatar
+import com.ahmedbecetti.nexora.kt.ui.Ring
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -104,6 +110,8 @@ fun ReelsTab(active: Boolean) {
         } finally { busy = false; loaded = true }
     }
     LaunchedEffect(Unit) { next() }
+    val app = LocalApp.current
+    val pickReel = rememberMediaPicker(multi = false, kind = PickKind.Video) { uris -> app.push(Route.Create(uris, reel = true)) }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (!loaded) Loader(Modifier.align(Alignment.Center), color = Color.White)
@@ -112,8 +120,10 @@ fun ReelsTab(active: Boolean) {
             Text(t("noReels"), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
         }
         else ReelsPager(posts, 0, active, onNearEnd = { next() })
-        Text(t("reels"), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.statusBarsPadding().padding(start = 16.dp, top = 10.dp))
+        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 16.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(t("reels"), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            IconBtn(NxIcons.Camera, { pickReel() }, tint = Color.White, size = 28.dp)
+        }
     }
 }
 
@@ -175,18 +185,23 @@ fun ReelItem(post: Post, active: Boolean, onChange: (Post) -> Unit, onRemove: (S
             Icon(if (app.reelsMuted) NxIcons2.VolumeOff else NxIcons2.VolumeOn, null, tint = Color.White, modifier = Modifier.size(30.dp))
         }
         // right action rail
-        Column(Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 22.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (!p.world || p.wid > 0) RailBtn(if (p.liked) NxIcons.HeartFill else NxIcons.Heart, if (p.likeCount > 0) fmtNum(p.likeCount) else null, if (p.liked) Like else Color.White) { actions.like() }
             if (!p.world) RailBtn(NxIcons.Comment, if (p.commentCount > 0) fmtNum(p.commentCount) else null) { comments = true }
             RailBtn(NxIcons.Send, null) { shareText(ctx, if (p.world) (p.sourceUrl ?: "") else postLink(p.id)) }
-            RailBtn(NxIcons.MoreH, null) { menu = true }
+            if (!p.world) RailBtn(if (p.saved) NxIcons2.BookmarkFill else NxIcons.Bookmark, null) { actions.save() }
+            RailBtn(NxIcons.MoreV, null, size = 24.dp) { menu = true }
         }
         // bottom info
         Column(Modifier.align(Alignment.BottomStart).padding(start = 14.dp, end = 72.dp, bottom = 18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (p.world) Box(Modifier.size(32.dp).clip(CircleShape).background(Color(0x33FFFFFF)), contentAlignment = Alignment.Center) {
                     Icon(NxIcons.Globe, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                } else Box(Modifier.noRippleClick { app.openProfile(p.user.username) }) { AvatarImage(p.user.avatarUrl, 32.dp) }
+                } else {
+                    val story = app.storyOf(p.user.id)
+                    Avatar(p.user.avatarUrl, 38.dp, ring = if (story != null && !story.allSeen) Ring.Unseen else Ring.None,
+                        onClick = { if (story != null) app.push(Route.Stories(listOf(story), 0)) else app.openProfile(p.user.username) })
+                }
                 Spacer(Modifier.width(10.dp))
                 Text(if (p.world) t("worldSource") else p.user.username, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 180.dp).noRippleClick { if (!p.world) app.openProfile(p.user.username) })
@@ -194,7 +209,7 @@ fun ReelItem(post: Post, active: Boolean, onChange: (Post) -> Unit, onRemove: (S
                 if (!p.world && p.user.id != app.me?.id && follow != "accepted") {
                     Spacer(Modifier.width(10.dp))
                     Text(if (follow == "pending") t("requested") else t("follow"), color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                        modifier = Modifier.border(1.dp, Color(0xB3FFFFFF), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 4.dp).noRippleClick {
+                        modifier = Modifier.border(1.dp, Color(0xCCFFFFFF), RoundedCornerShape(9.dp)).padding(horizontal = 14.dp, vertical = 5.dp).noRippleClick {
                             val st = follow
                             app.scope.launch { try { follow = app.toggleFollow(p.user.id, st) } catch (e: Exception) { app.errToast(e) } }
                         })
@@ -221,9 +236,9 @@ fun ReelItem(post: Post, active: Boolean, onChange: (Post) -> Unit, onRemove: (S
 }
 
 @Composable
-private fun RailBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String?, tint: Color = Color.White, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(52.dp).noRippleClick(onClick)) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(28.dp))
+private fun RailBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String?, tint: Color = Color.White, size: androidx.compose.ui.unit.Dp = 29.dp, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(56.dp).noRippleClick(onClick)) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(size))
         if (label != null) Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
     }
 }

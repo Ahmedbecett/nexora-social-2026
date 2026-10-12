@@ -1,5 +1,16 @@
 package com.ahmedbecetti.nexora.kt.ui.screens
 
+import com.ahmedbecetti.nexora.kt.ui.rememberMediaPicker
+import com.ahmedbecetti.nexora.kt.ui.PickKind
+import com.ahmedbecetti.nexora.kt.data.Upload
+import androidx.compose.material3.CircularProgressIndicator
+import com.ahmedbecetti.nexora.kt.ui.SheetItem
+import androidx.compose.foundation.layout.navigationBarsPadding
+import com.ahmedbecetti.nexora.kt.ui.NxTabs
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.statusBarsPadding
+import com.ahmedbecetti.nexora.kt.ui.IconBtn
+
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -179,25 +190,29 @@ fun NotificationsScreen() {
     val c = Nx.c
     val list = remember { mutableStateListOf<Notif>() }
     var loaded by remember { mutableStateOf(false) }
+    var tab by rememberSaveable { mutableStateOf(0) }
     LaunchedEffect(Unit) {
         try {
             list.addAll(Api.get("notifications").optJSONArray("notifications").mapObj { Notif.from(it) })
             Api.post("notifications/read"); app.refreshBadges()
         } catch (e: Exception) { app.errToast(e) } finally { loaded = true }
     }
-    val now = System.currentTimeMillis()
-    val groups = remember(list.toList()) {
-        list.groupBy {
-            val age = now - parseTime(it.createdAt)
-            when { age < 86_400_000L -> "today"; age < 7 * 86_400_000L -> "thisWeek"; else -> "earlier" }
-        }
+    val shown = when (tab) {
+        1 -> list.filter { it.type == "follow" || it.type == "follow_request" || it.type == "follow_accepted" }
+        2 -> list.filter { it.type == "like" || it.type == "comment_like" || it.type == "repost" }
+        3 -> list.filter { it.type == "comment" || it.type == "reply" || it.type == "mention" }
+        else -> list
     }
     Column(Modifier.fillMaxSize().background(c.bg)) {
-        TopBar(t("notifications"), onBack = { app.pop() })
+        Row(Modifier.fillMaxWidth().statusBarsPadding().height(54.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(NxIcons.Back, { app.pop() }, size = 26.dp)
+            Text(t("notifications"), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = c.text, modifier = Modifier.padding(start = 4.dp))
+        }
+        NxTabs(listOf(t("all"), t("follows"), t("likesTab"), t("commentsTab")), tab, { tab = it })
         LazyColumn(Modifier.fillMaxSize()) {
-            if (app.requestBadge > 0) item {
+            if (app.requestBadge > 0 && tab <= 1) item {
                 Row(Modifier.fillMaxWidth().clickable { app.push(Route.FollowRequests) }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(44.dp).clip(RoundedCornerShape(22.dp)).background(c.sep), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(46.dp).clip(RoundedCornerShape(23.dp)).background(c.sep), contentAlignment = Alignment.Center) {
                         Icon(NxIcons.UserPlus, null, tint = c.text, modifier = Modifier.size(22.dp))
                     }
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
@@ -209,12 +224,8 @@ fun NotificationsScreen() {
                 }
             }
             if (!loaded) item { Loader() }
-            if (loaded && list.isEmpty()) item { Empty(NxIcons.Heart, t("noNotifications"), t("noNotificationsSub")) }
-            for (k in listOf("today", "thisWeek", "earlier")) {
-                val g = groups[k] ?: continue
-                item(key = "h:$k") { Text(t(k), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = c.text, modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 6.dp)) }
-                items(g, key = { "n:" + it.id }) { n -> NotifRow(n) { st -> val i = list.indexOfFirst { it.id == n.id }; if (i >= 0) list[i] = n.copy(followStatus = st) } }
-            }
+            if (loaded && shown.isEmpty()) item { Empty(NxIcons.Heart, t("noNotifications"), t("noNotificationsSub")) }
+            items(shown, key = { "n:" + it.id }) { n -> NotifRow(n) { st -> val i = list.indexOfFirst { it.id == n.id }; if (i >= 0) list[i] = n.copy(followStatus = st) } }
         }
     }
 }
@@ -234,14 +245,16 @@ private fun NotifRow(n: Notif, onStatus: (String) -> Unit) {
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(n.actor.avatarUrl, 44.dp, onClick = { app.openProfile(n.actor.username) })
+        val story = app.storyOf(n.actor.id)
+        Avatar(n.actor.avatarUrl, 46.dp, ring = if (story != null && !story.allSeen) com.ahmedbecetti.nexora.kt.ui.Ring.Unseen else com.ahmedbecetti.nexora.kt.ui.Ring.None,
+            onClick = { if (story != null) app.push(Route.Stories(listOf(story), 0)) else app.openProfile(n.actor.username) })
         Text(buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(n.actor.username) }
             append(" $msg ")
             withStyle(SpanStyle(color = c.muted)) { append(timeAgo(n.createdAt)) }
         }, fontSize = 14.sp, color = c.text, maxLines = 3, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
-        if (n.postThumb != null) AsyncImage(n.postThumb, null, contentScale = ContentScale.Crop, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(6.dp)).background(c.sep))
-        else if (n.type == "follow" || n.type == "follow_accepted") FollowButton(n.followStatus, n.type == "follow", onClick = {
+        if (n.postThumb != null) AsyncImage(n.postThumb, null, contentScale = ContentScale.Crop, modifier = Modifier.size(width = 42.dp, height = 52.dp).clip(RoundedCornerShape(4.dp)).background(c.sep))
+        else if (n.type == "follow" || n.type == "follow_accepted") FollowButton(n.followStatus, false, height = 30.dp, onClick = {
             val st = n.followStatus
             app.scope.launch { try { onStatus(app.toggleFollow(n.actor.id, st)) } catch (e: Exception) { app.errToast(e) } }
         })
@@ -250,6 +263,7 @@ private fun NotifRow(n: Notif, onStatus: (String) -> Unit) {
 
 /* ---------------- edit profile ---------------- */
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun EditProfileScreen() {
     val app = LocalApp.current
@@ -263,6 +277,23 @@ fun EditProfileScreen() {
     var website by remember { mutableStateOf("") }
     var isPrivate by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
+    var photoMenu by remember { mutableStateOf(false) }
+    var photoBusy by remember { mutableStateOf(false) }
+    fun setAvatar(url: String?) {
+        scope.launch {
+            try {
+                val r = Api.patch("me", json("avatarUrl" to url))
+                User.from(r.optJSONObject("user"))?.let { app.me = it } ?: run { app.me = app.me?.copy(avatarUrl = url) }
+                app.profileVersion++
+            } catch (e: Exception) { app.errToast(e) } finally { photoBusy = false }
+        }
+    }
+    val pickPhoto = rememberMediaPicker(multi = false, kind = PickKind.Image) { uris ->
+        photoBusy = true
+        scope.launch {
+            try { setAvatar(Upload.image(ctx, uris.first(), maxSide = 640).url) } catch (e: Exception) { app.errToast(e); photoBusy = false }
+        }
+    }
     LaunchedEffect(Unit) {
         try {
             val u = Api.get("me").getJSONObject("user")
@@ -285,7 +316,13 @@ fun EditProfileScreen() {
         }
         if (!loaded) { Loader(); return@Column }
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Avatar(app.me?.avatarUrl, 86.dp) }
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(contentAlignment = Alignment.Center) {
+                    Avatar(app.me?.avatarUrl, 90.dp, onClick = { photoMenu = true })
+                    if (photoBusy) CircularProgressIndicator(color = Blue, strokeWidth = 2.dp, modifier = Modifier.size(90.dp))
+                }
+                Text(t("changePhoto"), color = Blue, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp).clickable { photoMenu = true })
+            }
             Spacer(Modifier.height(16.dp))
             EditField(t("fullName"), name) { name = it }
             EditField(t("username"), username) { username = it.lowercase().replace(" ", "") }
@@ -297,6 +334,12 @@ fun EditProfileScreen() {
             }
         }
     }
+    if (photoMenu) androidx.compose.material3.ModalBottomSheet(onDismissRequest = { photoMenu = false }, containerColor = c.elevated) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            SheetItem(NxIcons.Image, t("changePhoto")) { photoMenu = false; pickPhoto() }
+            if (app.me?.avatarUrl != null) SheetItem(NxIcons.Trash, t("removePhoto"), danger = true) { photoMenu = false; photoBusy = true; setAvatar(null) }
+        }
+    }
 }
 
 @Composable
@@ -306,50 +349,6 @@ private fun EditField(label: String, value: String, single: Boolean = true, onCh
         Text(label, color = c.muted, fontSize = 12.sp)
         BasicTextField(value, onChange, singleLine = single, maxLines = if (single) 1 else 5, textStyle = TextStyle(color = c.text, fontSize = 15.sp),
             cursorBrush = SolidColor(c.text), modifier = Modifier.fillMaxWidth().padding(top = 2.dp))
-    }
-}
-
-/* ---------------- settings ---------------- */
-
-@Composable
-fun SettingsScreen() {
-    val app = LocalApp.current
-    val c = Nx.c
-    var confirmLogout by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().background(c.bg)) {
-        TopBar(t("settings"), onBack = { app.pop() })
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            SectionTitle(t("yourAppMedia"))
-            SettingRow(NxIcons.Moon, t("theme"), when (app.themeMode) { "dark" -> t("themeDark"); "light" -> t("themeLight"); else -> t("themeSystem") }) {
-                app.setTheme(when (app.themeMode) { "system" -> "dark"; "dark" -> "light"; else -> "system" })
-            }
-            SettingRow(NxIcons.Globe, t("languageSetting"), I18n.languages.firstOrNull { it.first == I18n.lang }?.second ?: I18n.lang) { app.push(Route.Language) }
-            SectionTitle(t("howYouUse"))
-            SettingRow(NxIcons.Bookmark, t("saved"), null) { app.push(Route.Saved) }
-            SettingRow(NxIcons.UserPlus, t("followRequests"), if (app.requestBadge > 0) "${app.requestBadge}" else null) { app.push(Route.FollowRequests) }
-            SettingRow(NxIcons.Heart, t("notifications"), null) { app.push(Route.Notifications) }
-            SectionTitle(t("moreInfoSupport"))
-            SettingRow(NxIcons.Info, t("about"), t("aboutText", "v" to BuildConfig.VERSION_NAME)) {}
-            Divider(Modifier.padding(vertical = 8.dp))
-            SectionTitle(t("loginSection"))
-            Text(t("logout"), color = Red, fontSize = 16.sp, modifier = Modifier.fillMaxWidth().clickable { confirmLogout = true }.padding(horizontal = 16.dp, vertical = 14.dp))
-            Spacer(Modifier.height(40.dp))
-        }
-    }
-    if (confirmLogout) ConfirmDialog(t("logoutConfirm"), t("logout"), onDismiss = { confirmLogout = false }) { confirmLogout = false; app.logout() }
-}
-
-@Composable
-private fun SectionTitle(s: String) = Text(s, color = Nx.c.muted, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 4.dp))
-
-@Composable
-private fun SettingRow(icon: ImageVector, label: String, value: String?, onClick: () -> Unit) {
-    val c = Nx.c
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = c.text, modifier = Modifier.size(24.dp))
-        Text(label, color = c.text, fontSize = 16.sp, modifier = Modifier.weight(1f).padding(horizontal = 14.dp))
-        if (value != null) Text(value, color = c.muted, fontSize = 14.sp, maxLines = 1)
-        Icon(NxIcons.Chevron, null, tint = c.muted, modifier = Modifier.padding(start = 6.dp).size(16.dp).mirrorIfRtl(NxIcons.Chevron))
     }
 }
 

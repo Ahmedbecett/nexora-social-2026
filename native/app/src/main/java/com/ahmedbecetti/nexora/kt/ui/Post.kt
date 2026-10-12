@@ -1,5 +1,7 @@
 package com.ahmedbecetti.nexora.kt.ui
 
+import androidx.compose.ui.text.style.TextOverflow
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -143,14 +145,16 @@ fun PostCard(post: Post, onChange: (Post) -> Unit, onDeleted: (String) -> Unit, 
 
     Column(modifier.fillMaxWidth().background(c.bg)) {
         // header
-        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Avatar(p.user.avatarUrl, 34.dp, onClick = { app.openProfile(p.user.username) })
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 2.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            val story = if (p.world) null else app.storyOf(p.user.id)
+            Avatar(p.user.avatarUrl, 38.dp, ring = if (story != null) (if (story.allSeen) Ring.Seen else Ring.Unseen) else Ring.None,
+                onClick = { if (story != null) app.push(Route.Stories(listOf(story), 0)) else app.openProfile(p.user.username) })
             Column(Modifier.weight(1f).padding(horizontal = 10.dp).noRippleClick { app.openProfile(p.user.username) }) {
                 UserNameText(p.user, fontSize = 14.sp)
                 val sub = p.location ?: p.audio?.takeIf { p.isReel }
-                if (!sub.isNullOrBlank()) Text(sub, fontSize = 12.sp, color = c.text, maxLines = 1)
+                if (!sub.isNullOrBlank()) Text(sub, fontSize = 12.sp, color = c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            IconBtn(NxIcons.MoreH, { menu = true }, size = 22.dp)
+            IconBtn(NxIcons.MoreV, { menu = true }, size = 20.dp)
         }
         // media
         if (p.media.isNotEmpty()) {
@@ -186,40 +190,34 @@ fun PostCard(post: Post, onChange: (Post) -> Unit, onDeleted: (String) -> Unit, 
             }
         }
         // actions
-        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(if (p.liked) NxIcons.HeartFill else NxIcons.Heart, { actions.like() }, tint = if (p.liked) Like else c.text)
-            if (p.likeCount > 0) Text(fmtNum(p.likeCount), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.text,
-                modifier = Modifier.noRippleClick { app.push(Route.Likes(p.id)) })
-            IconBtn(NxIcons.Comment, { comments = true })
-            if (p.commentCount > 0) Text(fmtNum(p.commentCount), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.text)
-            IconBtn(NxIcons.Send, { shareText(ctx, postLink(p.id)) })
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(if (p.liked) NxIcons.HeartFill else NxIcons.Heart, { actions.like() }, size = 26.dp, tint = if (p.liked) Like else c.text)
+            IconBtn(NxIcons.Comment, { comments = true }, size = 25.dp)
+            IconBtn(NxIcons.Send, { shareText(ctx, postLink(p.id)) }, size = 25.dp)
             Spacer(Modifier.weight(1f))
-            IconBtn(if (p.saved) NxIcons2.BookmarkFill else NxIcons.Bookmark, { actions.save() })
+            IconBtn(if (p.saved) NxIcons2.BookmarkFill else NxIcons.Bookmark, { actions.save() }, size = 25.dp)
         }
         Column(Modifier.padding(horizontal = 14.dp)) {
-            if (p.likeCount > 0 && p.lastLiker != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.noRippleClick { app.push(Route.Likes(p.id)) }) {
-                    AvatarImage(p.lastLikerAvatar, 18.dp)
-                    Spacer(Modifier.width(6.dp))
-                    Text(buildAnnotatedString {
-                        append(t("likedBy") + " ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(p.lastLiker) }
-                        if (p.likeCount > 1) { append(" "); withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(t("andOthers")) } }
-                    }, fontSize = 14.sp, color = c.text)
-                }
-            }
+            if (p.likeCount > 0) Text(
+                if (p.likeCount == 1 && p.lastLiker != null) t("likedBy") + " " + p.lastLiker
+                else java.text.NumberFormat.getIntegerInstance(java.util.Locale.US).format(p.likeCount) + " " + t("likes"),
+                fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.text, modifier = Modifier.noRippleClick { app.push(Route.Likes(p.id)) })
             if (!p.caption.isNullOrBlank()) {
                 val cap = p.caption!!
                 val long = cap.length > 120 || cap.count { it == '\n' } > 1
                 Text(
-                    richText(app, if (long && !expanded) cap.take(110).trimEnd() else cap, if (c.dark) Color(0xFFE0F1FF) else Color(0xFF00376B), p.user.username),
-                    fontSize = 14.sp, color = c.text, style = TextStyle(lineHeight = 18.sp), modifier = Modifier.padding(top = 4.dp),
+                    richText(app, if (long && !expanded) cap.take(110).trimEnd() + "… " else cap, if (c.dark) Color(0xFF6CB4FF) else Color(0xFF2B6CD1), p.user.username),
+                    fontSize = 14.sp, color = c.text, style = TextStyle(lineHeight = 19.sp), modifier = Modifier.padding(top = 3.dp),
                 )
-                if (long && !expanded) Text("… " + t("more"), color = c.muted, fontSize = 14.sp, modifier = Modifier.noRippleClick { expanded = true })
+                if (long && !expanded) Text(t("more"), color = c.muted, fontSize = 14.sp, modifier = Modifier.noRippleClick { expanded = true })
             }
             if (p.commentCount > 0) Text(t("viewAllComments", "n" to p.commentCount), color = c.muted, fontSize = 14.sp,
-                modifier = Modifier.padding(top = 4.dp).noRippleClick { comments = true })
-            Text(timeAgo(p.createdAt), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+                modifier = Modifier.padding(top = 5.dp).noRippleClick { comments = true })
+            if (!p.world) Row(Modifier.fillMaxWidth().padding(top = 8.dp).noRippleClick { comments = true }, verticalAlignment = Alignment.CenterVertically) {
+                AvatarImage(app.me?.avatarUrl, 26.dp)
+                Text(t("addComment"), color = c.muted, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 10.dp))
+            }
+            Text(timeAgo(p.createdAt), color = c.muted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp, bottom = 16.dp))
         }
     }
     if (menu) PostMenu(p, onDismiss = { menu = false }, onDeleted = onDeleted, onChange = { p = it; onChange(it) })

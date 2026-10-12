@@ -39,6 +39,8 @@ import com.ahmedbecetti.nexora.kt.ui.AvatarImage
 import com.ahmedbecetti.nexora.kt.ui.NxIcons
 import com.ahmedbecetti.nexora.kt.ui.NxIcons2
 import com.ahmedbecetti.nexora.kt.ui.noRippleClick
+import com.ahmedbecetti.nexora.kt.ui.rememberMediaPicker
+import com.ahmedbecetti.nexora.kt.data.t
 import com.ahmedbecetti.nexora.kt.ui.screens.*
 import com.ahmedbecetti.nexora.kt.ui.theme.Nx
 import com.ahmedbecetti.nexora.kt.ui.theme.Red
@@ -94,7 +96,6 @@ fun MainShell() {
                             when (t) {
                                 Tab.Home -> FeedScreen(active)
                                 Tab.Reels -> ReelsTab(active)
-                                Tab.Messages -> InboxScreen(active)
                                 Tab.Search -> SearchScreen(active)
                                 Tab.Profile -> ProfileScreen(app.me!!.username, isTab = true, active = active)
                             }
@@ -107,7 +108,7 @@ fun MainShell() {
         // pushed screens stack over the tabs; only the top one is "active"
         app.stack.forEachIndexed { i, r ->
             val isTop = i == app.stack.lastIndex
-            val full = r is Route.Chat || r is Route.Stories || r is Route.ReelsAt
+            val full = r is Route.Chat || r is Route.Stories || r is Route.ReelsAt || r is Route.Inbox || r is Route.Create || r is Route.NewHighlight
             Column(Modifier.fillMaxSize().background(c.bg).noRippleClick {}) {
                 Box(Modifier.weight(1f).fillMaxWidth()) { RouteScreen(r, isTop) }
                 if (!full) BottomNav()
@@ -127,6 +128,11 @@ fun RouteScreen(r: Route, active: Boolean) {
         Route.Notifications -> NotificationsScreen()
         Route.FollowRequests -> FollowRequestsScreen()
         Route.Settings -> SettingsScreen()
+        is Route.SettingsPage -> SettingsPage(r.key)
+        Route.Inbox -> InboxScreen(active)
+        Route.Discover -> UserListScreen(t("suggested"), "suggestions", t("noFollowersYet"))
+        Route.NewHighlight -> NewHighlightScreen()
+        is Route.Create -> CreateScreen(r.uris, r.reel)
         Route.EditProfile -> EditProfileScreen()
         Route.Language -> LanguageScreen()
         Route.Saved -> SavedScreen()
@@ -143,32 +149,19 @@ fun BottomNav() {
     val reels = app.tab == Tab.Reels && app.stack.isEmpty()
     val bg = if (reels) Color.Black else c.bg
     val fg = if (reels) Color.White else c.text
+    val pick = rememberMediaPicker(multi = true) { uris -> app.push(Route.Create(uris, reel = false)) }
     Column(Modifier.fillMaxWidth().background(bg).navigationBarsPadding()) {
         if (!reels) Box(Modifier.fillMaxWidth().height(0.5.dp).background(c.sep))
-        Row(Modifier.fillMaxWidth().height(50.dp), verticalAlignment = Alignment.CenterVertically) {
-            for (t in Tab.entries) {
-                val sel = app.tab == t
-                Box(Modifier.weight(1f).height(50.dp).noRippleClick { app.selectTab(t) }, contentAlignment = Alignment.Center) {
-                    when (t) {
-                        Tab.Home -> Icon(if (sel) NxIcons.HomeFill else NxIcons.Home, t.name, tint = fg, modifier = Modifier.size(26.dp))
-                        Tab.Reels -> Icon(if (sel) NxIcons.ReelsFill else NxIcons.Reels, t.name, tint = fg, modifier = Modifier.size(26.dp))
-                        Tab.Messages -> Box {
-                            Icon(if (sel) NxIcons.SendFill else NxIcons.Send, t.name, tint = fg, modifier = Modifier.size(26.dp))
-                            if (app.msgBadge > 0) Box(
-                                Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-6).dp).sizeIn(minWidth = 18.dp, minHeight = 18.dp)
-                                    .clip(CircleShape).background(Red).border(2.dp, bg, CircleShape).padding(horizontal = 4.dp),
-                                contentAlignment = Alignment.Center,
-                            ) { Text(if (app.msgBadge > 9) "9+" else "${app.msgBadge}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-                        }
-                        Tab.Search -> Icon(NxIcons.Search, t.name, tint = fg, modifier = Modifier.size(if (sel) 27.dp else 25.dp))
-                        Tab.Profile -> Box(
-                            Modifier.size(30.dp).then(if (sel) Modifier.border(2.dp, fg, CircleShape) else Modifier).padding(if (sel) 3.dp else 2.dp),
-                            contentAlignment = Alignment.Center,
-                        ) { AvatarImage(app.me?.avatarUrl, if (sel) 24.dp else 26.dp) }
-                    }
-                }
-            }
+        Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
+            @Composable
+            fun Item(content: @Composable () -> Unit, onClick: () -> Unit) =
+                Box(Modifier.weight(1f).height(52.dp).noRippleClick(onClick), contentAlignment = Alignment.Center) { content() }
+            val top = app.stack.isEmpty()
+            Item({ Icon(if (app.tab == Tab.Home && top) NxIcons.HomeFill else NxIcons.Home, "home", tint = fg, modifier = Modifier.size(27.dp)) }) { app.selectTab(Tab.Home) }
+            Item({ Icon(if (app.tab == Tab.Search && top) NxIcons.SearchBold else NxIcons.Search, "search", tint = fg, modifier = Modifier.size(26.dp)) }) { app.selectTab(Tab.Search) }
+            Item({ Icon(NxIcons.PlusSquare, "create", tint = fg, modifier = Modifier.size(27.dp)) }) { pick() }
+            Item({ Icon(if (app.tab == Tab.Reels && top) NxIcons.ReelsFill else NxIcons.Reels, "reels", tint = fg, modifier = Modifier.size(27.dp)) }) { app.selectTab(Tab.Reels) }
+            Item({ Icon(if (app.tab == Tab.Profile && top) NxIcons.UserFill else NxIcons.User, "profile", tint = fg, modifier = Modifier.size(27.dp)) }) { app.selectTab(Tab.Profile) }
         }
     }
 }
-

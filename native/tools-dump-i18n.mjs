@@ -16,6 +16,18 @@ for (const f of fs.readdirSync(new URL('src/locales/', root))) if (f.endsWith('.
   if (f === 'fr.json') Object.assign(d, frCt);
   fs.writeFileSync(new URL(f, out), JSON.stringify(d));
 }
+// Native-only keys (added only when missing).
+const nativeExtra = {
+  en: { appVersion: 'Version', audioTab: 'Audio', settingsTitle: 'Settings and activity', termsShort: 'By signing up, you agree to our Terms of Use.' },
+  ar: { appVersion: 'الإصدار', audioTab: 'الصوتيات', settingsTitle: 'الإعدادات والنشاط', termsShort: 'بالتسجيل، أنت توافق على شروط الاستخدام.' },
+  fr: { appVersion: 'Version', audioTab: 'Audio', settingsTitle: 'Paramètres et activité', termsShort: "En vous inscrivant, vous acceptez nos conditions d'utilisation." },
+};
+for (const [l, keys] of Object.entries(nativeExtra)) {
+  const f = new URL(`${l}.json`, out);
+  const d = JSON.parse(fs.readFileSync(f, 'utf8'));
+  for (const [k, v] of Object.entries(keys)) if (d[k] == null) d[k] = v;
+  fs.writeFileSync(f, JSON.stringify(d));
+}
 const langs = src.slice(src.indexOf('export const LANGUAGES = ['), src.indexOf('];', src.indexOf('export const LANGUAGES')) + 2).replace('export const LANGUAGES =', 'return');
 fs.writeFileSync(new URL('languages.json', out), JSON.stringify(new Function(langs)()));
 console.log(fs.readdirSync(out).length, 'files');

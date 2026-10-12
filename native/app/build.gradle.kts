@@ -19,8 +19,8 @@ android {
         applicationId = "com.ahmedbecetti.nexora.kt"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "3.0.0-native.1"
+        versionCode = 2
+        versionName = "3.0.0-native.2"
         buildConfigField("String", "API_BASE", "\"https://nexora-social-2026.vercel.app/api/\"")
     }
 
