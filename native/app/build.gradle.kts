@@ -19,8 +19,8 @@ android {
         applicationId = "com.ahmedbecetti.nexora"
         minSdk = 24
         targetSdk = 35
-        versionCode = 16
-        versionName = "3.1.0"
+        versionCode = 17
+        versionName = "3.2.0"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         manifestPlaceholders["admobAppId"] = "ca-app-pub-6858364141205978~9239771129"
         buildConfigField("String", "ADMOB_BANNER", "\"ca-app-pub-6858364141205978/9187800239\"")

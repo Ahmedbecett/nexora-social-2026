@@ -179,14 +179,19 @@ object CallEngine {
         return f
     }
 
-    private fun rtcConfig() = PeerConnection.RTCConfiguration(listOf(
-        PeerConnection.IceServer.builder(listOf("stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302")).createIceServer(),
-    )).apply {
+    private fun rtcConfig(): PeerConnection.RTCConfiguration {
+        val servers = mutableListOf(PeerConnection.IceServer.builder(listOf("stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302")).createIceServer())
+        val turn = runCatching { TurnConfigStore.load(ctx) }.getOrDefault(TurnConfig())
+        if (turn.urls.isNotEmpty() && turn.username.isNotBlank() && turn.credential.isNotBlank()) {
+            servers += PeerConnection.IceServer.builder(turn.urls).setUsername(turn.username).setPassword(turn.credential).createIceServer()
+        }
+        return PeerConnection.RTCConfiguration(servers).apply {
         sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
         bundlePolicy = PeerConnection.BundlePolicy.MAXBUNDLE
         rtcpMuxPolicy = PeerConnection.RtcpMuxPolicy.REQUIRE
         iceCandidatePoolSize = 4
         continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_ONCE
+        }
     }
 
     private fun audioConstraints(enhanced: Boolean) = MediaConstraints().apply {

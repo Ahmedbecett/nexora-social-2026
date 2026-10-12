@@ -86,6 +86,7 @@ import com.ahmedbecetti.nexora.kt.ui.Loader
 import com.ahmedbecetti.nexora.kt.ui.NavRow
 import com.ahmedbecetti.nexora.kt.ui.NxButton
 import com.ahmedbecetti.nexora.kt.ui.NxIcons
+import com.ahmedbecetti.nexora.kt.ui.NxIcons2
 import com.ahmedbecetti.nexora.kt.ui.SectionLabel
 import com.ahmedbecetti.nexora.kt.ui.ToggleRow
 import com.ahmedbecetti.nexora.kt.ui.TopBar
@@ -176,6 +177,7 @@ fun SettingsScreen() {
         ),
         t("moreInfoSupport") to listOf(
             SettingItem(NxIcons.Lifebuoy, t("help"), go = page("help")),
+            SettingItem(NxIcons2.Phone, t("callSettings"), go = page("calls")),
             SettingItem(NxIcons.Shield, t("privacyCenter"), go = page("privacycenter")),
             SettingItem(NxIcons.User, t("accountStatus"), go = page("status")),
             SettingItem(NxIcons.Info, t("about"), go = page("about")),
@@ -253,7 +255,7 @@ fun SettingsPage(key: String) {
         "theme" -> t("theme"); "center" -> t("accountsCenter"); "archive" -> t("archive"); "activity" -> t("yourActivity")
         "time" -> t("timeManagement"); "msgs" -> t("messagesStoryReplies"); "mentions" -> t("tagsMentions"); "comments" -> t("commentsSetting")
         "sharing" -> t("sharing"); "limit" -> t("limitInteractions"); "hidden" -> t("hiddenWords"); "privacycenter" -> t("privacyCenter")
-        "status" -> t("accountStatus"); "messages" -> t("messagesStoryReplies")
+        "status" -> t("accountStatus"); "calls" -> t("callSettings"); "messages" -> t("messagesStoryReplies")
         "list:block" -> t("blocked"); "list:mute" -> t("mutedAccounts"); "list:close" -> t("closeFriends"); "list:favorite" -> t("favorites"); "list:restrict" -> t("restricted")
         else -> ""
     }
@@ -280,6 +282,7 @@ fun SettingsPage(key: String) {
             "hidden" -> HiddenWordsPage()
             "privacycenter" -> PrivacyCenterPage()
             "status" -> StatusPage()
+            "calls" -> CallSettingsPage()
             else -> if (key.startsWith("list:")) ListPage(key.removePrefix("list:"))
         }
     }

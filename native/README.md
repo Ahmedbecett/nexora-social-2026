@@ -2,7 +2,7 @@
 
 A full native rebuild of NEXORA, with **no WebView and no web UI**. It talks to the same backend as the web/Capacitor app (`https://nexora-social-2026.vercel.app/api/`, Vercel + Neon), uses the same accounts and data, and copies the same Instagram-style design.
 
-> Official build since **v3.1.0**: package `com.ahmedbecetti.nexora` (versionCode 16), signed with the same key as v2.6.0, so it installs as an update over it.
+> Official build since **v3.2.0**: package `com.ahmedbecetti.nexora` (versionCode 17), signed with the same key as v2.6.0, so it installs as an update over it.
 
 ## Stack
 - Kotlin 2.x, Jetpack Compose (Material 3), single-activity, a state-driven navigation stack
@@ -26,6 +26,10 @@ A full native rebuild of NEXORA, with **no WebView and no web UI**. It talks to 
 - Inbox tab with notes rail, Message requests (+ Spam folder kept on the device, delete, block), notifications grouped by Today / Yesterday / Last 7 days / Last 30 days
 - Full "Settings and activity" (Accounts Center, Archive, Your activity, Time management, privacy and interaction controls, lists, Hidden Words, Account Status…) backed by the API
 - Native Google sign-in (Credential Manager → `auth/google` / `auth/complete`)
+
+## v3.2.0
+- Optional authenticated TURN relay settings. URLs, username and password are stored encrypted with Android Keystore and used only in future WebRTC sessions. Default Google STUN remains. No relay credentials are bundled.
+- Native phone OTP UI uses the existing `/auth/phone/config`, `/send`, and `/verify` API; it does not invoke Firebase phone auth. The current deployment reports the provider as disabled, so the screen clearly explains that the owner must configure the free Android SMS Gateway first. No SMS can be sent until that is configured.
 
 ## v3.1.0
 - Audio/video WebRTC calling, with a full-mesh group call (up to four participants) using the existing hidden chat-message signaling; no new server or Firebase changes. Background incoming-call polling works for up to 10 minutes after the app is backgrounded; reliable push ringing is not available because this project has no FCM configuration.

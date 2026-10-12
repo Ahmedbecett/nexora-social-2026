@@ -96,17 +96,18 @@ fun AuthScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             when (mode) {
-                "login" -> {
+                    "login" -> {
                     Spacer(Modifier.height(64.dp))
                     GradientWordmark(size = 62.sp)
                     Spacer(Modifier.height(44.dp))
-                    LoginForm(prefill, onForgot = { mode = "forgot" }, onPending = { pending = it })
+                    LoginForm(prefill, onForgot = { mode = "forgot" }, onPhone = { mode = "phone" }, onPending = { pending = it })
                 }
                 "signup" -> SignupForm(onPending = { pending = it })
+                "phone" -> PhoneLoginScreen(onBack = { mode = "login" }, onPending = { pending = it })
                 else -> { Spacer(Modifier.height(24.dp)); ForgotForm(onBack = { mode = "login" }) }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 20.dp), horizontalArrangement = Arrangement.Center) {
+        if (mode != "phone") Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 20.dp), horizontalArrangement = Arrangement.Center) {
             if (mode == "signup") {
                 Text(t("haveAccount") + " ", color = c.muted, fontSize = 15.sp)
                 Text(t("loginLink"), color = Blue, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.noRippleClick { mode = "login" })
@@ -165,7 +166,7 @@ private fun ErrorText(err: String?) {
 }
 
 @Composable
-private fun LoginForm(prefill: String, onForgot: () -> Unit, onPending: (org.json.JSONObject) -> Unit) {
+private fun LoginForm(prefill: String, onForgot: () -> Unit, onPhone: () -> Unit, onPending: (org.json.JSONObject) -> Unit) {
     val app = LocalApp.current
     val scope = rememberCoroutineScope()
     var id by rememberSaveable(prefill) { mutableStateOf(prefill) }
@@ -190,6 +191,8 @@ private fun LoginForm(prefill: String, onForgot: () -> Unit, onPending: (org.jso
     GoogleButton(onPending)
     Spacer(Modifier.height(22.dp))
     Text(t("forgot"), color = Blue, fontWeight = FontWeight.Medium, fontSize = 15.sp, modifier = Modifier.noRippleClick(onForgot))
+    Spacer(Modifier.height(22.dp))
+    Text(t("phoneLogin"), color = Blue, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.noRippleClick(onPhone))
 }
 
 @Composable
@@ -335,7 +338,7 @@ private fun CompleteProfileForm(r: org.json.JSONObject, onCancel: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.fillMaxWidth().height(52.dp)) { IconBtn(NxIcons.Back, onCancel, size = 26.dp, modifier = Modifier.align(Alignment.CenterStart)) }
         Text(t("createAccount"), color = c.text, fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
-        Text(sug.optString("email"), color = c.muted, fontSize = 15.sp, modifier = Modifier.padding(top = 8.dp, bottom = 24.dp))
+        Text(sug.optString("email").takeIf { it.isNotBlank() } ?: sug.optString("phone"), color = c.muted, fontSize = 15.sp, modifier = Modifier.padding(top = 8.dp, bottom = 24.dp))
         AuthField(name, { name = it; err = null }, t("fullName"))
         AuthField(user, { user = it.lowercase().replace(" ", ""); err = null }, t("username"), ime = ImeAction.Done)
         Spacer(Modifier.height(14.dp))

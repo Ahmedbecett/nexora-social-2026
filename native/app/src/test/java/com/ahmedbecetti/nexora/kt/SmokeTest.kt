@@ -5,6 +5,8 @@ import android.os.Looper
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.captureToImage
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -78,7 +80,14 @@ class SmokeTest {
         val sc = ActivityScenario.launch(MainActivity::class.java)
         scn = sc
         pump(5000)
-        if (tok == null || System.getenv("NX_LOGIN") == "1") { shot("${theme}_00_login"); return }
+        if (tok == null || System.getenv("NX_LOGIN") == "1") {
+            shot("${theme}_00_login")
+            if (System.getenv("NX_PHONE") == "1") {
+                rule.onNodeWithText(com.ahmedbecetti.nexora.kt.data.t("phoneLogin")).performClick()
+                pump(1500); shot("${theme}_00_phone")
+            }
+            return
+        }
         shot("${theme}_01_home")
         if (System.getenv("NX_SHORT") == "1") {
             step("${theme}_02_reels", 9000, { it.selectTab(Tab.Reels) }, sc)
@@ -103,6 +112,7 @@ class SmokeTest {
         step("${theme}_07b_privacy", 5000, { it.push(Route.SettingsPage("privacy")) }, sc)
         step("${theme}_07c_notifset", 5000, { it.pop(); it.push(Route.SettingsPage("notif")) }, sc)
         step("${theme}_07d_about", 2000, { it.pop(); it.push(Route.SettingsPage("about")) }, sc)
+        step("${theme}_07j_calls", 2000, { it.pop(); it.push(Route.SettingsPage("calls")) }, sc)
         val img = File(ctx.cacheDir, "test.jpg")
         val b = Bitmap.createBitmap(600, 400, Bitmap.Config.ARGB_8888); b.eraseColor(0xFF3366CC.toInt())
         FileOutputStream(img).use { b.compress(Bitmap.CompressFormat.JPEG, 90, it) }
