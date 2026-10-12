@@ -49,11 +49,13 @@ import com.ahmedbecetti.nexora.kt.ui.theme.Red
 fun NexoraApp() {
     val app = LocalApp.current
     val c = Nx.c
+    com.ahmedbecetti.nexora.kt.ui.screens.CallPermissionGate {}
     when {
         app.booting -> Splash()
         app.me == null -> AuthScreen()
         else -> MainShell()
     }
+    if (com.ahmedbecetti.nexora.kt.call.CallEngine.phase != "idle") com.ahmedbecetti.nexora.kt.ui.screens.CallOverlay()
     // status-bar icon colour: Reels and the story viewer are always dark
     val view = LocalView.current
     val top = app.stack.lastOrNull()
@@ -110,6 +112,9 @@ fun MainShell() {
                         }
                     }
                 }
+            }
+            if (app.stack.isEmpty() && app.tab != Tab.Reels && app.tab in listOf(Tab.Home, Tab.Search, Tab.Profile)) {
+                com.ahmedbecetti.nexora.kt.ui.NexoraBannerAd(Modifier.fillMaxWidth())
             }
             BottomNav()
         }

@@ -1,5 +1,17 @@
 package com.ahmedbecetti.nexora.kt.ui.screens
 
+import androidx.compose.runtime.mutableFloatStateOf
+
+import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.horizontalScroll
+
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+
+import androidx.compose.foundation.rememberScrollState
+
+import com.ahmedbecetti.nexora.kt.ui.NxIcons2
+
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -444,6 +456,53 @@ fun ChatScreen(partner: User, active: Boolean) {
     var replyTo by remember { mutableStateOf<Message?>(null) }
     var sheetFor by remember { mutableStateOf<Message?>(null) }
     var lastTypingPing by remember { mutableStateOf(0L) }
+    var recording by remember { mutableStateOf(false) }
+    var recordTick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(recording) { while (recording) { delay(500); recordTick++ } }
+    var recordStarted by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+    var recordPath by remember { mutableStateOf<String?>(null) }
+    var mediaBusy by remember { mutableStateOf(false) }
+    var showExtras by remember { mutableStateOf(false) }
+    var showDraw by remember { mutableStateOf(false) }
+    var showAiImage by remember { mutableStateOf(false) }
+    var giphyKey by remember { mutableStateOf("") }
+    var gifQuery by remember { mutableStateOf("") }
+    var gifResults by remember { mutableStateOf<List<Pair<String,String>>>(emptyList()) }
+    var gifSearchBusy by remember { mutableStateOf(false) }
+    var aiPrompt by remember { mutableStateOf("") }
+    var aiBusy by remember { mutableStateOf(false) }
+    var aiStyle by remember { mutableStateOf("photorealistic, natural light, detailed") }
+    var showMusic by remember { mutableStateOf(false) }
+    var showAssistant by remember { mutableStateOf(false) }
+    var assistantQuestion by remember { mutableStateOf("") }
+    var assistantKey by remember { mutableStateOf("") }
+    var assistantBase by remember { mutableStateOf("https://api.openai.com/v1") }
+    var assistantModel by remember { mutableStateOf("gpt-4o-mini") }
+    var assistantReply by remember { mutableStateOf("") }
+    var assistantBusy by remember { mutableStateOf(false) }
+    var musicTitle by remember { mutableStateOf("") }
+    var musicArtist by remember { mutableStateOf("") }
+    var musicUrl by remember { mutableStateOf("") }
+    val recorder = remember { mutableStateOf<android.media.MediaRecorder?>(null) }
+    val photoPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch { mediaBusy = true; try { val mime = ctx.contentResolver.getType(uri).orEmpty(); if (!mime.startsWith("image/") && !mime.startsWith("video/")) throw Exception("unsupported_type"); val up = com.ahmedbecetti.nexora.kt.data.Upload.media(ctx, uri); val r = Api.post("messages/${user.id}", json("mediaUrl" to up.url, "mediaType" to up.type, "mediaMeta" to org.json.JSONObject().put("w",up.w).put("h",up.h).put("poster",up.poster))); r.optJSONObject("message")?.let { msgs.add(Message.from(it)); msgs.sortBy { m -> m.id } } } catch (e: Exception) { app.errToast(e) }; mediaBusy = false }
+    }
+    val cameraPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.TakePicturePreview()) { bmp -> if (bmp != null) scope.launch { mediaBusy = true; try { val up = com.ahmedbecetti.nexora.kt.data.Upload.bitmap(bmp, false); val r=Api.post("messages/${user.id}",json("mediaUrl" to up.url,"mediaType" to "image","mediaMeta" to org.json.JSONObject().put("w",up.w).put("h",up.h))); r.optJSONObject("message")?.let{msgs.add(Message.from(it));msgs.sortBy{m->m.id}} } catch(e:Exception){app.errToast(e)}; mediaBusy=false; bmp.recycle() } }
+    val cameraPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok -> if (ok) cameraPicker.launch(null) else android.widget.Toast.makeText(ctx, t("cameraAccess"), android.widget.Toast.LENGTH_SHORT).show() }
+    val locationPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        if (result[android.Manifest.permission.ACCESS_FINE_LOCATION] == true || result[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true) scope.launch {
+            mediaBusy = true
+            try { val loc = currentLocation(ctx); val lat = loc.latitude; val lng = loc.longitude; val label = "${"%.5f".format(java.util.Locale.US,lat)}, ${"%.5f".format(java.util.Locale.US,lng)}"; val txt = "📍 $label\\nhttps://www.openstreetmap.org/?mlat=$lat&mlon=$lng#map=16/$lat/$lng"; val r = Api.post("messages/${user.id}", json("text" to txt, "replyTo" to replyTo?.id, "mediaMeta" to org.json.JSONObject().put("kind","location").put("lat",lat).put("lng",lng).put("place",label))); r.optJSONObject("message")?.let { msgs.add(Message.from(it)); msgs.sortBy { m -> m.id } }; showExtras = false } catch (e: Exception) { app.errToast(e) }; mediaBusy = false
+        } else android.widget.Toast.makeText(ctx, t("ckLocDenied"), android.widget.Toast.LENGTH_LONG).show()
+    }
+    val micPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) try {
+            val f = java.io.File(ctx.cacheDir, "voice-${System.currentTimeMillis()}.m4a")
+            val rec = if (android.os.Build.VERSION.SDK_INT >= 31) android.media.MediaRecorder(ctx) else @Suppress("DEPRECATION") android.media.MediaRecorder()
+            rec.setAudioSource(android.media.MediaRecorder.AudioSource.MIC); rec.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4); rec.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC); rec.setAudioEncodingBitRate(64000); rec.setAudioSamplingRate(24000); rec.setOutputFile(f.absolutePath); rec.prepare(); rec.start()
+            recorder.value = rec; recordPath = f.absolutePath; recordStarted = System.currentTimeMillis(); recording = true
+        } catch (_: Exception) { android.widget.Toast.makeText(ctx, t("msgMicUnsupported"), android.widget.Toast.LENGTH_SHORT).show() }
+    }
     val list = rememberLazyListState()
 
     fun merge(incoming: List<Message>) {
@@ -498,7 +557,7 @@ fun ChatScreen(partner: User, active: Boolean) {
                     AvatarImage(user.avatarUrl, 34.dp)
                     if (online) Box(Modifier.align(Alignment.BottomEnd).size(12.dp).clip(CircleShape).background(c.bg).padding(2.dp).clip(CircleShape).background(Online))
                 }
-                Column(Modifier.padding(horizontal = 10.dp)) {
+                Column(Modifier.padding(horizontal = 10.dp).weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(user.fullName?.takeIf { it.isNotBlank() } ?: user.username, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (user.verified) VerifiedBadge()
@@ -512,6 +571,8 @@ fun ChatScreen(partner: User, active: Boolean) {
                     Text(sub, fontSize = 12.sp, color = c.muted, maxLines = 1)
                 }
             }
+            IconBtn(NxIcons2.Phone, { PermissionRequester.call(false) { com.ahmedbecetti.nexora.kt.call.CallEngine.startCall(user, "audio") } }, size = 23.dp, tint = Color(0xFF0095F6), modifier = Modifier.padding(horizontal = 7.dp), desc = t("ckVoiceCall"))
+            IconBtn(NxIcons2.Video, { PermissionRequester.call(true) { com.ahmedbecetti.nexora.kt.call.CallEngine.startCall(user, "video") } }, size = 24.dp, tint = Color(0xFF0095F6), modifier = Modifier.padding(end = 8.dp), desc = t("ckVideoCall"))
         }
         Box(Modifier.weight(1f)) {
             if (!loaded) Loader()
@@ -552,16 +613,165 @@ fun ChatScreen(partner: User, active: Boolean) {
         }
         Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp)
             .clip(RoundedCornerShape(24.dp)).background(c.input).heightIn(min = 46.dp).padding(start = 18.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(NxIcons.Camera, { cameraPermission.launch(android.Manifest.permission.CAMERA) }, size = 23.dp, tint = Color(0xFF0095F6), modifier = Modifier.padding(end = 8.dp), desc = t("msgPhoto"))
             Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
-                if (text.isEmpty()) Text(t("typeMessage"), color = c.muted, fontSize = 15.sp)
+                if (text.isEmpty()) Text(if (recording) "●  ${recordTick / 2}s — ${t("msgVoice")}" else t("typeMessage"), color = if (recording) Color(0xFFE5484D) else c.muted, fontSize = 15.sp)
                 BasicTextField(text, {
                     text = it
                     val now = System.currentTimeMillis()
                     if (now - lastTypingPing > 3000 && it.isNotBlank()) { lastTypingPing = now; app.scope.launch { try { Api.post("messages/${partner.id}/typing") } catch (_: Exception) {} } }
-                }, maxLines = 5, textStyle = TextStyle(color = c.text, fontSize = 15.sp), cursorBrush = SolidColor(c.text), modifier = Modifier.fillMaxWidth())
+                }, enabled = !recording, maxLines = 5, textStyle = TextStyle(color = c.text, fontSize = 15.sp), cursorBrush = SolidColor(c.text), modifier = Modifier.fillMaxWidth())
             }
-            if (text.isNotBlank()) Box(Modifier.padding(start = 6.dp).size(width = 52.dp, height = 34.dp).clip(RoundedCornerShape(17.dp)).background(Color(0xFF4A5DF9)).clickable { send() },
-                contentAlignment = Alignment.Center) { Icon(NxIcons.ArrowUp, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
+            if (text.isNotBlank()) Box(Modifier.padding(start = 6.dp).size(width = 48.dp, height = 34.dp).clip(RoundedCornerShape(17.dp)).background(Color(0xFF4A5DF9)).clickable { send() }, contentAlignment = Alignment.Center) { Icon(NxIcons.ArrowUp, null, tint = Color.White, modifier = Modifier.size(20.dp)) }
+            else if (recording) {
+                IconBtn(NxIcons.Trash, {
+                    val rec = recorder.value; val path = recordPath; recorder.value = null; recording = false; recordPath = null
+                    try { rec?.stop() } catch (_: Exception) {}; try { rec?.release() } catch (_: Exception) {}
+                    path?.let { java.io.File(it).delete() }
+                }, size = 22.dp, tint = Color(0xFFE5484D))
+                IconBtn(NxIcons.ArrowUp, {
+                val rec = recorder.value; val path = recordPath; recorder.value = null; recording = false
+                try { rec?.stop() } catch (_: Exception) {}; try { rec?.release() } catch (_: Exception) {}
+                if (path != null) scope.launch {
+                    mediaBusy = true
+                    try { val bytes = java.io.File(path).readBytes(); if (bytes.size < 1200) throw Exception("short recording"); val url = com.ahmedbecetti.nexora.kt.data.Upload.bytes(bytes, "audio/mp4"); val dur = ((System.currentTimeMillis() - recordStarted) / 1000).coerceAtLeast(1L); val r = Api.post("messages/${user.id}", json("mediaUrl" to url, "mediaType" to "audio", "mediaMeta" to org.json.JSONObject().put("duration", dur))); r.optJSONObject("message")?.let { msgs.add(Message.from(it)); msgs.sortBy { m -> m.id } }; java.io.File(path).delete() } catch (e: Exception) { app.errToast(e) }; mediaBusy = false
+                }
+                }, size = 24.dp, tint = Color(0xFF0095F6))
+            } else {
+                IconBtn(NxIcons.Mic, { if (androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) micPermission.launch(android.Manifest.permission.RECORD_AUDIO) else micPermission.launch(android.Manifest.permission.RECORD_AUDIO) }, size = 23.dp, tint = Color(0xFF0095F6), modifier = Modifier.padding(horizontal = 4.dp), desc = t("msgVoice"))
+                IconBtn(NxIcons2.Sticker, { showExtras = true }, size = 23.dp, tint = Color(0xFF0095F6), modifier = Modifier.padding(horizontal = 4.dp), desc = t("ckStickers"))
+                IconBtn(NxIcons.Plus, { photoPicker.launch(arrayOf("image/*", "video/*")) }, size = 23.dp, tint = Color(0xFF0095F6), modifier = Modifier.padding(start = 4.dp), desc = t("ckMore"))
+            }
+        }
+    }
+
+    if (showMusic) AlertDialog(onDismissRequest = { showMusic = false }, title = { Text(t("ckMusic")) }, text = { Column {
+        androidx.compose.material3.OutlinedTextField(musicTitle, { musicTitle = it }, label = { Text(t("ckTrackTitle")) }, singleLine = true)
+        androidx.compose.material3.OutlinedTextField(musicArtist, { musicArtist = it }, label = { Text(t("ckTrackArtist")) }, singleLine = true)
+        androidx.compose.material3.OutlinedTextField(musicUrl, { musicUrl = it }, label = { Text(t("ckOpenLink")) }, singleLine = true)
+    } }, confirmButton = { androidx.compose.material3.TextButton(enabled = musicTitle.isNotBlank() && musicUrl.startsWith("https://"), onClick = {
+        scope.launch { try { val meta = org.json.JSONObject().put("kind","music").put("title",musicTitle).put("artist",musicArtist).put("link",musicUrl); val r = Api.post("messages/${user.id}", json("text" to "♫ $musicTitle — $musicArtist", "mediaMeta" to meta)); r.optJSONObject("message")?.let { msgs.add(Message.from(it)); msgs.sortBy { m -> m.id } }; showMusic = false } catch (e: Exception) { app.errToast(e) } }
+    }) { Text(t("ckMakeCard")) } }, dismissButton = { androidx.compose.material3.TextButton(onClick = { showMusic = false }) { Text(t("cancel")) } })
+    if (showAssistant) AlertDialog(onDismissRequest = { showAssistant = false }, title = { Text(t("ckAi")) }, text = { Column {
+        androidx.compose.material3.OutlinedTextField(assistantQuestion, { assistantQuestion = it }, label = { Text(t("ckAiAsk")) }, minLines = 2, enabled = !assistantBusy)
+        if (assistantBusy) androidx.compose.material3.CircularProgressIndicator(Modifier.padding(12.dp))
+        if (assistantReply.isNotBlank()) Text(assistantReply, color = c.text, modifier = Modifier.padding(top = 8.dp))
+        androidx.compose.material3.OutlinedTextField(assistantKey, { assistantKey = it }, label = { Text("AI provider API key (kept in memory only)") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+        androidx.compose.material3.OutlinedTextField(assistantBase, { assistantBase = it }, label = { Text("OpenAI-compatible HTTPS endpoint") }, singleLine = true)
+        androidx.compose.material3.OutlinedTextField(assistantModel, { assistantModel = it }, label = { Text("Model") }, singleLine = true)
+    } }, confirmButton = { androidx.compose.material3.TextButton(enabled = assistantQuestion.isNotBlank() && !assistantBusy, onClick = {
+        assistantBusy = true; assistantReply = ""
+        scope.launch {
+            try {
+                val key = assistantKey.trim().takeIf { it.isNotBlank() } ?: throw Exception("key")
+                val base = assistantBase.trim().trimEnd('/').takeIf { it.startsWith("https://") } ?: throw Exception("endpoint")
+                val model = assistantModel.trim().takeIf { it.isNotBlank() } ?: throw Exception("model")
+                val arr = org.json.JSONArray().put(org.json.JSONObject().put("role","system").put("content","You are Nexora AI, a helpful conversation assistant. Be honest, concise, and do not claim to take actions."))
+                msgs.takeLast(16).forEach { m -> val v = m.text?.takeIf { it.isNotBlank() } ?: return@forEach; if (!m.isCallLog && !m.isSignal) arr.put(org.json.JSONObject().put("role",if (m.mine) "user" else "assistant").put("content",v)) }
+                arr.put(org.json.JSONObject().put("role","user").put("content",assistantQuestion))
+                val body = org.json.JSONObject().put("model",model).put("messages",arr).put("max_tokens",700)
+                val req = okhttp3.Request.Builder().url("$base/chat/completions").header("Authorization","Bearer $key").post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType())).build()
+                val data = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Api.http.newCall(req).execute().use { res -> if (!res.isSuccessful) throw Exception("ai_${res.code}"); org.json.JSONObject(res.body?.string().orEmpty()) } }
+                assistantReply = data.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content").orEmpty().ifBlank { throw Exception("empty") }
+            } catch (_: Exception) { assistantReply = t("ckAiKeyHint") + "\\n\\n" + t("ckServices") }
+            assistantBusy = false
+        }
+    }) { Text(t("ckAiSuggestReplies")) } }, dismissButton = { androidx.compose.material3.TextButton(onClick = { if (assistantReply.isNotBlank()) { text = assistantReply; showAssistant = false } else showAssistant = false }) { Text(if (assistantReply.isNotBlank()) t("send") else t("cancel")) } })
+    if (showAiImage) AlertDialog(onDismissRequest = { if (!aiBusy) showAiImage = false }, title = { Text(t("ckAiImages")) }, text = { Column {
+        androidx.compose.material3.OutlinedTextField(aiPrompt, { aiPrompt = it }, label = { Text(t("ckAiPlaceholder")) }, minLines = 2, enabled = !aiBusy)
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.horizontalScroll(rememberScrollState())) { Row {
+            listOf("photorealistic, natural light, detailed", "anime illustration", "3D render", "watercolor painting", "minimal flat design").forEach { style ->
+                androidx.compose.material3.FilterChip(selected = aiStyle == style, onClick = { aiStyle = style }, label = { Text(style.substringBefore(",").take(14)) }, modifier = Modifier.padding(end = 5.dp))
+            }
+        } }
+        if (aiBusy) Row(verticalAlignment = Alignment.CenterVertically) { androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp)); Text(t("ckGenerating"), modifier = Modifier.padding(start = 8.dp)) }
+    } }, confirmButton = { androidx.compose.material3.TextButton(enabled = !aiBusy && aiPrompt.isNotBlank(), onClick = {
+        val prompt = aiPrompt.trim(); aiBusy = true
+        scope.launch {
+            try {
+                val full = java.net.URLEncoder.encode("$prompt, $aiStyle", "UTF-8").replace("+", "%20")
+                val url = "https://image.pollinations.ai/prompt/$full?width=1024&height=1024&nologo=true&model=flux&seed=${System.currentTimeMillis() % 1000000}"
+                val req = okhttp3.Request.Builder().url(url).header("User-Agent", com.ahmedbecetti.nexora.kt.data.Api.USER_AGENT).get().build()
+                val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.ahmedbecetti.nexora.kt.data.Api.http.newCall(req).execute().use { res -> if (!res.isSuccessful) throw Exception("image_service_${res.code}"); res.body?.bytes() ?: throw Exception("empty") } }
+                val blob = com.ahmedbecetti.nexora.kt.data.Upload.bytes(bytes, "image/jpeg")
+                val r = Api.post("messages/${user.id}", json("mediaUrl" to blob, "mediaType" to "image", "mediaMeta" to org.json.JSONObject().put("kind", "ai").put("prompt", prompt)))
+                r.optJSONObject("message")?.let { msgs.add(Message.from(it)); msgs.sortBy { m -> m.id } }
+                showAiImage = false
+            } catch (e: Exception) { android.widget.Toast.makeText(ctx, t("ckAiFailed"), android.widget.Toast.LENGTH_LONG).show() }
+            aiBusy = false
+        }
+    }) { Text(t("ckGenerate")) } }, dismissButton = { androidx.compose.material3.TextButton(enabled = !aiBusy, onClick = { showAiImage = false }) { Text(t("cancel")) } })
+    if (showDraw) DrawingSheet(onDismiss = { showDraw = false }) { bitmap ->
+        showDraw = false
+        scope.launch { mediaBusy = true; try { val up = com.ahmedbecetti.nexora.kt.data.Upload.bitmap(bitmap, true); val r = Api.post("messages/${user.id}", json("mediaUrl" to up.url,"mediaType" to "image","mediaMeta" to org.json.JSONObject().put("kind","draw").put("w",up.w).put("h",up.h))); r.optJSONObject("message")?.let { msgs.add(Message.from(it)); msgs.sortBy { m -> m.id } }; bitmap.recycle() } catch (e: Exception) { app.errToast(e) }; mediaBusy = false }
+    }
+    if (showExtras) {
+        var tab by remember { mutableStateOf("stickers") }
+        ModalBottomSheet(onDismissRequest = { showExtras = false }, containerColor = c.elevated) {
+            Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    androidx.compose.material3.TextButton(onClick = { locationPermission.launch(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION)) }) { Icon(NxIcons.Location, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(t("ckLocation")) }
+                    androidx.compose.material3.TextButton(onClick = { showDraw = true; showExtras = false }) { Icon(NxIcons2.Draw, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(t("ckDraw")) }
+                    androidx.compose.material3.TextButton(onClick = { showAiImage = true; showExtras = false }) { Icon(NxIcons2.AiImage, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(t("ckAiImages")) }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    androidx.compose.material3.TextButton(onClick = { tab = "stickers" }) { Text(t("ckStickers")) }
+                    androidx.compose.material3.TextButton(onClick = { tab = "gifs" }) { Text(t("ckGifs")) }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    androidx.compose.material3.TextButton(onClick = { showMusic = true; showExtras = false }) { Icon(NxIcons.Music, null, modifier = Modifier.size(18.dp)); Text(t("ckMusic")) }
+                    androidx.compose.material3.TextButton(onClick = { showAssistant = true; showExtras = false }) { Icon(NxIcons2.Sparkle, null, modifier = Modifier.size(18.dp)); Text(t("ckAi")) }
+                }
+                androidx.compose.material3.OutlinedTextField(giphyKey, { giphyKey = it }, label = { Text("Optional GIPHY API key") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.OutlinedTextField(gifQuery, { gifQuery = it }, label = { Text(t("ckSearchStickers")) }, singleLine = true, modifier = Modifier.weight(1f))
+                    IconBtn(NxIcons.Search, { if (giphyKey.isNotBlank() && gifQuery.isNotBlank()) scope.launch { gifSearchBusy = true; try {
+                        val u = "https://api.giphy.com/v1/${if (tab == "stickers") "stickers" else "gifs"}/search?api_key=${java.net.URLEncoder.encode(giphyKey.trim(),"UTF-8")}&q=${java.net.URLEncoder.encode(gifQuery.trim(),"UTF-8")}&limit=24&rating=pg-13"
+                        val req = okhttp3.Request.Builder().url(u).build()
+                        val res = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Api.http.newCall(req).execute().use { if (!it.isSuccessful) throw Exception("giphy"); org.json.JSONObject(it.body?.string().orEmpty()) } }
+                        val arr = res.optJSONArray("data") ?: org.json.JSONArray(); gifResults = (0 until arr.length()).mapNotNull { i -> val ob=arr.optJSONObject(i) ?: return@mapNotNull null; val url=ob.optJSONObject("images")?.optJSONObject("fixed_height")?.optString("url") ?: return@mapNotNull null; ob.optString("title") to url }
+                    } catch (e: Exception) { android.widget.Toast.makeText(ctx, "GIPHY search failed", android.widget.Toast.LENGTH_SHORT).show() }; gifSearchBusy = false } }, size = 24.dp, tint = Color(0xFF0095F6))
+                }
+                if (gifSearchBusy) androidx.compose.material3.CircularProgressIndicator(Modifier.size(22.dp))
+                if (gifResults.isNotEmpty()) LazyRow(Modifier.fillMaxWidth().height(90.dp)) { items(gifResults) { (title,url) ->
+                    AsyncImage(url, title, modifier = Modifier.size(width = 120.dp, height = 82.dp).clickable {
+                        showExtras = false
+                        scope.launch {
+                            mediaBusy = true
+                            try {
+                                val req = okhttp3.Request.Builder().url(url).build()
+                                val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Api.http.newCall(req).execute().use { it.body?.bytes() ?: throw Exception("empty") } }
+                                val blob = com.ahmedbecetti.nexora.kt.data.Upload.bytes(bytes, "image/gif")
+                                val r = Api.post("messages/${user.id}", json("mediaUrl" to blob, "mediaType" to "image", "mediaMeta" to org.json.JSONObject().put("kind", "gif")))
+                                r.optJSONObject("message")?.let { msgs.add(Message.from(it)); msgs.sortBy { m -> m.id } }
+                            } catch (e: Exception) { app.errToast(e) }
+                            mediaBusy = false
+                        }
+                    })
+                } }
+                val assetFolder = if (tab == "stickers") "stickers-png" else "gifs"
+                val files = remember(tab) { ctx.assets.list("chatkit/$assetFolder")?.toList().orEmpty() }
+                LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                    items(files.chunked(3)) { row -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        row.forEach { name ->
+                            val path = "chatkit/$assetFolder/$name"
+                            AsyncImage("file:///android_asset/$path", name, modifier = Modifier.size(86.dp).clickable {
+                                showExtras = false
+                                scope.launch { mediaBusy = true; try {
+                                    val bytes = ctx.assets.open(path).use { it.readBytes() }
+                                    val mime = if (name.endsWith(".gif")) "image/gif" else "image/png"
+                                    val url = com.ahmedbecetti.nexora.kt.data.Upload.bytes(bytes, mime)
+                                    val kind = if (tab == "gifs") "gif" else "sticker"
+                                    val r = Api.post("messages/${user.id}", json("mediaUrl" to url, "mediaType" to "image", "mediaMeta" to org.json.JSONObject().put("kind", kind)))
+                                    r.optJSONObject("message")?.let { merge(listOf(Message.from(it))) }
+                                } catch (e: Exception) { app.errToast(e) }; mediaBusy = false }
+                            })
+                        }
+                    } }
+                }
+                Text(t("ckGiphyNote"), color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+            }
         }
     }
 
@@ -602,6 +812,7 @@ fun ChatScreen(partner: User, active: Boolean) {
 @Composable
 private fun Bubble(m: Message, partner: User, showAvatar: Boolean, onLong: () -> Unit, onOpenPost: (Long) -> Unit) {
     val c = Nx.c
+    val ctx = LocalContext.current
     if (m.isCallLog) {
         Text("📞 " + callLogText(m.text!!) + " · " + timeAgo(m.createdAt), color = c.muted, fontSize = 13.sp, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp))
@@ -630,7 +841,23 @@ private fun Bubble(m: Message, partner: User, showAvatar: Boolean, onLong: () ->
                         "audio" -> AudioBubble(m.mediaUrl, m.mine)
                         else -> AsyncImage(m.mediaUrl, null, contentScale = ContentScale.Crop, modifier = Modifier.width(220.dp).heightIn(max = 320.dp).clip(RoundedCornerShape(18.dp)).background(c.sep))
                     }
-                    if (!m.text.isNullOrBlank()) {
+                    if (m.mediaMeta?.optString("kind") == "music") {
+                        val title = m.mediaMeta.optString("title"); val artist = m.mediaMeta.optString("artist"); val link = m.mediaMeta.optString("link")
+                        Row(Modifier.width(220.dp).clip(RoundedCornerShape(16.dp)).background(if (m.mine) MineBubble else c.bubbleOther).clickable { try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link))) } catch (_: Exception) {} }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(NxIcons.Music, null, tint = if (m.mine) Color.White else c.text, modifier = Modifier.size(28.dp))
+                            Column(Modifier.padding(start = 10.dp)) { Text(title, color = if (m.mine) Color.White else c.text, fontWeight = FontWeight.SemiBold); Text(artist, color = if (m.mine) Color.White.copy(alpha = .8f) else c.muted, fontSize = 12.sp); Text(t("ckOpenLink"), color = if (m.mine) Color.White.copy(alpha = .8f) else c.muted, fontSize = 12.sp) }
+                        }
+                    }
+                    if (m.mediaMeta?.optString("kind") == "location") {
+                        val lat = m.mediaMeta.optDouble("lat"); val lng = m.mediaMeta.optDouble("lng"); val place = m.mediaMeta.optString("place", "Location")
+                        Row(Modifier.width(220.dp).clip(RoundedCornerShape(16.dp)).background(if (m.mine) MineBubble else c.bubbleOther).clickable {
+                            try { val uri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng(" + android.net.Uri.encode(place) + ")"); ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri)) } catch (_: Exception) {}
+                        }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(NxIcons.Location, null, tint = if (m.mine) Color.White else c.text, modifier = Modifier.size(26.dp))
+                            Column(Modifier.padding(start = 10.dp)) { Text(place, color = if (m.mine) Color.White else c.text, fontWeight = FontWeight.SemiBold); Text(t("ckOpenMaps"), color = if (m.mine) Color.White.copy(alpha = .8f) else c.muted, fontSize = 12.sp) }
+                        }
+                    }
+                    if (!m.text.isNullOrBlank() && m.mediaMeta?.optString("kind") !in listOf("location", "music")) {
                         val onlyEmoji = m.text.length <= 8 && m.text.codePoints().allMatch { Character.getType(it) == Character.OTHER_SYMBOL.toInt() || Character.getType(it) == Character.SURROGATE.toInt() || it == 0xFE0F || it == 0x200D }
                         if (onlyEmoji) Text(m.text, fontSize = 40.sp, modifier = Modifier.padding(top = 2.dp))
                         else Text(m.text, color = if (m.mine) Color.White else c.text, fontSize = 15.sp,

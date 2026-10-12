@@ -19,8 +19,11 @@ android {
         applicationId = "com.ahmedbecetti.nexora"
         minSdk = 24
         targetSdk = 35
-        versionCode = 15
-        versionName = "3.0.0"
+        versionCode = 16
+        versionName = "3.1.0"
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        manifestPlaceholders["admobAppId"] = "ca-app-pub-6858364141205978~9239771129"
+        buildConfigField("String", "ADMOB_BANNER", "\"ca-app-pub-6858364141205978/9187800239\"")
         buildConfigField("String", "API_BASE", "\"https://nexora-social-2026.vercel.app/api/\"")
     }
 
@@ -70,6 +73,13 @@ dependencies {
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    // Calls: native WebRTC (same signaling as the web app, through the chat itself)
+    implementation("io.getstream:stream-webrtc-android:1.3.10")
+    // Ads: AdMob banner (same app/unit as 2.6)
+    implementation("com.google.android.gms:play-services-ads:24.4.0")
+    // Chat stickers (SVG) and animated GIFs
+    implementation("io.coil-kt:coil-svg:2.7.0")
+    implementation("io.coil-kt:coil-gif:2.7.0")
     testImplementation(composeBom)
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")

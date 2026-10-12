@@ -91,6 +91,17 @@ object Upload {
         return Result(url, "video", w, h, poster)
     }
 
+    /** Uploads raw bytes (voice notes, GIFs, stickers, drawings, map cards). */
+    suspend fun bytes(data: ByteArray, contentType: String): String = withContext(Dispatchers.IO) { put(data.toRequestBody(contentType.toMediaType()), contentType) {} }
+
+    /** Uploads a bitmap as PNG (transparent: stickers, drawings) or JPEG. */
+    suspend fun bitmap(bmp: Bitmap, png: Boolean): Result = withContext(Dispatchers.IO) {
+        val out = ByteArrayOutputStream()
+        bmp.compress(if (png) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG, if (png) 100 else 88, out)
+        val type = if (png) "image/png" else "image/jpeg"
+        Result(put(out.toByteArray().toRequestBody(type.toMediaType()), type) {}, "image", bmp.width, bmp.height, null)
+    }
+
     /** PUT the body to Vercel Blob with a client token from our API; returns the public URL. */
     private suspend fun put(body: RequestBody, contentType: String, onProgress: (Float) -> Unit): String {
         val tok = Api.post("upload/token", json("contentType" to contentType))

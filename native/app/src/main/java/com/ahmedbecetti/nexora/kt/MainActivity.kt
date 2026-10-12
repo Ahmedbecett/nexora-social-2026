@@ -29,12 +29,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Api.init(applicationContext)
         I18n.init(applicationContext)
+        com.ahmedbecetti.nexora.kt.call.CallEngine.init(applicationContext)
+        com.google.android.gms.ads.MobileAds.initialize(applicationContext)
+        com.ahmedbecetti.nexora.kt.call.CallEngine.startLoop()
         Coil.setImageLoader(
             ImageLoader.Builder(applicationContext)
                 .okHttpClient(Api.http)
                 .memoryCache { MemoryCache.Builder(applicationContext).maxSizePercent(0.2).build() }
                 .diskCache { DiskCache.Builder().directory(cacheDir.resolve("img")).maxSizeBytes(150L * 1024 * 1024).build() }
                 .crossfade(true)
+                .components {
+                    add(coil.decode.SvgDecoder.Factory())
+                    add(coil.decode.ImageDecoderDecoder.Factory())
+                }
                 .build()
         )
         val app = AppState(applicationContext)
@@ -62,10 +69,12 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         com.ahmedbecetti.nexora.kt.ui.screens.Usage.resume()
+        com.ahmedbecetti.nexora.kt.call.CallEngine.foreground = true
     }
 
     override fun onPause() {
         com.ahmedbecetti.nexora.kt.ui.screens.Usage.pause()
+        com.ahmedbecetti.nexora.kt.call.CallEngine.foreground = false
         super.onPause()
     }
 }

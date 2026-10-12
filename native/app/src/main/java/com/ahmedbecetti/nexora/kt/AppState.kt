@@ -175,6 +175,7 @@ class AppState(val ctx: Context) {
         scope.launch {
             try {
                 me = com.ahmedbecetti.nexora.kt.data.User.from(Api.get("me").optJSONObject("user"))
+                com.ahmedbecetti.nexora.kt.call.CallEngine.setMe(me?.id ?: 0)
                 rememberCurrent()
             } catch (e: ApiException) {
                 if (e.status == 401) logout(local = true)
@@ -199,7 +200,7 @@ class AppState(val ctx: Context) {
     }
 
     fun onLoggedIn(token: String, user: User?) {
-        Api.setToken(token); me = user; tab = Tab.Home; stack.clear(); authStart = null
+        Api.setToken(token); me = user; com.ahmedbecetti.nexora.kt.call.CallEngine.setMe(user?.id ?: 0); tab = Tab.Home; stack.clear(); authStart = null
         rememberCurrent()
         feedVersion++; profileVersion++
         scope.launch { if (me == null) try { me = User.from(Api.get("me").optJSONObject("user")) } catch (_: Exception) {}; rememberCurrent(); refreshBadges(); loadStories() }
@@ -212,7 +213,7 @@ class AppState(val ctx: Context) {
 
     fun logout(local: Boolean = false) {
         me?.id?.let { forgetToken(it) }
-        Api.setToken(null); me = null; stack.clear(); tab = Tab.Home; storyTray = emptyList()
+        Api.setToken(null); me = null; com.ahmedbecetti.nexora.kt.call.CallEngine.setMe(0); stack.clear(); tab = Tab.Home; storyTray = emptyList()
         notifBadge = 0; msgBadge = 0; requestBadge = 0
         // like IG: if another account on this device is still signed in, continue with it
         if (!local) accounts.firstOrNull { it.token != null }?.let { switchTo(it) }

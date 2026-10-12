@@ -171,7 +171,7 @@ data class Conversation(
 
 @Immutable
 data class Message(
-    val id: Long, val mine: Boolean, val text: String?, val mediaUrl: String?, val mediaType: String?,
+    val id: Long, val mine: Boolean, val text: String?, val mediaUrl: String?, val mediaType: String?, val mediaMeta: JSONObject?,
     val postId: Long?, val postThumb: String?, val postUser: String?, val read: Boolean, val createdAt: String?, val replyText: String?, val reactions: List<Pair<String, Boolean>>, val gone: Boolean, val edited: Boolean = false,
 ) {
     val isSignal get() = text?.startsWith("⟦NXCALL⟧") == true
@@ -180,7 +180,7 @@ data class Message(
         fun from(o: JSONObject): Message {
             val reply = o.optJSONObject("reply")
             val reactions = o.optJSONArray("reactions").mapObj { r -> r.str("emoji")?.let { it to r.optBoolean("mine") } }
-            return Message(o.long("id"), o.optBoolean("mine"), o.str("text"), o.str("mediaUrl"), o.str("mediaType"),
+            return Message(o.long("id"), o.optBoolean("mine"), o.str("text"), o.str("mediaUrl"), o.str("mediaType"), o.optJSONObject("mediaMeta"),
                 o.optJSONObject("post")?.long("id"), o.optJSONObject("post")?.str("thumb"), o.optJSONObject("post")?.str("username"),
                 o.optBoolean("read"), o.str("createdAt"),
                 reply?.let { r -> if (r.optBoolean("gone")) "…" else r.str("text") ?: if (r.optBoolean("media")) "📷" else if (r.optBoolean("post")) "▣" else null },

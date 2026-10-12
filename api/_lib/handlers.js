@@ -1252,7 +1252,7 @@ route('POST', 'messages/:userId', async ({ req, params, body }) => {
     if (!r) replyTo = null;
   }
   const mediaType = mediaUrl ? (['image', 'video', 'audio'].includes(body.mediaType) ? body.mediaType : 'image') : null;
-  const mediaMeta = mediaUrl ? cleanMediaMeta(body.mediaMeta) : null;
+  const mediaMeta = body.mediaMeta ? cleanMediaMeta(body.mediaMeta) : null;
   const m = await one('insert into messages(sender_id, receiver_id, text, media_url, post_id, reply_to, media_type, media_meta) values ($1,$2,$3,$4,$5,$6,$7,$8) returning id',
     [me.id, target.id, text, mediaUrl, postId, replyTo, mediaType, mediaMeta ? JSON.stringify(mediaMeta) : null]);
   await q('delete from typing where user_id=$1 and partner_id=$2', [me.id, target.id]);
@@ -1274,6 +1274,13 @@ function cleanMediaMeta(x) {
   const o = {};
   const num = (v, max) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.min(Number(v), max) : undefined);
   o.duration = num(x.duration, 3600); o.w = num(x.w, 10000); o.h = num(x.h, 10000);
+  if (['sticker','gif','location','ai','draw','music','effect','voice'].includes(x.kind)) o.kind = x.kind;
+  if (x.lat !== undefined && Number.isFinite(Number(x.lat)) && Math.abs(Number(x.lat)) <= 90) o.lat = Number(x.lat);
+  if (x.lng !== undefined && Number.isFinite(Number(x.lng)) && Math.abs(Number(x.lng)) <= 180) o.lng = Number(x.lng);
+  for (const k of ['place','title','artist','link','prompt']) if (typeof x[k] === 'string' && x[k].length <= 500) {
+    if (k === 'link' && !/^https:\/\/[^\s]+$/i.test(x[k])) continue;
+    o[k] = cleanText(x[k], 500);
+  }
   if (x.poster && isMediaUrl(x.poster)) o.poster = x.poster;
   if (Array.isArray(x.peaks)) o.peaks = x.peaks.slice(0, 64).map((v) => Math.round(Math.max(0, Math.min(1, Number(v) || 0)) * 100) / 100);
   Object.keys(o).forEach((k) => o[k] === undefined && delete o[k]);

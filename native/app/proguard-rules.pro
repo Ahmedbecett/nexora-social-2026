@@ -7,3 +7,7 @@
 # Credential Manager (Google sign-in)
 -if class androidx.credentials.CredentialManager
 -keep class androidx.credentials.playservices.** { *; }
+
+# WebRTC (JNI callbacks into Java)
+-keep class org.webrtc.** { *; }
+-dontwarn org.webrtc.**
