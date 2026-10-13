@@ -1381,7 +1381,8 @@ const AI_MODE_INSTRUCTIONS = {
 route('POST', 'ai/chat', async ({ req, body }) => {
   const me = await authUser(req);
   if (aiRateLimit('user:' + String(me.id), 15)) throw new HttpError(429, 'rate_limited', 'rate_limited');
-  const apiKey = process.env.GEMINI_API_KEY;
+  // Accept the standard name plus aliases used in deployment dashboards.
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) throw new HttpError(503, 'ai_not_configured', 'ai_not_configured');
   const message = typeof body.message === 'string' ? body.message.trim() : '';
   if (!message) throw bad('message_required');
@@ -1404,16 +1405,31 @@ route('POST', 'ai/chat', async ({ req, body }) => {
     const data = await upstream.json().catch(() => ({}));
     if (!upstream.ok) {
       if (upstream.status === 429) throw new HttpError(429, 'provider_rate_limited', 'provider_rate_limited');
-      // Return safe, actionable error codes without exposing Google's response or the API key.
-      if (upstream.status === 401 || upstream.status === 403) {
-        console.error('NEXORA AI provider rejected credentials:', upstream.status);
+      // Classify provider errors without returning raw messages or secrets to the browser.
+      const providerCode = String(data?.error?.status || data?.error?.details?.[0]?.reason || '');
+      const providerMessage = String(data?.error?.message || '');
+      const providerDiagnostic = (providerCode + ' ' + providerMessage).toLowerCase();
+      if (providerDiagnostic.includes('ip_address_blocked') || providerDiagnostic.includes('ip address') || providerDiagnostic.includes('ip-based')) {
+        console.error('NEXORA AI key IP restriction:', upstream.status, providerCode || 'provider_rejected');
+        throw new HttpError(502, 'ai_key_ip_restricted', 'ai_key_ip_restricted');
+      }
+      if (providerDiagnostic.includes('api_key_service_blocked') || providerDiagnostic.includes('requests to this api') || providerDiagnostic.includes('serviceusage')) {
+        console.error('NEXORA AI key service restriction:', upstream.status, providerCode || 'provider_rejected');
+        throw new HttpError(502, 'ai_key_service_blocked', 'ai_key_service_blocked');
+      }
+      if (providerDiagnostic.includes('project has been denied access') || providerDiagnostic.includes('project_denied') || providerDiagnostic.includes('access restricted')) {
+        console.error('NEXORA AI project access denied:', upstream.status, providerCode || 'provider_rejected');
+        throw new HttpError(502, 'ai_project_access_denied', 'ai_project_access_denied');
+      }
+      if (upstream.status === 401 || upstream.status === 403 || providerDiagnostic.includes('api_key_invalid') || providerDiagnostic.includes('api key not valid')) {
+        console.error('NEXORA AI provider rejected credentials:', upstream.status, providerCode || 'provider_rejected');
         throw new HttpError(502, 'ai_key_invalid', 'ai_key_invalid');
       }
       if (upstream.status === 404) {
         console.error('NEXORA AI model unavailable:', model);
         throw new HttpError(502, 'ai_model_unavailable', 'ai_model_unavailable');
       }
-      console.error('NEXORA AI provider status:', upstream.status);
+      console.error('NEXORA AI provider status:', upstream.status, providerCode || 'unknown_provider_error');
       throw new HttpError(502, 'ai_provider_error', 'ai_provider_error');
     }
     const answer = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('').trim();
