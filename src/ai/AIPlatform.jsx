@@ -13,7 +13,7 @@ const TOOLS = [
   { id:'translate', title:'الترجمة', sub:'ترجمة طبيعية دقيقة', icon:'文', color:'cyan' },
   { id:'summarize', title:'تلخيص النصوص', sub:'استخرج أهم النقاط', icon:'≡', color:'orange' }
 ];
-const MODEL_NAMES = {'gpt-6-astra':'GPT-6 Astra','gpt-6.1-sol':'GPT-6.1 Sol','gpt-6-luna':'GPT-6 Luna'};
+const MODEL_NAMES = {'gpt-5.1':'GPT-5.1','gpt-5-mini':'GPT-5 mini','gpt-5-nano':'GPT-5 nano'};
 const keyFor = (id) => 'nx_ai_chat_' + id;
 
 function Icon({ name, size=19 }) {
@@ -37,7 +37,7 @@ export default function AIPlatform() {
   const [lang,setLangState]=useState(getLang());
   const [booting,setBooting]=useState(!!getToken()&&!localStorage.getItem('nx_me'));
   const [mode,setMode]=useState('chat');
-  const [model,setModel]=useState('gpt-6.1-sol');
+  const [model,setModel]=useState('gpt-5-mini');
   const [messages,setMessages]=useState([]);
   const [historyOwner,setHistoryOwner]=useState(null);
   const [input,setInput]=useState('');
@@ -82,7 +82,7 @@ export default function AIPlatform() {
         ai_not_configured: 'مفتاح OpenAI غير موجود في بيئة الخادم. أضف OPENAI_API_KEY ضمن Production في Vercel ثم أعد النشر.',
         ai_key_invalid: 'رفضت OpenAI المفتاح. تحقق من صحة OPENAI_API_KEY وأنه لم يُلغَ، ثم حدّثه في Vercel.',
         ai_billing_required: 'رفضت OpenAI الطلب بسبب الرصيد أو الفوترة أو صلاحية المشروع. تحقق من Billing وUsage في منصة OpenAI.',
-        ai_model_unavailable: 'النموذج المحدد غير متاح لهذا المفتاح أو المشروع. اختر GPT-6.1 Sol أو تحقق من صلاحيات API.',
+        ai_model_unavailable: 'النموذج المحدد غير متاح لهذا المفتاح أو المشروع. اختر GPT-5 mini أو تحقق من صلاحيات API.',
         provider_rate_limited: 'وصلت إلى حد طلبات OpenAI مؤقتًا. انتظر قليلًا ثم حاول مجددًا.',
         rate_limited: 'وصلت إلى حد الاستخدام المؤقت؛ حاول بعد دقيقة.',
         ai_provider_error: 'رفضت خدمة OpenAI الطلب. تحقق من صلاحيات المشروع وحالة API.',
@@ -119,7 +119,7 @@ export default function AIPlatform() {
       </aside>
       {sidebarOpen&&<button className="nx-ai-backdrop" onClick={()=>setSidebarOpen(false)} aria-label="إغلاق القائمة"/>}
       <main className="nx-ai-main">
-        <header className="nx-ai-topbar"><button className="nx-ai-mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="القائمة"><Icon name="menu"/></button><div className="nx-ai-top-title"><i/> مساحة الذكاء الاصطناعي</div><div className="nx-ai-top-actions"><label className="nx-ai-model"><Icon name="spark" size={16}/><select value={model} onChange={e=>setModel(e.target.value)} aria-label="النموذج"><option value="gpt-6-astra">GPT-6 Astra</option><option value="gpt-6.1-sol">GPT-6.1 Sol</option><option value="gpt-6-luna">GPT-6 Luna</option></select></label><span className="nx-ai-avatar top-avatar">{(me.fullName||me.username||'N').slice(0,1).toUpperCase()}</span></div></header>
+        <header className="nx-ai-topbar"><button className="nx-ai-mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="القائمة"><Icon name="menu"/></button><div className="nx-ai-top-title"><i/> مساحة الذكاء الاصطناعي</div><div className="nx-ai-top-actions"><label className="nx-ai-model"><Icon name="spark" size={16}/><select value={model} onChange={e=>setModel(e.target.value)} aria-label="النموذج"><option value="gpt-5.1">GPT-5.1</option><option value="gpt-5-mini">GPT-5 mini</option><option value="gpt-5-nano">GPT-5 nano</option></select></label><span className="nx-ai-avatar top-avatar">{(me.fullName||me.username||'N').slice(0,1).toUpperCase()}</span></div></header>
         <section className={'nx-ai-content '+(messages.length?'has-messages':'')}>
           {!messages.length?<div className="nx-ai-welcome">
             <div className="nx-ai-orb-wrap"><div className="nx-ai-orb"><span/></div><i className="orb-star one">✦</i><i className="orb-star two">✧</i><i className="orb-star three">✳</i></div>
