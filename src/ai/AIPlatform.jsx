@@ -80,7 +80,10 @@ export default function AIPlatform() {
       const code=err?.code;
       const text = ({
         ai_not_configured: 'مفتاح Gemini غير موجود في بيئة الخادم. تأكد من GEMINI_API_KEY ضمن Production ثم أعد النشر.',
-        ai_key_invalid: 'رفضت Google مفتاح Gemini. تحقق من أن المفتاح صحيح ومفعّل لـ Gemini API في Google AI Studio.',
+        ai_key_invalid: 'رفضت Google المفتاح. أنشئ Gemini Auth key جديدًا من Google AI Studio، وتأكد أنه مخصص لـ Gemini API، ثم حدّث قيمة GEMINI_API_KEY في Vercel وأعد النشر.',
+        ai_key_ip_restricted: 'المفتاح مقيّد بعنوان IP. لأن طلبات NEXORA تعمل من خوادم Vercel وقد لا تملك IP صادرًا ثابتًا، أزل قيد IP من المفتاح واستخدم قيد Gemini API فقط. لا تضع عنوان IP الخاص بهاتفك أو موقعك.',
+        ai_key_service_blocked: 'المفتاح مرتبط بخدمة أو واجهة API غير متوافقة. أنشئ مفتاحًا من Google AI Studio مخصصًا لـ Gemini API، ثم حدّثه في Vercel.',
+        ai_project_access_denied: 'Google رفضت الوصول إلى مشروع Gemini نفسه. راجع حالة المشروع والتنبيهات والتحقق من العمر وإتاحة النموذج في Google AI Studio؛ تغيير IP في Vercel وحده لن يصلح رفض المشروع.',
         ai_model_unavailable: 'نموذج Gemini المحدد غير متاح لهذا المفتاح. جرّب اختيار Gemini 2.5 Flash.',
         provider_rate_limited: 'وصلت إلى حد طلبات Gemini مؤقتًا. انتظر قليلًا ثم حاول مجددًا.',
         rate_limited: 'وصلت إلى حد الاستخدام المؤقت؛ حاول بعد دقيقة.',
