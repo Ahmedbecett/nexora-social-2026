@@ -1370,7 +1370,7 @@ function aiRateLimit(key, max = 15) {
   if (aiRateBuckets.size > 2500) for (const [k, v] of aiRateBuckets) if (now - v.start >= 60000) aiRateBuckets.delete(k);
   return item.count > max;
 }
-const AI_MODEL_ALLOWLIST = new Set(['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-luna']);
+const AI_MODEL_ALLOWLIST = new Set(['gpt-5.1', 'gpt-5-mini', 'gpt-5-nano']);
 const AI_MODE_INSTRUCTIONS = {
   chat: 'Answer clearly and accurately. Match the language used by the user.',
   write: 'Act as a skilled writing partner. Create polished original writing in the requested language, tone and format.',
@@ -1386,7 +1386,7 @@ route('POST', 'ai/chat', async ({ req, body }) => {
   const message = typeof body.message === 'string' ? body.message.trim() : '';
   if (!message) throw bad('message_required');
   if (message.length > 4000) throw new HttpError(413, 'message_too_long', 'message_too_long');
-  const model = AI_MODEL_ALLOWLIST.has(body.model) ? body.model : 'gpt-6.1-sol';
+  const model = AI_MODEL_ALLOWLIST.has(body.model) ? body.model : 'gpt-5-mini';
   const mode = Object.hasOwn(AI_MODE_INSTRUCTIONS, body.mode) ? body.mode : 'chat';
   const history = Array.isArray(body.history) ? body.history.slice(-10).filter((m) =>
     m && ['user', 'model', 'assistant'].includes(m.role) && typeof m.text === 'string' && m.text.trim()
