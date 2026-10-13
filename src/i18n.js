@@ -105,7 +105,7 @@ const ar = {
   passwordChanged: 'تم تغيير كلمة السر', deleteAccount: 'حذف الحساب',
   deleteAccountDesc: 'سيتم حذف حسابك ومنشوراتك وتعليقاتك نهائياً. أدخل كلمة السر للتأكيد.',
   logoutConfirm: 'هل تريد تسجيل الخروج؟', cancel: 'إلغاء', done: 'تم',
-  helpText: 'نيكسورا شبكة اجتماعية لمشاركة الصور ومقاطع الريلز والقصص. للإبلاغ عن مشكلة استخدم زر "إبلاغ" في قائمة أي منشور أو راسلنا عبر البريد ahmedbecetti35@gmail.com.',
+  helpText: 'NEXORA AI منصة ذكاء اصطناعي: محادثة ذكية مع حفظ السياق، بحث ويب بالمصادر، تحليل ملفات وصور، وصوت داخل وخارج. للإبلاغ عن أي مشكلة راسلنا عبر البريد ahmedbecetti35@gmail.com.',
   aboutText: 'نيكسورا · الإصدار {v}',
   bio: 'النبذة', website: 'الموقع الإلكتروني', changePhoto: 'تغيير صورة الملف الشخصي', removePhoto: 'إزالة الصورة',
   // post menu
@@ -250,7 +250,7 @@ const en = {
   passwordChanged: 'Password changed', deleteAccount: 'Delete account',
   deleteAccountDesc: 'Your account, posts and comments will be permanently deleted. Enter your password to confirm.',
   logoutConfirm: 'Log out of your account?', cancel: 'Cancel', done: 'Done',
-  helpText: 'Nexora is a social network for sharing photos, reels and stories. To report a problem use “Report” from any post menu or email ahmedbecetti35@gmail.com.',
+  helpText: 'NEXORA AI is an AI platform: smart chat with saved context, real web search with sources, file and image analysis, and voice in and out. To report a problem email ahmedbecetti35@gmail.com.',
   aboutText: 'Nexora · Version {v}',
   bio: 'Bio', website: 'Website', changePhoto: 'Change profile photo', removePhoto: 'Remove photo',
   report: 'Report', reported: 'Thanks, your report was sent', unfollow: 'Unfollow', copyLink: 'Copy link', linkCopied: 'Link copied',
