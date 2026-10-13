@@ -13,7 +13,7 @@ const TOOLS = [
   { id:'translate', title:'الترجمة', sub:'ترجمة طبيعية دقيقة', icon:'文', color:'cyan' },
   { id:'summarize', title:'تلخيص النصوص', sub:'استخرج أهم النقاط', icon:'≡', color:'orange' }
 ];
-const MODEL_NAMES = {'gemini-2.5-flash':'Gemini 2.5 Flash','gemini-2.5-pro':'Gemini 2.5 Pro'};
+const MODEL_NAMES = {'gpt-6-astra':'GPT-6 Astra','gpt-6.1-sol':'GPT-6.1 Sol','gpt-6-luna':'GPT-6 Luna'};
 const keyFor = (id) => 'nx_ai_chat_' + id;
 
 function Icon({ name, size=19 }) {
@@ -37,7 +37,7 @@ export default function AIPlatform() {
   const [lang,setLangState]=useState(getLang());
   const [booting,setBooting]=useState(!!getToken()&&!localStorage.getItem('nx_me'));
   const [mode,setMode]=useState('chat');
-  const [model,setModel]=useState('gemini-2.5-flash');
+  const [model,setModel]=useState('gpt-6.1-sol');
   const [messages,setMessages]=useState([]);
   const [historyOwner,setHistoryOwner]=useState(null);
   const [input,setInput]=useState('');
@@ -79,17 +79,15 @@ export default function AIPlatform() {
     }catch(err){
       const code=err?.code;
       const text = ({
-        ai_not_configured: 'مفتاح Gemini غير موجود في بيئة الخادم. تأكد من GEMINI_API_KEY ضمن Production ثم أعد النشر.',
-        ai_key_invalid: 'رفضت Google المفتاح. أنشئ Gemini Auth key جديدًا من Google AI Studio، وتأكد أنه مخصص لـ Gemini API، ثم حدّث قيمة GEMINI_API_KEY في Vercel وأعد النشر.',
-        ai_key_ip_restricted: 'المفتاح مقيّد بعنوان IP. لأن طلبات NEXORA تعمل من خوادم Vercel وقد لا تملك IP صادرًا ثابتًا، أزل قيد IP من المفتاح واستخدم قيد Gemini API فقط. لا تضع عنوان IP الخاص بهاتفك أو موقعك.',
-        ai_key_service_blocked: 'المفتاح مرتبط بخدمة أو واجهة API غير متوافقة. أنشئ مفتاحًا من Google AI Studio مخصصًا لـ Gemini API، ثم حدّثه في Vercel.',
-        ai_project_access_denied: 'Google رفضت الوصول إلى مشروع Gemini نفسه. راجع حالة المشروع والتنبيهات والتحقق من العمر وإتاحة النموذج في Google AI Studio؛ تغيير IP في Vercel وحده لن يصلح رفض المشروع.',
-        ai_model_unavailable: 'نموذج Gemini المحدد غير متاح لهذا المفتاح. جرّب اختيار Gemini 2.5 Flash.',
-        provider_rate_limited: 'وصلت إلى حد طلبات Gemini مؤقتًا. انتظر قليلًا ثم حاول مجددًا.',
+        ai_not_configured: 'مفتاح OpenAI غير موجود في بيئة الخادم. أضف OPENAI_API_KEY ضمن Production في Vercel ثم أعد النشر.',
+        ai_key_invalid: 'رفضت OpenAI المفتاح. تحقق من صحة OPENAI_API_KEY وأنه لم يُلغَ، ثم حدّثه في Vercel.',
+        ai_billing_required: 'رفضت OpenAI الطلب بسبب الرصيد أو الفوترة أو صلاحية المشروع. تحقق من Billing وUsage في منصة OpenAI.',
+        ai_model_unavailable: 'النموذج المحدد غير متاح لهذا المفتاح أو المشروع. اختر GPT-6.1 Sol أو تحقق من صلاحيات API.',
+        provider_rate_limited: 'وصلت إلى حد طلبات OpenAI مؤقتًا. انتظر قليلًا ثم حاول مجددًا.',
         rate_limited: 'وصلت إلى حد الاستخدام المؤقت؛ حاول بعد دقيقة.',
-        ai_provider_error: 'وصل الطلب إلى خدمة Gemini لكن الخدمة رفضته. تحقق من إعدادات المفتاح وحالة Gemini API.',
-        ai_unavailable: 'تعذّر الاتصال بخدمة Gemini. حاول مجددًا، وإذا استمرت المشكلة افحص Runtime Logs في Vercel.',
-        ai_empty_response: 'لم يُرجع Gemini إجابة. أعد المحاولة.',
+        ai_provider_error: 'رفضت خدمة OpenAI الطلب. تحقق من صلاحيات المشروع وحالة API.',
+        ai_unavailable: 'تعذّر الاتصال بخدمة OpenAI. حاول مجددًا، وإذا استمرت المشكلة افحص Runtime Logs في Vercel.',
+        ai_empty_response: 'لم تُرجع OpenAI إجابة. أعد المحاولة.',
         unauthorized: 'انتهت جلسة الدخول. سجّل الخروج ثم ادخل مجددًا.',
         network: 'تعذّر الاتصال بخادم NEXORA. تحقق من الإنترنت وحاول مجددًا.',
         server_error: 'حدث خطأ داخل خادم NEXORA. افتح Runtime Logs في Vercel لمعرفة السبب.'
@@ -121,7 +119,7 @@ export default function AIPlatform() {
       </aside>
       {sidebarOpen&&<button className="nx-ai-backdrop" onClick={()=>setSidebarOpen(false)} aria-label="إغلاق القائمة"/>}
       <main className="nx-ai-main">
-        <header className="nx-ai-topbar"><button className="nx-ai-mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="القائمة"><Icon name="menu"/></button><div className="nx-ai-top-title"><i/> مساحة الذكاء الاصطناعي</div><div className="nx-ai-top-actions"><label className="nx-ai-model"><Icon name="spark" size={16}/><select value={model} onChange={e=>setModel(e.target.value)} aria-label="النموذج"><option value="gemini-2.5-flash">Gemini 2.5 Flash</option><option value="gemini-2.5-pro">Gemini 2.5 Pro</option></select></label><span className="nx-ai-avatar top-avatar">{(me.fullName||me.username||'N').slice(0,1).toUpperCase()}</span></div></header>
+        <header className="nx-ai-topbar"><button className="nx-ai-mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="القائمة"><Icon name="menu"/></button><div className="nx-ai-top-title"><i/> مساحة الذكاء الاصطناعي</div><div className="nx-ai-top-actions"><label className="nx-ai-model"><Icon name="spark" size={16}/><select value={model} onChange={e=>setModel(e.target.value)} aria-label="النموذج"><option value="gpt-6-astra">GPT-6 Astra</option><option value="gpt-6.1-sol">GPT-6.1 Sol</option><option value="gpt-6-luna">GPT-6 Luna</option></select></label><span className="nx-ai-avatar top-avatar">{(me.fullName||me.username||'N').slice(0,1).toUpperCase()}</span></div></header>
         <section className={'nx-ai-content '+(messages.length?'has-messages':'')}>
           {!messages.length?<div className="nx-ai-welcome">
             <div className="nx-ai-orb-wrap"><div className="nx-ai-orb"><span/></div><i className="orb-star one">✦</i><i className="orb-star two">✧</i><i className="orb-star three">✳</i></div>
