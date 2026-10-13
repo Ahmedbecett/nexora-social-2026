@@ -2,7 +2,7 @@ name: Web build check
 
 on:
   push:
-    branches: [main, ai-platform-conversion]
+    branches: [main]
   pull_request:
     branches: [main]
 
