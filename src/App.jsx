@@ -20,6 +20,7 @@ import Settings, { SettingsPage } from './screens/Settings.jsx';
 import { PostDetail, PostList } from './screens/Post.jsx';
 import { CallCenter } from './chatkit/calls.jsx';
 import StoryViewer from './screens/Stories.jsx';
+import AIPlatform from './ai/AIPlatform.jsx';
 
 const SCREENS = {
   profile: Profile, editProfile: EditProfile, userList: UserList, create: Create, notifications: Notifications,
@@ -27,7 +28,7 @@ const SCREENS = {
   stories: StoryViewer, tag: TagScreen, reelsViewer: ReelsViewer, followRequests: FollowRequests,
 };
 
-export default function App() {
+function SocialApp() {
   const [token, setTok] = useState(getToken());
   const [me, setMe] = useState(() => { try { return JSON.parse(localStorage.getItem('nx_me')); } catch { return null; } });
   const [lang, setLangState] = useState(getLang());
@@ -213,3 +214,9 @@ export default function App() {
 }
 const visited = new Set();
 const NAV_SCREENS = new Set(['profile', 'post', 'postList', 'tag', 'userList']);
+
+
+// Website becomes NEXORA AI; native Android source remains independent.
+export default function App() {
+  return Capacitor.isNativePlatform() ? <SocialApp /> : <AIPlatform />;
+}
