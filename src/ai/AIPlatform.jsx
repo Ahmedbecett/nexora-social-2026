@@ -78,7 +78,19 @@ export default function AIPlatform() {
       }
     }catch(err){
       const code=err?.code;
-      const text=code==='ai_not_configured'?'المساعد غير مفعّل بعد. أضف GEMINI_API_KEY في متغيرات بيئة Vercel.':code==='rate_limited'?'وصلت إلى حد الاستخدام المؤقت؛ حاول بعد دقيقة.':'تعذّر تنفيذ الطلب. تحقق من إعدادات الخدمة وحاول مجددًا.';
+      const text = ({
+        ai_not_configured: 'مفتاح Gemini غير موجود في بيئة الخادم. تأكد من GEMINI_API_KEY ضمن Production ثم أعد النشر.',
+        ai_key_invalid: 'رفضت Google مفتاح Gemini. تحقق من أن المفتاح صحيح ومفعّل لـ Gemini API في Google AI Studio.',
+        ai_model_unavailable: 'نموذج Gemini المحدد غير متاح لهذا المفتاح. جرّب اختيار Gemini 2.5 Flash.',
+        provider_rate_limited: 'وصلت إلى حد طلبات Gemini مؤقتًا. انتظر قليلًا ثم حاول مجددًا.',
+        rate_limited: 'وصلت إلى حد الاستخدام المؤقت؛ حاول بعد دقيقة.',
+        ai_provider_error: 'وصل الطلب إلى خدمة Gemini لكن الخدمة رفضته. تحقق من إعدادات المفتاح وحالة Gemini API.',
+        ai_unavailable: 'تعذّر الاتصال بخدمة Gemini. حاول مجددًا، وإذا استمرت المشكلة افحص Runtime Logs في Vercel.',
+        ai_empty_response: 'لم يُرجع Gemini إجابة. أعد المحاولة.',
+        unauthorized: 'انتهت جلسة الدخول. سجّل الخروج ثم ادخل مجددًا.',
+        network: 'تعذّر الاتصال بخادم NEXORA. تحقق من الإنترنت وحاول مجددًا.',
+        server_error: 'حدث خطأ داخل خادم NEXORA. افتح Runtime Logs في Vercel لمعرفة السبب.'
+      })[code] || ('تعذّر تنفيذ الطلب (' + (code || 'unknown_error') + '). افتح Runtime Logs في Vercel إذا تكررت المشكلة.');
       setMessages(old=>[...old,{role:'error',text}]);
     }finally{setBusy(false)}
   };
