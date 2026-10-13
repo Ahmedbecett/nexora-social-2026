@@ -1404,6 +1404,15 @@ route('POST', 'ai/chat', async ({ req, body }) => {
     const data = await upstream.json().catch(() => ({}));
     if (!upstream.ok) {
       if (upstream.status === 429) throw new HttpError(429, 'provider_rate_limited', 'provider_rate_limited');
+      // Return safe, actionable error codes without exposing Google's response or the API key.
+      if (upstream.status === 401 || upstream.status === 403) {
+        console.error('NEXORA AI provider rejected credentials:', upstream.status);
+        throw new HttpError(502, 'ai_key_invalid', 'ai_key_invalid');
+      }
+      if (upstream.status === 404) {
+        console.error('NEXORA AI model unavailable:', model);
+        throw new HttpError(502, 'ai_model_unavailable', 'ai_model_unavailable');
+      }
       console.error('NEXORA AI provider status:', upstream.status);
       throw new HttpError(502, 'ai_provider_error', 'ai_provider_error');
     }
