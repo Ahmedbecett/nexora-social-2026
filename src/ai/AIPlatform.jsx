@@ -39,6 +39,7 @@ export default function AIPlatform() {
   const [mode,setMode]=useState('chat');
   const [model,setModel]=useState('gemini-2.5-flash');
   const [messages,setMessages]=useState([]);
+  const [historyOwner,setHistoryOwner]=useState(null);
   const [input,setInput]=useState('');
   const [busy,setBusy]=useState(false);
   const [sidebarOpen,setSidebarOpen]=useState(false);
@@ -59,8 +60,8 @@ export default function AIPlatform() {
     api('me').then(r=>{if(live){updateMe(r.user);setBooting(false)}}).catch(()=>{if(live)setBooting(false)});
     return()=>{live=false};
   },[token,updateMe]);
-  useEffect(()=>{if(!me?.id){setMessages([]);return}try{setMessages(JSON.parse(localStorage.getItem(keyFor(me.id))||'[]'))}catch{setMessages([])}},[me?.id]);
-  useEffect(()=>{if(me?.id)localStorage.setItem(keyFor(me.id),JSON.stringify(messages.slice(-80)));bottom.current?.scrollIntoView({behavior:'smooth',block:'end'})},[messages,me?.id,busy]);
+  useEffect(()=>{if(!me?.id){setHistoryOwner(null);setMessages([]);return}let saved=[];try{saved=JSON.parse(localStorage.getItem(keyFor(me.id))||'[]')}catch{saved=[]}setMessages(saved);setHistoryOwner(me.id)},[me?.id]);
+  useEffect(()=>{if(me?.id&&historyOwner===me.id)localStorage.setItem(keyFor(me.id),JSON.stringify(messages.slice(-80)));bottom.current?.scrollIntoView({behavior:'smooth',block:'end'})},[messages,me?.id,historyOwner,busy]);
   const newChat=()=>{setMessages([]);setInput('');setMode('chat');setSidebarOpen(false);field.current?.focus()};
   const send=async(e)=> {
     e?.preventDefault();
