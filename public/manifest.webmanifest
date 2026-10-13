@@ -1,0 +1,35 @@
+{
+ "name": "NEXORA AI — مساحة الذكاء الاصطناعي",
+ "short_name": "NEXORA AI",
+ "description": "محادثة ذكية وكتابة وبرمجة وترجمة وتلخيص وتوليد صور في مساحة واحدة.",
+ "start_url": "/",
+ "display": "standalone",
+ "background_color": "#0c1014",
+ "theme_color": "#120c30",
+ "lang": "ar",
+ "dir": "rtl",
+ "categories": [
+  "productivity",
+  "utilities"
+ ],
+ "icons": [
+  {
+   "src": "/icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "/icon-512-maskable.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ]
+}
