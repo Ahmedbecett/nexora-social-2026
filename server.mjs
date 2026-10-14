@@ -13,6 +13,7 @@
 */
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
+import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 
 const PORT = Number(process.env.PORT || 8080);
 const SECRET = process.env.GATEWAY_SECRET || '';
@@ -80,10 +81,42 @@ export async function transcribe({ audio, mime }) {
 /* ---------- TTS: Azure Speech (REST) ---------- */
 const esc = (s) => s.replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
 export async function synthesize({ text, voice }) {
-  if (!AZ_KEY || !AZURE_BASE) throw Object.assign(new Error('tts_not_configured'), { status: 503 });
   const v = ALLOWED_VOICES.has(voice) ? voice : DEFAULT_VOICE;
   const clean = String(text || '').replace(/[*_#>`]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_TTS_CHARS);
   if (!clean) throw Object.assign(new Error('text_required'), { status: 400 });
+  if (AZ_KEY && AZURE_BASE) return synthesizeAzure(clean, v);
+  return synthesizeEdge(clean, v);
+}
+
+/* ---------- TTS بديل مجاني: خدمة قراءة Edge (بلا مفتاح). غير رسمية وقد تتغيّر دون إشعار ---------- */
+async function synthesizeEdge(clean, v) {
+  const tts = new MsEdgeTTS();
+  const work = (async () => {
+    await tts.setMetadata(v, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    const { audioStream } = tts.toStream(clean);
+    const chunks = [];
+    await new Promise((resolve, reject) => {
+      audioStream.on('data', (c) => chunks.push(c));
+      audioStream.on('end', resolve);
+      audioStream.on('error', reject);
+    });
+    return Buffer.concat(chunks);
+  })();
+  let timer;
+  const limit = new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error('tts_timeout'), { status: 504 })), TTS_TIMEOUT); });
+  try {
+    const audio = await Promise.race([work, limit]);
+    if (!audio.length) throw Object.assign(new Error('tts_empty'), { status: 502 });
+    return { audioB64: audio.toString('base64'), mime: 'audio/mpeg', provider: 'edge-tts', voice: v };
+  } catch (e) {
+    throw e.status ? e : Object.assign(new Error('tts_upstream_failed'), { status: 502 });
+  } finally {
+    clearTimeout(timer);
+    try { tts.close(); } catch {}
+  }
+}
+
+async function synthesizeAzure(clean, v) {
   const lang = v.slice(0, 5);
   const ssml = `<speak version="1.0" xml:lang="${lang}"><voice name="${v}">${esc(clean)}</voice></speak>`;
   const r = await fetch(`${AZURE_BASE}/cognitiveservices/v1`, {
@@ -103,7 +136,7 @@ export function createServer() {
     try {
       const url = new URL(req.url, 'http://x');
       if (req.method === 'GET' && url.pathname === '/health') {
-        return json(res, 200, { ok: true, stt: !!GROQ_KEY, tts: !!(AZ_KEY && AZURE_BASE), time: new Date().toISOString() });
+        return json(res, 200, { ok: true, stt: !!GROQ_KEY, tts: true, ttsProvider: AZ_KEY && AZURE_BASE ? 'azure' : 'edge', time: new Date().toISOString() });
       }
       if (req.method !== 'POST' || !['/v1/stt', '/v1/tts'].includes(url.pathname)) return json(res, 404, { error: 'not_found' });
       if (!authorized(req)) return json(res, 401, { error: 'unauthorized' });
