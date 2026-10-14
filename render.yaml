@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: nexora-gateway
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: "echo no-build"
+    startCommand: "node server.mjs"
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: GATEWAY_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: AZURE_SPEECH_KEY
+        sync: false
+      - key: AZURE_SPEECH_REGION
+        sync: false
