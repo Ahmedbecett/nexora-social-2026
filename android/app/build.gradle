@@ -22,13 +22,14 @@ android {
     def releaseStore = System.getenv("NEXORA_KEYSTORE")
     def releasePass = System.getenv("NEXORA_KEYSTORE_PASSWORD")
     def releaseAlias = System.getenv("NEXORA_KEY_ALIAS") ?: "nexora"
+    def useReleaseKeystore = (releaseStore && releasePass)
     signingConfigs {
         release {
-            if (releaseStore && releasePass) {
+            if (useReleaseKeystore) {
                 storeFile file(releaseStore)
                 storePassword releasePass
                 keyAlias releaseAlias
-                keyPassword System.getenv("NEXORA_KEY_PASSWORD") ?: releasePass
+                keyPassword (System.getenv("NEXORA_KEY_PASSWORD") ?: releasePass)
             }
         }
     }
@@ -36,7 +37,12 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig (releaseStore && releasePass) ? signingConfigs.release : signingConfigs.debug
+            if (useReleaseKeystore) {
+                signingConfig signingConfigs.release
+            } else {
+                // لا مفتاح إنتاج مضبوط على هذه البيئة → توقيع تصحيح حتى تُبنى حزمة تثبيت تلقائيًا
+                signingConfig signingConfigs.debug
+            }
         }
     }
 }
