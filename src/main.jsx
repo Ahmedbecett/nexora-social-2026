@@ -5,9 +5,11 @@ import { applyDir, getLang, setLang } from './i18n.js';
 import App from './App.jsx';
 import { initTheme } from './theme.js';
 import { initMedia } from './media.js';
+import { initAds } from './ads.js';
 
 initTheme();
 initMedia();
+initAds(); /* AdMob banner — native only; no-op on the web */
 applyDir();
 // native feel: no long-press menus / image dragging outside text fields
 document.addEventListener('contextmenu', (e) => { if (!e.target.closest('input, textarea, .bubble')) e.preventDefault(); });

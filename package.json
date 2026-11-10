@@ -1,6 +1,6 @@
 {
   "name": "nexora",
-  "version": "4.0.0",
+  "version": "4.3.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -13,7 +13,9 @@
     "db:migrate": "node scripts/migrate.mjs",
     "android:sync": "vite build && rm -rf dist/download && npx cap sync android",
     "build:webapp": "VITE_API_BASE=https://nexora-social-2026.vercel.app vite build",
-    "deploy:webapp": "npm run build:webapp && npx firebase-tools@latest deploy --only hosting"
+    "deploy:webapp": "npm run build:webapp && npx firebase-tools@latest deploy --only hosting",
+    "cap:sync": "npm run build && rm -rf dist/download && npx cap sync android",
+    "apk:build": "cd android && chmod +x gradlew && ./gradlew assembleRelease"
   },
   "dependencies": {
     "@capacitor-community/admob": "^7.2.0",
@@ -45,6 +47,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
     "@capacitor/cli": "^7.4.3",
     "@vitejs/plugin-react": "^4.7.0",
     "vite": "^6.3.6"

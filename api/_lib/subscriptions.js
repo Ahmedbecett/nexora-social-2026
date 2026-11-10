@@ -232,6 +232,7 @@ async function usageUsed(userId, feature, period, sub) {
 }
 /** بوابة الحصص: تُرمي خطأ واضحًا عند تجاوز الخطة — لا يمكن تجاوزها من المتصفح */
 export async function usageGate(userId, feature) {
+  if (process.env.NEXORA_FREE_MODE === '1') return { ok: true, planId: 'free', unlimited: true };
   const { planId, sub } = await userPlan(userId);
   const lim = await limitRow(planId, feature);
   if (!lim || lim.limit_count < 0) return { ok: true, planId, unlimited: true };
