@@ -291,3 +291,11 @@ html.native .nx-ai-ad{display:none!important}
 :root[data-theme=light] .nx-rev-note,:root[data-theme=light] .nx-rev-plans .edit{background:#eef1f6}
 :root[data-theme=light] .nx-sub-plans .lims span,:root[data-theme=light] .nx-rev-tx .st{background:#e7ebf2}
 .nx-sub-plans .rules{font-size:10px;opacity:.65}
+/* AdMob — زر المكافأة (يوم بلا إعلانات بينية) ومنطقة الخطر */
+.nx-ai-rewarded-btn{border-color:#ffd66b45;background:linear-gradient(110deg,#ffd66b1f,#ffb84d14);color:#ffe9b3;transition:filter .15s}
+.nx-ai-rewarded-btn:disabled{opacity:.6}
+.nx-ai-rewarded-btn:not(:disabled):hover{filter:brightness(1.18)}
+.nx-ai-danger-zone{border-color:#ff8a8a30}
+.nx-ai-danger-zone h4{color:#ffb0b0}
+.nx-ai-wide.danger{border:1px solid #ff8a8a3d;background:#ff8a8a14;color:#ffc9c9}
+.nx-ai-wide.danger:hover{background:#ff8a8a24}

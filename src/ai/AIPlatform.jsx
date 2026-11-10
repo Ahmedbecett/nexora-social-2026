@@ -8,7 +8,7 @@ import Markdown from './Markdown.jsx';
 import { Capacitor } from '@capacitor/core';
 import AdminRevenue from './AdminRevenue.jsx';
 import { openUrl } from '../native.js';
-import { initAds, setAdSlot } from '../ads.js';
+import { setAdSlot, maybeShowInterstitial, showRewardedAd, interstitialFreeUntil } from '../ads.js';
 import './AIPlatform.css';
 
 const TOOLS = [
@@ -313,7 +313,32 @@ export default function AIPlatform() {
   useEffect(()=>{if(me?.id&&historyOwner===me.id)localStorage.setItem(keyFor(me.id),JSON.stringify(messages.slice(-80)));bottom.current?.scrollIntoView({behavior:'smooth',block:'end'})},[messages,me?.id,historyOwner,busy]);
   const onHome=messages.length===0;
   useEffect(()=>{ setAdSlot(onHome); return ()=>setAdSlot(false); },[onHome]);
-  const newChat=()=>{setMessages([]);setInput('');setMode('chat');setSidebarOpen(false);setConvId(null);setAttach([]);field.current?.focus()};
+  const [rewardedFreeAt,setRewardedFreeAt]=useState(()=>{try{return Number(localStorage.getItem('nx_ads_inter_free_until')||0)}catch{return 0}});
+  const [rewardedBusy,setRewardedBusy]=useState(false);
+  const watchRewarded=async()=>{
+    if(rewardedBusy)return;
+    if(Date.now()<interstitialFreeUntil()){toast('أنت مشمول بيوم بلا إعلانات بينية — شكرًا لدعمك!');return}
+    setRewardedBusy(true);
+    const r=await showRewardedAd();
+    setRewardedBusy(false);
+    if(r==='rewarded'){setRewardedFreeAt(Date.now());toast('شكرًا لك! أُزيلت الإعلانات البينية لمدة 24 ساعة')}
+    else if(r==='dismissed')toast('أُغلق الإعلان قبل اكتماله — لم تُضف المكافأة')
+    else if(r==='unavailable')toast('إعلانات المكافأة غير متاحة الآن')
+    else toast('تعذر تحميل الإعلان الآن — حاول لاحقًا');
+  };
+  const deleteAccount=async()=>{
+    if(!window.confirm('حذف الحساب نهائيًا؟ سيُمحى حسابك ومحادثاتك وصورك ولن يمكن التراجع.'))return;
+    const u=window.prompt('اكتب اسم المستخدم للتأكيد:','');if(u===null)return;
+    const pw=window.prompt('أدخل كلمة المرور للتأكيد (إن وُجدت):','');if(pw===null)return;
+    try{
+      await api('me',{method:'DELETE',body:{confirm:u.trim(),password:pw||undefined}});
+      setToken(null);setTok(null);setMe(null);localStorage.removeItem('nx_me');setMessages([]);setAccounts([]);toast('تم حذف حسابك نهائيًا');
+    }catch(err){
+      const c=err&&err.code;
+      toast(c==='wrong_password'?'كلمة المرور غير صحيحة':c==='confirm_username'?'اسم المستخدم غير مطابق':('تعذر حذف الحساب ('+(c||'خطأ')+')'));
+    }
+  };
+  const newChat=()=>{if(!busy&&!recording&&!voiceBusy){maybeShowInterstitial('new_chat')}setMessages([]);setInput('');setMode('chat');setSidebarOpen(false);setConvId(null);setAttach([]);field.current?.focus()};
   const lastUserBefore=(i)=>{for(let j=i-1;j>=0;j--){const m=messages[j];if(m&&m.role==='user'&&m.text)return m.text}return null};
   const runPrompt=async(prompt,opts)=> {
     opts=opts||{};
@@ -458,12 +483,12 @@ export default function AIPlatform() {
           {!convs.length&&<div className="nx-ai-conv-empty">لا محادثات بعد — ابدأ واحدة وستُحفظ تلقائيًا.</div>}
         </div>
         <div className="nx-ai-spacer"/>
+        {Capacitor.isNativePlatform()&&<button type="button" className="nx-ai-upgrade nx-ai-rewarded-btn" disabled={rewardedBusy} onClick={watchRewarded}><Icon name="spark" size={16}/> {rewardedBusy?'جارٍ تحميل الإعلان…':(Date.now()<rewardedFreeAt?'يوم بلا إعلانات بينية ✓ شكرًا لك':'شاهد إعلانًا — يوم بلا إعلانات بينية')}</button>}
         {(!Capacitor.isNativePlatform()&&me&&(me.username==='official.nexora'||me.id===12))&&<button type="button" className="nx-ai-upgrade nx-ai-admin-btn" onClick={()=>setSheet('revenue')}>الإيرادات</button>}
-        <AdSlot name="sidebar" className="side"/>
         <div className="nx-ai-account"><span className="nx-ai-avatar">{(me.fullName||me.username||'N').slice(0,1).toUpperCase()}</span><span className="nx-ai-account-name"><b>{me.fullName||me.username}</b><small>@{me.username}</small></span>
           <button onClick={()=>setSheet('account')} title="الحساب والأمان"><Icon name="user"/></button>
           <button onClick={logout} title="تسجيل الخروج"><Icon name="logout"/></button></div>
-        <div className="nx-ai-version">NEXORA AI · نسخة <b>Ahmed Becetti</b> · v4.2</div>
+        <div className="nx-ai-version">NEXORA AI · نسخة <b>Ahmed Becetti</b> · v4.3</div>
       </aside>
       {sidebarOpen&&<button className="nx-ai-backdrop" onClick={()=>setSidebarOpen(false)} aria-label="إغلاق القائمة"/>}
       <main className="nx-ai-main">
@@ -539,6 +564,11 @@ export default function AIPlatform() {
               </div>
               <button className="nx-ai-wide" onClick={()=>{setAddingAccount(true);setSheet(null)}}><Icon name="plus" size={16}/> إضافة حساب آخر</button>
               <button className="nx-ai-wide" onClick={async()=>{try{await api('me/logout-all',{method:'POST'});toast('تم إنهاء الجلسات على كل الأجهزة')}catch{toast('تعذر تنفيذ الطلب')}}}><Icon name="logout" size={16}/> إنهاء الجلسات على كل الأجهزة</button>
+              <div className="nx-ai-pin nx-ai-danger-zone">
+                <h4><Icon name="lock" size={15}/> منطقة الخطر</h4>
+                <button className="nx-ai-wide danger" onClick={deleteAccount}><Icon name="lock" size={16}/> حذف حسابي وكل بياناتي نهائيًا</button>
+                <small className="mut">يمحو المحادثات والصور المولّدة وبيانات الحساب — لا يمكن التراجع بعد التنفيذ.</small>
+              </div>
               <div className="nx-ai-pin">
                 <h4><Icon name="lock" size={15}/> قفل سريع برمز PIN</h4>
                 {anchorPin

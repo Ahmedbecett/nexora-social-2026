@@ -13,8 +13,6 @@ export const AD_SLOTS = {
   home: { id: '1971049956', format: 'fluid', layoutKey: '-fb+5w+4e-db+86' },
   /* أعلى المحادثة (فوق الرسائل مباشرة) */
   chat: { id: '1971049956', format: 'fluid', layoutKey: '-fb+5w+4e-db+86' },
-  /* الشريط الجانبي — أرسل رقم وحدته عند إنشائها */
-  sidebar: null,
 };
 
 export function adsAllowed() {

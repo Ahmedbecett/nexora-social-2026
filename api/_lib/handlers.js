@@ -396,13 +396,23 @@ const SMS_TEXT = {
   en: (c) => `${c} is your Nexora verification code. Don't share it.`,
 };
 
-// Ads config (served from the server so the banner unit can be changed / switched off without a new APK).
-// Set ADMOB_BANNER_ANDROID on Vercel, or edit ADS_DEFAULT below. Empty = no ads.
-const ADS_DEFAULT = { appId: 'ca-app-pub-6858364141205978~9239771129', androidBanner: 'ca-app-pub-6858364141205978/9187800239' };
+// Ads config (served from the server so units can be changed / switched off without a new APK).
+// Set ADMOB_BANNER_ANDROID / ADMOB_INTERSTITIAL_ANDROID / ADMOB_REWARDED_ANDROID (or ADS_ENABLED=0) on Vercel.
+// القيم الافتراضية هي وحدات AdMob الرسمية للإنتاج من حساب NEXORA (معرّفات عامة — ليست أسرارًا).
+const ADS_DEFAULT = {
+  appId: 'ca-app-pub-6858364141205978~7081673739',
+  androidBanner: 'ca-app-pub-6858364141205978/1001361442',
+  androidInterstitial: 'ca-app-pub-6858364141205978/2374152863',
+  androidRewarded: 'ca-app-pub-6858364141205978/5160098300',
+};
 route('GET', 'app/config', async () => ({
   ads: {
     enabled: process.env.ADS_ENABLED !== '0',
+    interstitialEnabled: process.env.ADS_INTERSTITIAL !== '0',
+    rewardedEnabled: process.env.ADS_REWARDED !== '0',
     androidBanner: (process.env.ADMOB_BANNER_ANDROID ?? ADS_DEFAULT.androidBanner).trim(),
+    androidInterstitial: (process.env.ADMOB_INTERSTITIAL_ANDROID ?? ADS_DEFAULT.androidInterstitial).trim(),
+    androidRewarded: (process.env.ADMOB_REWARDED_ANDROID ?? ADS_DEFAULT.androidRewarded).trim(),
   },
 }));
 
