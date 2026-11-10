@@ -14,6 +14,11 @@ import { configureSubscriptions, subsEnsure, plansAll, planPublic, startCheckout
          userSubscriptionView, revenueOverview, adminConfirmPayment, cancelOrResume, refundCreate, adminUpdatePlan,
          usageGate, recordUsage, usageSummary, providersStatus, walletInfo, AI_COST_ESTIMATE_USD } from './subscriptions.js';
 
+/* علم اختياري للمالك: NEXORA_FREE_MODE=1 يجعل المنصة كلها مجانية (لا خصم نقاط ولا
+   حدود خطط) — مناسب لنسخة APK البسيطة. معطّل افتراضيًا؛ سلوك الإنتاج لا يتغيّر
+   إلا عند ضبطه صراحةً في متغيرات بيئة Vercel. */
+const FREE_MODE = process.env.NEXORA_FREE_MODE === '1';
+
 import { HttpError } from './errors.js';
 export { HttpError } from './errors.js';
 const bad = (msg, code) => new HttpError(400, msg, code);
@@ -2157,6 +2162,7 @@ async function creditsInfo(userId) {
 }
 /** خصم النقاط — لا ينجح إن كان الرصيد غير كافٍ */
 async function creditsSpend(userId, amount, reason, ref) {
+  if (FREE_MODE) return { ok: false, balance: null, freeMode: true };
   await creditsEnsure();
   const row = await one(`update user_credits set balance = balance - $2, updated_at = now()
                          where user_id=$1 and balance >= $2 returning balance`, [userId, amount]);
@@ -2348,7 +2354,7 @@ route('POST', 'ai/voice', async ({ req, body }) => {
   if (aiRateLimit('voice:' + me.id, 20)) throw new HttpError(429, 'rate_limited', 'rate_limited');
   const info = await creditsInfo(me.id);
   const cost = CREDIT_COSTS.voice;
-  if (info.balance < cost) throw new HttpError(402, 'insufficient_credits', 'balance=' + info.balance);
+  if (!FREE_MODE && info.balance < cost) throw new HttpError(402, 'insufficient_credits', 'balance=' + info.balance);
   await usageGate(me.id, 'voice');
   let raw = String(body.audio || '');
   const m = raw.match(/^data:([^;]+);base64,(.*)$/);
@@ -2629,7 +2635,7 @@ async function aiPrepareChat({ req, body }) {
 
   const cost = CREDIT_COSTS.chat + visionNotes.length;
   const creditInfo = await creditsInfo(me.id);
-  if (creditInfo.balance < cost) throw new HttpError(402, 'insufficient_credits', 'balance=' + creditInfo.balance);
+  if (!FREE_MODE && creditInfo.balance < cost) throw new HttpError(402, 'insufficient_credits', 'balance=' + creditInfo.balance);
   return { me, message: enriched, model, mode, style, instructions, history, convId, cost, visionOk: visionNotes.length, sr, att, planId: gatePlan };
 }
 
@@ -2722,7 +2728,7 @@ route('POST', 'ai/tts', async ({ req, body }) => {
   const text = cleanText(body.text, 600);
   if (!text) throw bad('text_required');
   const info = await creditsInfo(me.id);
-  if (info.balance < AI_TTS_COST) throw new HttpError(402, 'insufficient_credits', 'balance=' + info.balance);
+  if (!FREE_MODE && info.balance < AI_TTS_COST) throw new HttpError(402, 'insufficient_credits', 'balance=' + info.balance);
   await usageGate(me.id, 'voice');
   const keys = await aiKeys();
   const voice = TTS_VOICES.includes(body.voice) ? body.voice : TTS_VOICES[0];
@@ -2774,7 +2780,7 @@ route('POST', 'ai/image', async ({ req, body }) => {
   const artModel = ['flux', 'turbo', 'kontext'].includes(want) ? want : 'flux';
   const cost = CREDIT_COSTS.image;
   const bal = await creditsInfo(me.id);
-  if (bal.balance < cost) throw new HttpError(402, 'insufficient_credits', 'balance=' + bal.balance);
+  if (!FREE_MODE && bal.balance < cost) throw new HttpError(402, 'insufficient_credits', 'balance=' + bal.balance);
   const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) + '?width=1024&height=1024&model=' + artModel + '&nologo=true&seed=' + Math.floor(Math.random() * 1e6);
   const spent = await creditsSpend(me.id, cost, 'image', 'pollinations');
   return { url, provider: 'pollinations', providerLabel: AI_PROVIDER_LABEL.pollinations, credits: spent.balance, cost };

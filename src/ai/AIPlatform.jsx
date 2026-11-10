@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppCtx, Glyph, Splash } from '../components.jsx';
 import AuthFlow from '../screens/Auth.jsx';
-import { api, API_BASE, getToken, setToken, onUnauthorized, upsertAccount, getAccounts, forgetAccount, dropAccountToken } from '../api.js';
+import { api, API_BASE, WEB_URL, getToken, setToken, onUnauthorized, upsertAccount, getAccounts, forgetAccount, dropAccountToken } from '../api.js';
 import { getLang, setLang as saveLang } from '../i18n.js';
 import AdSlot from './AdSlot.jsx';
 import Markdown from './Markdown.jsx';
-import Subscriptions from './Subscriptions.jsx';
+import { Capacitor } from '@capacitor/core';
 import AdminRevenue from './AdminRevenue.jsx';
+import { openUrl } from '../native.js';
+import { initAds, setAdSlot } from '../ads.js';
 import './AIPlatform.css';
 
 const TOOLS = [
@@ -69,7 +71,7 @@ export default function AIPlatform() {
   const [lang,setLangState]=useState(getLang());
   const [booting,setBooting]=useState(!!getToken()&&!localStorage.getItem('nx_me'));
   const [mode,setMode]=useState('chat');
-  const [model,setModel]=useState('gpt-5-mini');
+  const [model,setModel]=useState(()=>localStorage.getItem('nx_ai_model')||'gpt-5-nano');
   const [messages,setMessages]=useState([]);
   const [historyOwner,setHistoryOwner]=useState(null);
   const [input,setInput]=useState('');
@@ -92,9 +94,7 @@ export default function AIPlatform() {
   const [voiceOut,setVoiceOut]=useState(()=>localStorage.getItem('nx_ai_tts')==='1');
   const [recording,setRecording]=useState(false);
   const [voiceBusy,setVoiceBusy]=useState(false);
-  const [credits,setCredits]=useState(null);
   const [sheet,setSheet]=useState(null);
-  const [plans,setPlans]=useState(null);
   const [anchorPin,setAnchorPin]=useState(()=>localStorage.getItem('nx_ai_pin')||'');
   const [pinOpen,setPinOpen]=useState(()=>!!localStorage.getItem('nx_ai_pin') && sessionStorage.getItem('nx_ai_unlocked')!=='1');
   const [pinInput,setPinInput]=useState('');
@@ -107,9 +107,6 @@ export default function AIPlatform() {
   const login=useCallback((tk,u)=>{setToken(tk);setTok(tk);setMe(u);localStorage.setItem('nx_me',JSON.stringify(u));upsertAccount(u,tk);setAccounts(getAccounts());setAddingAccount(false)},[]);
   const logout=useCallback(()=>{if(me)upsertAccount(me,getToken());setToken(null);setTok(null);setMe(null);localStorage.removeItem('nx_me');setMessages([])},[me]);
   const setLang=useCallback(async(l)=>{await saveLang(l);setLangState(l)},[]);
-
-  /* ---------- رصيد المستخدم (نقاط الاستخدام) ---------- */
-  const loadCredits=useCallback(()=>{ if(!getToken())return; api('me/credits').then(r=>{setCredits(r);setPlans(r.plans||[]) }).catch(()=>{}) },[]);
 
   /* ---------- تحويل النص إلى كلام ---------- */
   const speak=useCallback((text)=>{
@@ -159,11 +156,10 @@ export default function AIPlatform() {
         const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(blob)});
         const r=await api('ai/voice',{method:'POST',body:{audio:b64,mime:mime.split(';')[0],mode,style,lang}});
         setMessages(old=>[...old,{role:'user',text:r.transcript?('🎙️ '+r.transcript):'🎙️ رسالة صوتية'},{role:'model',text:r.answer,provider:r.provider,providerLabel:r.providerLabel,model:r.model}]);
-        if(r.credits!==undefined)setCredits(c=>({...c,balance:r.credits}));
         if(voiceOut)speak(r.answer);
       }catch(err){
         const code=err?.code;
-        if(code==='insufficient_credits'){setSheet('credits');toast('نفد رصيدك — اشترِ نقاطًا للمتابعة.');}
+        if(code==='insufficient_credits')toast('وصلت إلى حد الاستخدام المجاني المؤقت — جرّب لاحقًا.');
         else toast(code==='voice_unavailable'?'التفريغ الصوتي غير متاح الآن، جرّب الكتابة.':('تعذر إرسال الرسالة الصوتية ('+(code||'خطأ')+')'));
       }
       setVoiceBusy(false);
@@ -210,7 +206,6 @@ export default function AIPlatform() {
     api('me').then(r=>{if(live){updateMe(r.user);setBooting(false)}}).catch(()=>{if(live)setBooting(false)});
     return()=>{live=false};
   },[token,updateMe]);
-  useEffect(()=>{if(me?.id)loadCredits()},[me?.id,loadCredits]);
 
   /* ---------- المحادثات المحفوظة في PostgreSQL ---------- */
   const loadConvs=useCallback(async(q)=>{ if(!getToken())return; try{ const r=await api(q?('conversations/search?q='+encodeURIComponent(q)):'conversations'); setConvs(r.conversations||[]) }catch{/* تبقى القائمة كما هي */} },[]);
@@ -265,6 +260,37 @@ export default function AIPlatform() {
     setFileBusy(false);
   };
 
+  /* مشاركة الرد — حصري بدون خادم: Capacitor Share في أندرويد، navigator.share على الويب */
+  const shareReply=useCallback(async(text)=>{
+    const msg=String(text||'').replace(/```[\s\S]*?```/g,' ').replace(/\s+/g,' ').trim().slice(0,1800);
+    if(!msg){toast('لا يوجد نص للمشاركة');return}
+    try{
+      if(Capacitor.isNativePlatform()){const {Share}=await import('@capacitor/share');await Share.share({title:'NEXORA AI',text:msg,dialogTitle:'مشاركة الرد'});return}
+      if(navigator.share){await navigator.share({text:msg});return}
+      await navigator.clipboard.writeText(msg);toast('نُسخت الإجابة — الصقها للمشاركة');
+    }catch{/* ألغى المستخدم المشاركة */}
+  },[toast]);
+  /* مشاركة رابط التطبيق/الموقع */
+  const shareApp=useCallback(async()=>{
+    const url=WEB_URL;
+    try{
+      if(Capacitor.isNativePlatform()){const {Share}=await import('@capacitor/share');await Share.share({title:'NEXORA AI',text:'حمّل NEXORA AI — ذكاء اصطناعي عربي:\n'+url,url,dialogTitle:'مشاركة NEXORA AI'});return}
+      if(navigator.share){await navigator.share({title:'NEXORA AI',text:'حمّل NEXORA AI',url});return}
+      await navigator.clipboard.writeText(url);toast('نُسخ رابط التطبيق');
+    }catch{/* لا شيء */}
+  },[toast]);
+  /* أزرار ذكية تحت كل رد: تلخيص / تبسيط / ترجمة */
+  const quickAction=useCallback((kind,text)=>{
+    if(busy)return;
+    const src=String(text||'').slice(0,2500);
+    const map={
+      summarize:'لخّص النص التالي في نقاط قصيرة وواضحة:\n\n'+src,
+      simplify:'اشرح النص التالي بلغة بسيطة جدًا بحيث يفهمها مبتدئ تمامًا، مع مثال صغير:\n\n'+src,
+      translate:'ترجم النص التالي إلى الإنجليزية ترجمة طبيعية ودقيقة:\n\n'+src
+    };
+    const prompt=map[kind];if(!prompt)return;
+    runPrompt(prompt,{mode:'chat'});
+  },[busy]);
   const copyText=useCallback(async(t)=>{ try{ await navigator.clipboard.writeText(String(t||'')); toast('تم نسخ الإجابة') }catch{ toast('تعذر النسخ في هذا المتصفح') } },[toast]);
 
   /* صوت سحابي حقيقي (Gemini TTS) — بخلاف صوت الجهاز المجاني */
@@ -273,12 +299,11 @@ export default function AIPlatform() {
     setTtsBusy(true);
     try{
       const r=await api('ai/tts',{method:'POST',body:{text:String(t||'').slice(0,600)}});
-      if(r.credits!==undefined)setCredits(c=>({...c,balance:r.credits}));
       const a=new Audio(r.audio); a.play().catch(()=>{});
       toast('صوت Gemini ('+r.model+')');
     }catch(err){
       const c=err&&err.code;
-      toast(c==='insufficient_credits'?'نفد الرصيد — الصوت السحابي يخصم نقطة':c==='tts_unavailable'?'الصوت السحابي غير متاح الآن (مفتاح Gemini)':('تعذر الصوت السحابي ('+(c||'خطأ')+')'));
+      toast(c==='insufficient_credits'?'وصلت إلى حدّ الاستخدام المجاني المؤقت — جرّب لاحقًا':c==='tts_unavailable'?'الصوت السحابي غير متاح الآن (مفتاح Gemini)':('تعذر الصوت السحابي ('+(c||'خطأ')+')'));
     }
     setTtsBusy(false);
   },[ttsBusy,toast]);
@@ -286,12 +311,15 @@ export default function AIPlatform() {
   const stopGen=()=>{ try{ abortRef.current&&abortRef.current.abort() }catch{/* لا شيء */} };
   useEffect(()=>{if(!me?.id){setHistoryOwner(null);setMessages([]);return}let saved=[];try{saved=JSON.parse(localStorage.getItem(keyFor(me.id))||'[]')}catch{saved=[]}setMessages(saved);setHistoryOwner(me.id)},[me?.id]);
   useEffect(()=>{if(me?.id&&historyOwner===me.id)localStorage.setItem(keyFor(me.id),JSON.stringify(messages.slice(-80)));bottom.current?.scrollIntoView({behavior:'smooth',block:'end'})},[messages,me?.id,historyOwner,busy]);
+  const onHome=messages.length===0;
+  useEffect(()=>{ setAdSlot(onHome); return ()=>setAdSlot(false); },[onHome]);
   const newChat=()=>{setMessages([]);setInput('');setMode('chat');setSidebarOpen(false);setConvId(null);setAttach([]);field.current?.focus()};
   const lastUserBefore=(i)=>{for(let j=i-1;j>=0;j--){const m=messages[j];if(m&&m.role==='user'&&m.text)return m.text}return null};
   const runPrompt=async(prompt,opts)=> {
     opts=opts||{};
+    const useMode=opts.mode||mode;
     prompt=String(prompt||'').trim();if(!prompt||busy)return;
-    const prior=convId?undefined:messages.filter(m=>['user','model'].includes(m.role)&&m.text).slice(-10).map(m=>({role:m.role,text:m.text}));
+    const prior=convId?undefined:messages.filter(m=>['user','model'].includes(m.role)&&m.text).slice(-8).map(m=>({role:m.role,text:m.text}));
     const attIds=opts.regenerate?[]:attach.map(a=>a.id);
     const attNames=opts.regenerate?[]:attach.map(a=>a.name);
     setMessages(old=>[...old,{role:'user',text:prompt,attachments:attNames.length?attNames:undefined},{role:'model',text:'',streaming:true}]);
@@ -299,12 +327,11 @@ export default function AIPlatform() {
     const patchLast=(patch)=>setMessages(old=>{const n=old.length;return old.map((m,i)=>i===n-1?{...m,...patch}:m)});
     const ctrl=new AbortController();abortRef.current=ctrl;
     try {
-      if(mode==='image'){
+      if(useMode==='image'){
         const r=await api('ai/image',{method:'POST',body:{prompt}});
-        if(r.credits!==undefined)setCredits(c=>({...c,balance:r.credits}));
         patchLast({text:'تم إرسال طلب الصورة إلى مزوّد التوليد.',image:r.url,provider:r.provider,providerLabel:r.providerLabel,streaming:false});
       }else{
-        const body={message:prompt,model,mode,style,lang,conversationId:convId||undefined,search:searchOn,attachments:attIds.length?attIds:undefined,regenerate:opts.regenerate===true,history:prior};
+        const body={message:prompt,model,mode:useMode,style,lang,conversationId:convId||undefined,search:searchOn,attachments:attIds.length?attIds:undefined,regenerate:opts.regenerate===true,history:prior};
         let res=null;
         try{
           res=await fetch((API_BASE||'')+'/api/ai/stream',{
@@ -316,8 +343,7 @@ export default function AIPlatform() {
         const isSse=res&&res.ok&&String(res.headers.get('content-type')||'').includes('text/event-stream');
         if(!isSse){
           const r=await api('ai/chat',{method:'POST',body,signal:ctrl.signal});
-          if(r.credits!==undefined)setCredits(c=>({...c,balance:r.credits}));
-          if(r.conversationId)setConvId(r.conversationId);
+            if(r.conversationId)setConvId(r.conversationId);
           patchLast({text:r.answer,provider:r.provider,providerLabel:r.providerLabel,model:r.model,sources:r.sources||null,streaming:false,trace:(r.fallbacks||[]).join(' | ')});
           loadConvs(convQ.trim());
           if(voiceOut)speak(r.answer);
@@ -334,7 +360,6 @@ export default function AIPlatform() {
               else if(ev.type==='start'){if(ev.conversationId)setConvId(ev.conversationId)}
               else if(ev.type==='done'){
                 patchLast({text:ev.answer||undefined,provider:ev.provider,providerLabel:ev.providerLabel,model:ev.model,sources:ev.sources||null,streaming:false});
-                if(ev.credits!==undefined)setCredits(c=>({...c,balance:ev.credits}));
                 if(ev.conversationId)setConvId(ev.conversationId);
                 loadConvs(convQ.trim());
                 if(voiceOut)speak(ev.answer);
@@ -357,7 +382,7 @@ export default function AIPlatform() {
         ai_model_unavailable: 'النموذج المحدد غير متاح لهذا المفتاح. اختر GPT-5 mini أو أعد المحاولة ليُستخدم مزوّد بديل.',
         provider_rate_limited: 'وصلت إلى حد الطلبات مؤقتًا لدى المزوّدين. انتظر دقيقة ثم حاول مجددًا.',
         rate_limited: 'وصلت إلى حد الاستخدام المؤقت؛ حاول بعد دقيقة.',
-        insufficient_credits: 'نفد رصيد نقاطك. افتح «الرصيد» لشراء نقاط أو تجديد الاشتراك ثم تابع.',
+        insufficient_credits: 'وصلت إلى حدّ الاستخدام المجاني المؤقت. جرّب مرة أخرى لاحقًا.',
         voice_unavailable: 'التفريغ الصوتي غير متاح مؤقتًا (مزوّد الصوت). اكتب رسالتك أو حاول بعد قليل.',
         audio_too_large: 'التسجيل طويل جدًا — اجعله أقل من دقيقة.',
         unknown_plan: 'الخطة المطلوبة غير معروفة.',
@@ -388,7 +413,9 @@ export default function AIPlatform() {
     }finally{setBusy(false);abortRef.current=null}
   };
   runRef.current=runPrompt;
-  const send=(e)=>{e?.preventDefault();const prompt=input.trim();if(!prompt||busy)return;setInput('');runPrompt(prompt)};
+  const send=(e)=>{e?.preventDefault();const prompt=input.trim();if(!prompt||busy)return;setInput('');
+    if(Capacitor.isNativePlatform()){import('@capacitor/haptics').then(m=>m.Haptics.impact({style:m.ImpactStyle.Light}).catch(()=>{})).catch(()=>{})}
+    runPrompt(prompt)};
   if(booting)return <Splash/>;
   if(pinOpen&&anchorPin)return <div className="nx-ai-pinlock" dir={lang==='ar'?'rtl':'ltr'}>
     <div className="card"><img src="/mascot-avatar.png" alt="NEXORA AI" width={72} height={72}/><h2>NEXORA AI مقفل</h2><p>أدخل رمز PIN للمتابعة</p>
@@ -431,17 +458,16 @@ export default function AIPlatform() {
           {!convs.length&&<div className="nx-ai-conv-empty">لا محادثات بعد — ابدأ واحدة وستُحفظ تلقائيًا.</div>}
         </div>
         <div className="nx-ai-spacer"/>
-        <button type="button" className="nx-ai-upgrade" onClick={()=>setSheet('credits')}><Icon name="wallet" size={16}/> الرصيد والاشتراك <b>{credits?credits.balance:'—'}</b></button><button type="button" className="nx-ai-upgrade nx-ai-plans-btn" onClick={()=>setSheet('subscribe')}><Icon name="spark" size={16}/> الاشتراكات</button>{(me&&(me.username==='official.nexora'||me.id===12))&&<button type="button" className="nx-ai-upgrade nx-ai-admin-btn" onClick={()=>setSheet('revenue')}>الإيرادات</button>}
+        {(!Capacitor.isNativePlatform()&&me&&(me.username==='official.nexora'||me.id===12))&&<button type="button" className="nx-ai-upgrade nx-ai-admin-btn" onClick={()=>setSheet('revenue')}>الإيرادات</button>}
         <AdSlot name="sidebar" className="side"/>
         <div className="nx-ai-account"><span className="nx-ai-avatar">{(me.fullName||me.username||'N').slice(0,1).toUpperCase()}</span><span className="nx-ai-account-name"><b>{me.fullName||me.username}</b><small>@{me.username}</small></span>
           <button onClick={()=>setSheet('account')} title="الحساب والأمان"><Icon name="user"/></button>
           <button onClick={logout} title="تسجيل الخروج"><Icon name="logout"/></button></div>
-        <div className="nx-ai-version">NEXORA AI · نسخة <b>Ahmed Becetti</b> · v4.1</div>
+        <div className="nx-ai-version">NEXORA AI · نسخة <b>Ahmed Becetti</b> · v4.2</div>
       </aside>
       {sidebarOpen&&<button className="nx-ai-backdrop" onClick={()=>setSidebarOpen(false)} aria-label="إغلاق القائمة"/>}
       <main className="nx-ai-main">
         <header className="nx-ai-topbar"><button className="nx-ai-mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="القائمة"><Icon name="menu"/></button><div className="nx-ai-top-title"><i/> مساحة الذكاء الاصطناعي</div><div className="nx-ai-top-actions">
-            <button type="button" className="nx-ai-chip" onClick={()=>setSheet('credits')} title="رصيد النقاط"><Icon name="wallet" size={15}/><b>{credits?credits.balance:'—'}</b></button>
             <button type="button" className={'nx-ai-icon-button'+(voiceOut?' on':'')} onClick={()=>{const v=!voiceOut;setVoiceOut(v);localStorage.setItem('nx_ai_tts',v?'1':'0');if(!v&&typeof speechSynthesis!=='undefined')speechSynthesis.cancel()}} title={voiceOut?'إيقاف قراءة الردود':'قراءة الردود صوتيًا'}><Icon name={voiceOut?'speaker':'speakerOff'}/></button>
             <label className="nx-ai-mini" title="أسلوب الرد"><Icon name="tune" size={15}/><select value={style} onChange={e=>{setStyle(e.target.value);localStorage.setItem('nx_ai_style',e.target.value)}} aria-label="أسلوب الرد">
               <option value="auto">تلقائي</option><option value="short">مختصر</option><option value="detailed">مفصّل</option>
@@ -468,8 +494,12 @@ export default function AIPlatform() {
               {m.attachments&&m.attachments.length>0&&<span className="nx-ai-attach-chips">{m.attachments.map((n,ix)=><i key={ix}>📎 {n}</i>)}</span>}
               {m.role==='model'&&m.text&&!m.streaming&&<div className="nx-ai-msg-actions">
                 <button type="button" onClick={()=>copyText(m.text)} title="نسخ الإجابة">نسخ</button>
+                <button type="button" onClick={()=>shareReply(m.text)} title="مشاركة الإجابة (واتساب وغيره)">مشاركة</button>
+                <button type="button" disabled={busy} onClick={()=>quickAction('summarize',m.text)} title="لخص هذه الإجابة في نقاط">لخص</button>
+                <button type="button" disabled={busy} onClick={()=>quickAction('simplify',m.text)} title="اشرحها بلغة أبسط">بسّط</button>
+                <button type="button" disabled={busy} onClick={()=>quickAction('translate',m.text)} title="ترجم الإجابة إلى الإنجليزية">EN</button>
                 <button type="button" onClick={()=>{try{speak(m.text)}catch(e){/* لا صوت */}}} title="قراءة بصوت الجهاز (مجاني)">🔊 نطق</button>
-                <button type="button" disabled={ttsBusy} onClick={()=>serverTts(m.text)} title="صوت Gemini السحابي الحقيقي (نقطة واحدة)">صوت سحابي</button>
+                <button type="button" disabled={ttsBusy} onClick={()=>serverTts(m.text)} title="صوت Gemini السحابي الحقيقي">صوت سحابي</button>
                 <button type="button" disabled={busy} onClick={()=>{const lp=lastUserBefore(i);if(lp)runPrompt(lp,{regenerate:true})}} title="إعادة توليد الرد">إعادة توليد</button>
               </div>}
               {m.sources&&m.sources.length>0&&<div className="nx-ai-sources"><b>المصادر ({m.sources.length})</b>{m.sources.map((sc,si)=><a key={si} href={sc.url} target="_blank" rel="noopener noreferrer" className={sc.ok===false?'dead':''}>{si+1}. {sc.title||sc.url}{sc.ok===false?' — تعذر التحقق من الرابط':''}</a>)}</div>}
@@ -489,30 +519,8 @@ export default function AIPlatform() {
             </div></div></form><div className="nx-ai-disclaimer">NEXORA AI · لا تشارك كلمات المرور أو المعلومات الحساسة</div></footer>
         {sheet&&<div className="nx-ai-sheetwrap" onClick={()=>setSheet(null)}>
           <div className="nx-ai-sheet" onClick={e=>e.stopPropagation()}>
-            <div className="nx-ai-sheet-head"><b>{sheet==='credits'?'الرصيد والاشتراك':sheet==='subscribe'?'خطط الاشتراك والدفع':sheet==='revenue'?'لوحة الإيرادات (المالك)':'الحساب والأمان'}</b><button onClick={()=>setSheet(null)} aria-label="إغلاق">✕</button></div>
-            {sheet==='subscribe'&&<div className="nx-ai-sheet-body"><Subscriptions onClose={()=>setSheet(null)} toast={toast} onBalanceChange={()=>api('me/credits').then(setCredits).catch(()=>{})}/></div>}
+            <div className="nx-ai-sheet-head"><b>{sheet==='revenue'?'لوحة الإيرادات (المالك)':'الحساب والأمان'}</b><button onClick={()=>setSheet(null)} aria-label="إغلاق">✕</button></div>
             {sheet==='revenue'&&<div className="nx-ai-sheet-body"><AdminRevenue onClose={()=>setSheet(null)} toast={toast}/></div>}
-            {sheet==='credits'&&<div className="nx-ai-sheet-body">
-              <div className="nx-ai-balance"><span>رصيدك الحالي</span><b>{credits?credits.balance:'—'}</b><small>نقطة · كل رسالة = {(credits&&credits.costs&&credits.costs.chat)||1} · كل صورة = {(credits&&credits.costs&&credits.costs.image)||5} · كل رسالة صوتية = {(credits&&credits.costs&&credits.costs.voice)||2}</small></div>
-              <div className="nx-ai-plans">{(plans||[]).map(pl=><button key={pl.id} className="nx-ai-plan" onClick={async()=>{
-                  try{ const r=await api('credits/order',{method:'POST',body:{plan:pl.id}});
-                    setCredits(c=>({...c,orders:[r.order,...((c&&c.orders)||[])]}));
-                    toast('تم إنشاء طلب الشراء ' + r.order.reference);
-                  }catch(e){toast(e?.code==='unknown_plan'?'الخطة غير متاحة':('تعذر إنشاء الطلب ('+(e?.code||'خطأ')+')'))}
-                }}><b>{pl.label}</b><span>{pl.credits} نقطة</span></button>)}
-              </div>
-              {credits&&credits.orders&&credits.orders.length>0&&<div className="nx-ai-orders">
-                <h4>طلباتك</h4>
-                {credits.orders.slice(0,5).map(o=><div key={o.id||o.reference} className="nx-ai-order"><code>{o.reference}</code><span>{o.credits} نقطة</span><i className={'st '+o.status}>{o.status==='pending'?'بانتظار التحقق':o.status==='confirmed'?'مُفعّل':'مرفوض'}</i></div>)}
-              </div>}
-              <div className="nx-ai-pay">
-                <h4>طريقة الدفع</h4>
-                {credits&&credits.wallet&&credits.wallet.number
-                  ? <p>حوّل المبلغ عبر تطبيق <b>{credits.wallet.app}</b> إلى الرقم <b dir="ltr">{credits.wallet.number}</b> باسم {credits.wallet.holder}، ثم أرسل رمز الطلب إلى <a href={'mailto:'+((credits&&credits.contact)||'')}>{credits&&credits.contact}</a> ليُفعَّل الرصيد.</p>
-                  : <p>أنشئ الطلب من الأعلى ثم أرسل <b>رمز الطلب</b> إلى <a href={'mailto:'+((credits&&credits.contact)||'')}>{credits&&credits.contact}</a> وسيُفعَّل رصيدك بعد التحقق. <small>(رقم المحفظة يُضاف من إعدادات الخادم PAYMENT_WALLET_NUMBER لظهوره هنا تلقائيًا.)</small></p>}
-                <small className="mut">لا تُخصم أي نقاط عند فشل الردود — الخصم يتم عند نجاح الإجابة فقط.</small>
-              </div>
-            </div>}
             {sheet==='account'&&<div className="nx-ai-sheet-body">
               <div className="nx-ai-acc-list">
                 {(accounts.length?accounts:[me&&{id:me.id,username:me.username,fullName:me.fullName,token:getToken()}]).filter(Boolean).map(a=><button key={a.id} className={'nx-ai-acc'+(a.id===me?.id?' here':'')} onClick={async()=>{
@@ -521,6 +529,13 @@ export default function AIPlatform() {
                     try{ setToken(a.token); const r=await api('me',{token:a.token}); setTok(a.token); setMe(r.user); localStorage.setItem('nx_me',JSON.stringify(r.user)); toast('تم التبديل إلى @'+r.user.username); setSheet(null) }
                     catch{ dropAccountToken(a.id); setAccounts(getAccounts()); toast('انتهت جلسة هذا الحساب — سجّل الدخول مجددًا.'); setAddingAccount(true); setSheet(null) }
                   }}><span className="nx-ai-avatar sm">{(a.fullName||a.username||'?').slice(0,1).toUpperCase()}</span><span><b>{a.fullName||a.username}</b><small>@{a.username}{a.id===me?.id?' · الحالي':''}</small></span>{a.id===me?.id&&<Icon name="chevron"/>}</button>)}
+              </div>
+              <div className="nx-ai-pin">
+                <h4><Icon name="globe" size={15}/> NEXORA على الويب</h4>
+                <button className="nx-ai-wide" onClick={()=>openUrl(WEB_URL)}><Icon name="globe" size={16}/> زيارة الموقع الرسمي</button>
+                <button className="nx-ai-wide" onClick={()=>openUrl(WEB_URL+'/privacy.html')}><Icon name="lock" size={16}/> سياسة الخصوصية</button>
+                <button className="nx-ai-wide" onClick={shareApp}><Icon name="spark" size={16}/> مشاركة التطبيق مع صديق</button>
+                <small className="mut">أي تحديث يصل إلى الموقع يصل تلقائيًا إلى التطبيق — نفس المنصة على الهاتف والويب.</small>
               </div>
               <button className="nx-ai-wide" onClick={()=>{setAddingAccount(true);setSheet(null)}}><Icon name="plus" size={16}/> إضافة حساب آخر</button>
               <button className="nx-ai-wide" onClick={async()=>{try{await api('me/logout-all',{method:'POST'});toast('تم إنهاء الجلسات على كل الأجهزة')}catch{toast('تعذر تنفيذ الطلب')}}}><Icon name="logout" size={16}/> إنهاء الجلسات على كل الأجهزة</button>
