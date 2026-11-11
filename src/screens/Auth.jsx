@@ -179,9 +179,8 @@ function SavedProfiles({ accounts, refresh, go, onPassword, finish, onCancel }) 
 /* ------------------------------------------------------------------ */
 /* Login                                                              */
 /* ------------------------------------------------------------------ */
-/* Google blocks its sign-in page inside embedded WebViews, so the Android app hides that button
-   and keeps e-mail / phone sign-in (the app identifies itself with "NexoraAI" in the user agent). */
-const insideApp = () => /NexoraAI/i.test(typeof navigator === 'undefined' ? '' : navigator.userAgent);
+/* Only legacy embedded WebViews lack native Google auth. Capacitor uses the native plugin. */
+const insideApp = () => !Capacitor.isNativePlatform() && /NexoraAI/i.test(typeof navigator === 'undefined' ? '' : navigator.userAgent);
 function SocialButtons({ finish, go }) {
   const { toast } = useApp();
   const [busy, setBusy] = useState(false);
@@ -191,8 +190,11 @@ function SocialButtons({ finish, go }) {
     try {
       const { signInWithGoogle } = await import('../firebase.js');
       finish(await signInWithGoogle());
-    } catch (e) { if (e.code !== 'cancelled') toast(errText(e.code)); }
-    setBusy(false);
+    } catch (e) {
+      if (e.code !== 'cancelled') toast(errText(e.code || 'google_failed'));
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <div className="social-btns">

@@ -41,6 +41,8 @@ function mapFirebaseError(e) {
   if (/expired/i.test(msg)) return new AuthFlowError('code_expired');
   if (/blocked all requests|unusual activity|too many|quota/i.test(msg)) return new AuthFlowError('too_many_attempts');
   if (/network|timeout|unreachable/i.test(msg)) return new AuthFlowError('network');
+  if (/Default FirebaseApp is not initialized|WILL_BE_OVERRIDDEN|default_web_client_id|FirebaseAuthentication.*(?:not implemented|not available)/i.test(c + ' ' + msg)) return new AuthFlowError('google_not_configured', msg);
+  if (c.includes('popup-blocked')) return new AuthFlowError('google_failed', msg);
   if (c.includes('popup-closed') || c.includes('cancelled') || /cancel/i.test(msg)) return new AuthFlowError('cancelled');
   // أخطاء Google Play services على أندرويد (ApiException: 10 = بصمة التوقيع غير مسجّلة)
   const apiCode = /ApiException:\s*(\d+)/.exec(msg)?.[1] || /\b(12500|12501|12502|10|7|16)\b/.exec(msg)?.[1];
@@ -54,6 +56,20 @@ function mapFirebaseError(e) {
   return new AuthFlowError('auth_provider_error', msg || c);
 }
 
+// Bound only the server exchange, not the time the user needs to choose an account.
+async function exchangeGoogleToken(path, idToken) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    return await api(path, { method: 'POST', body: { idToken }, token: null, signal: controller.signal });
+  } catch (e) {
+    if (e.name === 'AbortError') throw new AuthFlowError('network');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Google sign-in → app session ({token,user}) or {needsProfile,...}. */
 export async function signInWithGoogle() {
   try {
@@ -64,14 +80,14 @@ export async function signInWithGoogle() {
         res = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true });
       } catch (e) {
         const msg = String(e?.message || e?.code || '');
-        if (/cancel/i.test(msg) && !/no credentials/i.test(msg)) throw e;
+        if (/cancel|12501/i.test(msg) && !/no credentials/i.test(msg)) throw e;
         // Credential Manager fails on some phones (no saved Google account, outdated Play services):
         // fall back to the classic Google Sign-In screen, which also lets the user add an account.
         res = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true, useCredentialManager: false });
       }
       const idToken = res?.credential?.idToken;
       if (!idToken) throw new AuthFlowError('google_failed');
-      return await api('auth/google', { method: 'POST', body: { idToken } });
+      return await exchangeGoogleToken('auth/google', idToken);
     }
     const { auth, m } = await getFbAuth();
     const provider = new m.GoogleAuthProvider();
@@ -79,7 +95,7 @@ export async function signInWithGoogle() {
     const cred = await m.signInWithPopup(auth, provider);
     const idToken = await cred.user.getIdToken();
     m.signOut(auth).catch(() => {});
-    return await api('auth/firebase', { method: 'POST', body: { idToken } });
+    return await exchangeGoogleToken('auth/firebase', idToken);
   } catch (e) {
     if (e instanceof AuthFlowError || e?.status) throw e;
     throw mapFirebaseError(e);

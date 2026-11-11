@@ -8,3 +8,6 @@ dist/
 # أدوات التطوير المحلية في الجذر فقط (تحتوي أسراراً حقيقية: توكن Vercel، رابط قاعدة البيانات، أسرار الاختبار)
 # لا تُرفع إلى مستودع عام — النمط مثبَّت بالجذر حتى لا يمسّ مجلدات المشروع مثل api/_lib
 /_*
+
+# Firebase Android configuration is restored from CI secrets
+/android/app/google-services.json

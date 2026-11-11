@@ -7,14 +7,15 @@
    - Rewarded (مكافأة): اختياري بطلب المستخدم — تُمنح فقط بعد حدث Rewarded
      من AdMob، وتكافئ «يومًا بلا إعلانات بينية».
    - الموافقة GDPR/UMP: تُطلب أولًا عند الإقلاع حيث تفرضها Google.
-   - وضع الاختبار: في بيئة التطوير (vite dev أو localStorage nx_ad_test=1)
+   - وضع الاختبار: في بيئة التطوير (vite dev)
      تُستعمل معرّفات Google الاختبارية الرسمية تلقائيًا. الإنتاج يستعمل
      معرّفات الإنتاج فقط (لا إعلانات اختبارية في الإصدار النهائي).
    ========================================================================== */
 import { Capacitor } from '@capacitor/core';
 import { api } from './api.js';
 
-const DEV_BUILD = import.meta.env.DEV || (() => { try { return localStorage.getItem('nx_ad_test') === '1'; } catch { return false; } })();
+// Release builds must never inherit test ads from a previous localStorage setting.
+const DEV_BUILD = import.meta.env.DEV;
 
 /* معرّفات الإنتاج الرسمية من حساب AdMob (عامة بطبيعتها — ليست أسرارًا) */
 const PROD_UNITS = {
