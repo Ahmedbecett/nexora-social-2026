@@ -35,9 +35,30 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Restore Firebase Android configuration
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          fi
+          node scripts/check-android-firebase.mjs
+
+      - name: Require stable signing for published APKs
+        if: github.ref == 'refs/heads/main'
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXORA_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.NEXORA_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::Published APKs require a stable release keystore with its SHA registered in Firebase."
+            exit 1
+          fi
+
       - name: Install & build web app
         run: |
           npm ci
+          npm test
           npm run build
           rm -rf dist/download
           npx cap sync android
@@ -55,6 +76,7 @@ jobs:
         env:
           NEXORA_KEYSTORE_PASSWORD: ${{ secrets.NEXORA_KEYSTORE_PASSWORD }}
           NEXORA_KEY_ALIAS: ${{ secrets.NEXORA_KEY_ALIAS }}
+          NEXORA_KEY_PASSWORD: ${{ secrets.NEXORA_KEY_PASSWORD }}
         working-directory: android
         run: |
           chmod +x gradlew

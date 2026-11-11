@@ -7,8 +7,8 @@ android {
         applicationId "com.ahmedbecetti.nexora"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 43
-        versionName "4.3.0"
+        versionCode 44
+        versionName "4.3.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -67,11 +67,17 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
+// Google auth requires generated Firebase resources, not the plugin's placeholder client ID.
+// Debug builds can still run the email/password UI without Firebase configuration.
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+} else {
+    logger.warn("google-services.json missing: native Google/phone sign-in is unavailable")
+    tasks.configureEach { task ->
+        if (task.name == 'preReleaseBuild') {
+            task.doFirst {
+                throw new GradleException("Release requires android/app/google-services.json. See docs/ci/README.md")
+            }
+        }
     }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
