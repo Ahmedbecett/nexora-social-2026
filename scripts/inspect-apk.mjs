@@ -90,7 +90,8 @@ if (certEntry) {
 let hasGoogleServices = false;
 try {
   const arsc = readEntry(buf, entries.get('resources.arsc'));
-  const text = arsc.toString('latin1');
+  // قد يكون مجمّع النصوص UTF-8 أو UTF-16؛ نطبّع الحالتين قبل المطابقة
+  const text = (arsc.toString('latin1') + '\n' + arsc.toString('utf16le')).replace(/\0/g, '');
   hasGoogleServices =
     !text.includes('WILL_BE_OVERRIDDEN') &&
     (text.includes('apps.googleusercontent.com') || text.includes('google_app_id'));
@@ -99,6 +100,27 @@ try {
 }
 
 const hasAuthPlugin = [...entries.keys()].some((n) => n.startsWith('assets/')) === true;
+
+/* هل شُحنت واجهة Google داخل DEX؟ (شفرة Play Services/Credential Manager) */
+let googleClassesInDex = false;
+try {
+  const dexText = [...entries.keys()]
+    .filter((n) => /^classes\d*\.dex$/.test(n))
+    .map((n) => readEntry(buf, entries.get(n)).toString('latin1'))
+    .join('\n');
+  googleClassesInDex = /com\/google\/android\/gms\/auth\/api\/signin/.test(dexText)
+    || /androidx\/credentials\/CredentialManager/.test(dexText);
+} catch {
+  /* تبقى false */
+}
+/*
+ * حاجز الأمان: بناء شُحن بمعهد Google لكن بلا تهيئة Firebase يعني تكرار خلل النسخة 43
+ * على Fire OS (وعد معلّق / زر لا يستجيب). نُفشل التقرير بدل نشر حزمة مرفوضة.
+ */
+const configProblem =
+  !hasGoogleServices && googleClassesInDex
+    ? 'شُحنت واجهة Google بلا تهيئة Firebase — هذا يُعيد إنتاج خلل النسخة 43. أوقف rgcfaIncludeGoogle أو أضِف google-services.json.'
+    : null;
 
 /* ---------- الحزمة ورقم النسخة من AndroidManifest الثنائي (AXML) ---------- */
 function parseManifest(buffer) {
@@ -197,10 +219,20 @@ const lines = [
   `- صلاحية الشهادة: ${signer ? signer.validTo : '—'}`,
   `- تهيئة Firebase/Google داخل الحزمة: ${hasGoogleServices ? 'نعم (Google Sign-In مفعّل)' : 'لا (البريد/الهاتف فقط — متوافق مع Fire OS)'}`,
   `- محتوى الويب مضمّن: ${hasAuthPlugin ? 'نعم' : 'لا'}`,
+  `- شفرة Google الأصلية داخل DEX: ${googleClassesInDex ? 'نعم' : 'لا'}`,
   '',
   signer
     ? '> إن تغيّر SHA-256 أعلاه عن البصمة المعتمدة، فلا ترفع الحزمة: المفتاح نفسه يجب أن يبقى.'
     : '> لم يُعثر على توقيع: لا ترفع هذه الحزمة إلى Amazon Appstore.',
 ];
 
+if (configProblem) {
+  lines.push('');
+  lines.push('> [FAIL] ' + configProblem);
+}
 for (const line of lines) console.log(line);
+
+if (configProblem) {
+  console.error(`\nفشل فحص الحزمة: ${configProblem}`);
+  process.exit(1);
+}
