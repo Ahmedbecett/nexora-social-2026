@@ -242,13 +242,28 @@ const lines = [
     : '> لم يُعثر على توقيع: لا ترفع هذه الحزمة إلى Amazon Appstore.',
 ];
 
+/* ---------- بصمة التوقيع المعتمدة (Amazon: نفس الحزمة ونفس المفتاح) ---------- */
+const APPROVED_SHA256 = '24:0E:00:2F:A0:90:51:6D:EF:06:E8:92:61:4F:03:A3:79:17:A0:3B:30:04:BE:EC:F5:1B:1A:D3:0C:07:42:F6';
+const requireSignature = String(process.env.APK_REQUIRE_SIGNATURE || '') === '1';
+let signatureProblem = null;
+if (!describeOnly && requireSignature) {
+  if (!signer) {
+    signatureProblem = 'الحزمة غير موقّعة — لا يمكن رفعها إلى Amazon Appstore.';
+  } else if (signer.sha256 !== APPROVED_SHA256) {
+    signatureProblem = 'توقيع مختلف عن المفتاح المعتمد: ' + signer.sha256
+      + ' — المتوقع ' + APPROVED_SHA256 + ' (تغيّر المفتاح يعني رفض التحديث).';
+  }
+}
+
+if (signatureProblem) lines.push('> [FAIL] ' + signatureProblem);
 if (configProblem) {
   lines.push('');
   lines.push('> [FAIL] ' + configProblem);
 }
 for (const line of lines) console.log(line);
 
-if (configProblem) {
-  console.error(`\nفشل فحص الحزمة: ${configProblem}`);
+const failure = signatureProblem || configProblem;
+if (failure) {
+  console.error('\nفشل فحص الحزمة: ' + failure);
   process.exit(1);
 }

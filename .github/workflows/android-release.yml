@@ -92,6 +92,9 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk ../Nexora.apk
 
       - name: Report APK identity (version · package · signer)
+        env:
+          # يمنع رفع حزمة بمفتاح تصحيح أو بمفتاح مختلف (Amazon: نفس المفتاح إلزامي)
+          APK_REQUIRE_SIGNATURE: '1'
         run: |
           node scripts/inspect-apk.mjs Nexora.apk | tee apk-report.txt
           cat apk-report.txt >> "$GITHUB_STEP_SUMMARY"
