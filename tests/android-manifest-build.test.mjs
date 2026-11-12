@@ -106,3 +106,30 @@ test('gate في Gradle: Google لا يُشحن بلا تهيئة (حماية Fir
   assert.match(app, /rgcfaIncludeGoogle/);
   assert.match(root, /rgcfaIncludeGoogle\s*=\s*hasFirebaseConfig/);
 });
+
+/* ==========================================================================
+   الإعلانات (AdMob) — شرط المستخدم الصريح: لا تُفقد في نسخة الإصلاح.
+   الخلل الأكثر ترجيحًا بعد تغيير بناء Firebase هو سقوط إضافة google-services،
+   وهي التي تزوّد AdMob بمعرّف التطبيق وقت التشغيل.
+   ========================================================================== */
+test('AdMob: معرّف التطبيق في المانيفست هو الإنتاجي', () => {
+  const xml = stripComments(read(MANIFEST));
+  assert.match(xml, /com\.google\.android\.gms\.ads\.APPLICATION_ID/);
+  assert.match(xml, /ca-app-pub-6858364141205978~7081673739/);
+});
+
+test('AdMob: معرّفات الوحدات الإنتاجية موجودة في src/ads.js', () => {
+  const ads = read('src/ads.js');
+  assert.match(ads, /ca-app-pub-6858364141205978\/1001361442/); // banner
+  assert.match(ads, /ca-app-pub-6858364141205978\/2374152863/); // interstitial
+  assert.match(ads, /ca-app-pub-6858364141205978\/5160098300/); // rewarded
+  // معرّفات الاختبار لا تُستخدم إلا في بناء التطوير
+  const prodBlock = /const PROD_UNITS = \{[\s\S]*?\};/.exec(ads)?.[0] || '';
+  assert.doesNotMatch(prodBlock, /3940256099942544/);
+});
+
+test('AdMob: ملفات ads.txt وapp-ads.txt تُصرّح بمعرّف الناشر', () => {
+  for (const f of ['public/ads.txt', 'public/app-ads.txt']) {
+    assert.match(read(f), /pub-6858364141205978/);
+  }
+});
