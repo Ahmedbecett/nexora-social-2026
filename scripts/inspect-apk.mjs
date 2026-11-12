@@ -11,7 +11,7 @@
  *
  * الاستخدام: node scripts/inspect-apk.mjs Nexora.apk
  */
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync, existsSync } from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
 import { createHash, X509Certificate } from 'node:crypto';
 
@@ -117,10 +117,25 @@ try {
  * حاجز الأمان: بناء شُحن بمعهد Google لكن بلا تهيئة Firebase يعني تكرار خلل النسخة 43
  * على Fire OS (وعد معلّق / زر لا يستجيب). نُفشل التقرير بدل نشر حزمة مرفوضة.
  */
-const configProblem =
-  !hasGoogleServices && googleClassesInDex
-    ? 'شُحنت واجهة Google بلا تهيئة Firebase — هذا يُعيد إنتاج خلل النسخة 43. أوقف rgcfaIncludeGoogle أو أضِف google-services.json.'
-    : null;
+const configSourceExists = existsSync('android/app/google-services.json');
+const envConfigExists = String(process.env.GOOGLE_SERVICES_JSON || '').trim().startsWith('{');
+const expectedConfig = configSourceExists || envConfigExists;
+
+// --describe-only: وصف الحزمة فقط (تشخيص/فحص التوقيع لحزمة قديمة) بلا حاجز نشر
+const describeOnly = process.argv.includes('--describe-only')
+  || String(process.env.APK_DESCRIBE_ONLY || '') === '1';
+
+let configProblem = null;
+if (describeOnly) configProblem = null;
+if (describeOnly) {
+  // لا حاجز
+} else if (!hasGoogleServices && googleClassesInDex) {
+  configProblem = 'شُحنت واجهة Google بلا تهيئة Firebase — هذا يُعيد إنتاج خلل النسخة 43. أوقف rgcfaIncludeGoogle أو أضِف google-services.json.';
+} else if (expectedConfig && !hasGoogleServices) {
+  // التهيئة موجودة للمصدر لكنها لم تصل إلى الحزمة: البناء لم يُشغّل الإضافة،
+  // أي أن Google معطّل فعليًا — لا يجوز وصف الحزمة بأن Google يعمل فيها.
+  configProblem = 'تهيئة Firebase موجودة في المصدر لكن غير مضمّنة في الحزمة — أضِف apply plugin: com.google.gms.google-services وتحقّق من rgcfaIncludeGoogle.';
+}
 
 /* ---------- الحزمة ورقم النسخة من AndroidManifest الثنائي (AXML) ---------- */
 function parseManifest(buffer) {
@@ -218,6 +233,7 @@ const lines = [
   `- SHA-256 للشهادة: ${signer ? signer.sha256 : '—'}`,
   `- صلاحية الشهادة: ${signer ? signer.validTo : '—'}`,
   `- تهيئة Firebase/Google داخل الحزمة: ${hasGoogleServices ? 'نعم (Google Sign-In مفعّل)' : 'لا (البريد/الهاتف فقط — متوافق مع Fire OS)'}`,
+  `- ملف التهيئة في المصدر: ${expectedConfig ? 'موجود' : 'غائب (بناء مقصود بلا Google)'}`,
   `- محتوى الويب مضمّن: ${hasAuthPlugin ? 'نعم' : 'لا'}`,
   `- شفرة Google الأصلية داخل DEX: ${googleClassesInDex ? 'نعم' : 'لا'}`,
   '',

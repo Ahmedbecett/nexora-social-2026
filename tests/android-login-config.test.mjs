@@ -29,7 +29,7 @@ test('versionCode أكبر من 43 (Amazon رفضت 43)', () => {
 });
 
 test('مفتاح التوقيع في الحزمة الحالية هو نفسه البصمة المعتمدة', { skip: !existsSync('public/download/Nexora.apk') }, () => {
-  const out = execFileSync(process.execPath, ['scripts/inspect-apk.mjs', 'public/download/Nexora.apk'], { encoding: 'utf8' });
+  const out = execFileSync(process.execPath, ['scripts/inspect-apk.mjs', 'public/download/Nexora.apk', '--describe-only'], { encoding: 'utf8' });
   const sha = /SHA-256 للشهادة:\s*([0-9A-F:]{95})/.exec(out)?.[1];
   if (!sha) return; // لم تُقرأ الشهادة (نسخة تُبنى لاحقًا)
   assert.equal(sha, '24:0E:00:2F:A0:90:51:6D:EF:06:E8:92:61:4F:03:A3:79:17:A0:3B:30:04:BE:EC:F5:1B:1A:D3:0C:07:42:F6');
