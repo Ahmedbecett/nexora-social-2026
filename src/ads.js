@@ -56,6 +56,21 @@ function setVar() {
 export async function initAds() {
   if (!Capacitor.isNativePlatform() || adsReady) return;
   try {
+    // ---- Fire OS / أجهزة بلا Google Play Services ----
+    // إعلانات AdMob تعتمد على Play Services؛ محاولة التهيئة عليها قد تُبطئ الإقلاع
+    // أو ترمي استثناء أصليًا. نفحص أولًا (فشل الفحص ⟹ نُكمل بالمحاولة كما كان).
+    let env = null;
+    try {
+      const { getAuthEnvironment } = await import('./firebase.js');
+      env = await getAuthEnvironment();
+    } catch { env = null; }
+    if (env && env.playServices === false) {
+      adsReady = false;
+      bannerVisible = false;
+      setVar();
+      return;
+    }
+
     let cfg = null;
     try { cfg = await api('app/config'); } catch { cfg = null; }
     const ads = (cfg && cfg.ads) || {};

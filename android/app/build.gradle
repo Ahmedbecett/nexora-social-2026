@@ -7,8 +7,9 @@ android {
         applicationId "com.ahmedbecetti.nexora"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 43
-        versionName "4.3.0"
+        // v4.4.0 (44) — إصلاح رفض Amazon: زر Google كان معلّقًا + دخول حقيقي بالبريد
+        versionCode 44
+        versionName "4.4.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -47,6 +48,7 @@ android {
     }
 }
 
+
 repositories {
     flatDir{
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
@@ -67,11 +69,29 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+/* ==========================================================================
+   NEXORA AI — تهيئة Firebase / Google Sign-In (Fire OS + Amazon Appstore)
+   --------------------------------------------------------------------------
+   المشكلة في النسخة 43: لم يكن google-services.json موجودًا في الحزمة، لكن
+   إضافة المصادقة كانت تُشحن بمسار Google الكامل. على Fire OS (بلا Play
+   Services) لم تُحمَّل الإضافة أصلًا، فبقي وعد JavaScript معلّقًا إلى الأبد
+   وظهر الزر كأنه لا يستجيب — وهو ما رفضته Amazon.
+
+   الحل:
+   - إن وُجد google-services.json (أو GOOGLE_SERVICES_JSON) ⟹ تفعيل Google
+     بالكامل (الواجهة الجديدة + التوقيع المُسجَّل).
+   - إن غاب ⟹ استبعاد واجهة Google من الحزمة، وتصبح الإضافة خفيفة بلا مسار
+     Google، والتطبيق يعمل بالبريد/الهاتف. لا تعليق ولا شاشة تحميل لا تنتهي.
+   ========================================================================== */
+def googleServicesFile = file('google-services.json')
+// القرار يُتخذ في المشروع الجذر (android/build.gradle) قبل تهيئة الإضافات
+def hasGoogleServices = rootProject.ext.has('rgcfaIncludeGoogle')
+    ? rootProject.ext.rgcfaIncludeGoogle
+    : (googleServicesFile.exists() && googleServicesFile.length() > 0)
+
+if (hasGoogleServices) {
+    apply plugin: 'com.google.gms.google-services'
+    logger.lifecycle("NEXORA: google-services.json موجود — تم تفعيل Firebase وGoogle Sign-In.")
+} else {
+    logger.lifecycle("NEXORA: تخطّي إضافة google-services (لا يوجد ملف تهيئة).")
 }

@@ -203,8 +203,10 @@ export default function AIPlatform() {
   useEffect(()=>{
     if(!token){setBooting(false);return}
     let live=true;
-    api('me').then(r=>{if(live){updateMe(r.user);setBooting(false)}}).catch(()=>{if(live)setBooting(false)});
-    return()=>{live=false};
+    api('me',{timeout:15000}).then(r=>{if(live){updateMe(r.user);setBooting(false)}}).catch(()=>{if(live)setBooting(false)});
+    // حزام أمان: لا شاشة تحميل أبدية حتى لو تجمّد WebView أو الشبكة
+    const guard=setTimeout(()=>{if(live)setBooting(false)},20000);
+    return()=>{live=false;clearTimeout(guard)};
   },[token,updateMe]);
 
   /* ---------- المحادثات المحفوظة في PostgreSQL ---------- */

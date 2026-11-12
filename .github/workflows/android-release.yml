@@ -14,6 +14,12 @@ concurrency:
   group: apk-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # اسم سر يحتوي محتوى google-services.json (JSON كامل) لتسجيل الدخول عبر Google
+  FIREBASE_CONFIG_SECRET: GOOGLE_SERVICES_JSON
+  FIREBASE_PROJECT_ID: nexora-social-2026
+  APP_PACKAGE: com.ahmedbecetti.nexora
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -35,12 +41,32 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # ------------------------------------------------------------------
+      # تهيئة Firebase/Google: إن وُجد السر نكتب google-services.json،
+      # وإن غاب يُبنى التطبيق بالبريد/الهاتف فقط (يعمل على Fire OS بلا تعليق).
+      # ------------------------------------------------------------------
+      - name: Restore Firebase Android configuration (optional)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            node -e "JSON.parse(require('fs').readFileSync('android/app/google-services.json','utf8'))" \
+              || { echo "::error::GOOGLE_SERVICES_JSON ليس JSON صالحًا"; exit 1; }
+            echo "::notice::Google Sign-In مفعّل في هذه الحزمة (google-services.json موجود)."
+          else
+            echo "::warning::لا يوجد سر GOOGLE_SERVICES_JSON — ستُبنى الحزمة بدون Google Sign-In. الدخول بالبريد/الهاتف يعمل، وزر Google يعرض التنبيه بدل أن يتوقف."
+          fi
+
       - name: Install & build web app
         run: |
           npm ci
           npm run build
           rm -rf dist/download
           npx cap sync android
+
+      - name: Verify login bindings in the Android project
+        run: node scripts/check-login-config.mjs
 
       - name: Restore signing key (optional)
         env:
@@ -49,6 +75,8 @@ jobs:
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > $RUNNER_TEMP/nexora.jks
             echo "NEXORA_KEYSTORE=$RUNNER_TEMP/nexora.jks" >> $GITHUB_ENV
+          else
+            echo "::warning::لا يوجد NEXORA_KEYSTORE_BASE64 — سيُوقَّع APK بمفتاح التصحيح. لا ترفعه إلى Amazon Appstore."
           fi
 
       - name: Build release APK
@@ -63,10 +91,17 @@ jobs:
           ls -lah app/build/outputs/apk/release/
           cp app/build/outputs/apk/release/app-release.apk ../Nexora.apk
 
+      - name: Report APK identity (version · package · signer)
+        run: |
+          node scripts/inspect-apk.mjs Nexora.apk | tee apk-report.txt
+          cat apk-report.txt >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@v4
         with:
           name: Nexora-apk
-          path: Nexora.apk
+          path: |
+            Nexora.apk
+            apk-report.txt
 
       - name: Update the website download link (public/download/Nexora.apk)
         if: github.ref == 'refs/heads/main'
