@@ -10,6 +10,7 @@ import AdminRevenue from './AdminRevenue.jsx';
 import { openUrl } from '../native.js';
 import { setAdSlot, maybeShowInterstitial, showRewardedAd, interstitialFreeUntil } from '../ads.js';
 import './AIPlatform.css';
+import { APP_VERSION_LABEL } from '../version.js';
 
 const TOOLS = [
   { id:'chat', title:'المحادثة الذكية', sub:'اسأل واستكشف الأفكار', icon:'✦', color:'violet' },
@@ -490,7 +491,7 @@ export default function AIPlatform() {
         <div className="nx-ai-account"><span className="nx-ai-avatar">{(me.fullName||me.username||'N').slice(0,1).toUpperCase()}</span><span className="nx-ai-account-name"><b>{me.fullName||me.username}</b><small>@{me.username}</small></span>
           <button onClick={()=>setSheet('account')} title="الحساب والأمان"><Icon name="user"/></button>
           <button onClick={logout} title="تسجيل الخروج"><Icon name="logout"/></button></div>
-        <div className="nx-ai-version">NEXORA AI · نسخة <b>Ahmed Becetti</b> · v4.3</div>
+        <div className="nx-ai-version">NEXORA AI · نسخة <b>Ahmed Becetti</b> · {APP_VERSION_LABEL}</div>
       </aside>
       {sidebarOpen&&<button className="nx-ai-backdrop" onClick={()=>setSidebarOpen(false)} aria-label="إغلاق القائمة"/>}
       <main className="nx-ai-main">

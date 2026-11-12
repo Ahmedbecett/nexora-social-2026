@@ -1,6 +1,8 @@
+import { APP_VERSION_LABEL } from './version.js';
+
 const ar = {
   language: 'العربية',
-  getApp: 'تطبيق NEXORA AI للأندرويد · v4.0',
+  getApp: `تطبيق NEXORA AI للأندرويد · ${APP_VERSION_LABEL}`,
   loginId: 'اسم المستخدم أو البريد الإلكتروني أو رقم الهاتف',
   password: 'كلمة السر',
   login: 'تسجيل الدخول',
@@ -151,7 +153,7 @@ const ar = {
 
 const en = {
   language: 'English',
-  getApp: 'NEXORA AI for Android · v4.0',
+  getApp: `NEXORA AI for Android · ${APP_VERSION_LABEL}`,
   loginId: 'Username, email or mobile number',
   password: 'Password',
   login: 'Log in',
