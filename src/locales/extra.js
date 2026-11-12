@@ -557,3 +557,59 @@ Object.assign(extraAr, {
   reset: 'إعادة تعيين', filtersPhotosOnly: 'الفلاتر متاحة للصور.',
 });
 Object.assign(extraAr.errors, { comment_not_found: 'هذا التعليق لم يعد متاحاً.' });
+
+/* ------------------------------------------------------------------ */
+/* 4.4 — تسجيل الدخول البديل (Fire OS / Amazon Appstore)               */
+/* جعل Google اختياريًا وواضحًا: أي تعذّر يُترجم إلى بديل بالبريد.      */
+/* ------------------------------------------------------------------ */
+Object.assign(extraEn, {
+  emailOrUsername: 'Email or username',
+  useEmailInstead: 'Use email instead',
+  googleWorking: 'Opening Google…',
+  googleUnavailable: 'Google sign-in is not available on this device — use email below.',
+  googleFallbackTitle: 'Google sign-in isn’t available on this device',
+  googleFallbackBody: 'Sign in with your email and password below — the same NEXORA account, conversations and all features.',
+});
+
+Object.assign(extraAr, {
+  emailOrUsername: 'البريد الإلكتروني أو اسم المستخدم',
+  useEmailInstead: 'الدخول بالبريد الإلكتروني',
+  googleWorking: 'جارٍ فتح Google…',
+  googleUnavailable: 'تسجيل الدخول عبر Google غير متاح على هذا الجهاز — استخدم البريد أدناه.',
+  googleFallbackTitle: 'تسجيل الدخول عبر Google غير متاح على هذا الجهاز',
+  googleFallbackBody: 'سجّل الدخول بالبريد وكلمة المرور أدناه — نفس حساب NEXORA ومحادثاتك وكل المزايا.',
+});
+
+Object.assign(extraEn.errors, {
+  play_services_missing: 'Google services aren’t available on this device. Sign in with your email and password instead.',
+  google_plugin_missing: 'Google sign-in isn’t supported in this build. Sign in with your email and password instead.',
+  fire_os_no_play_services: 'This device doesn’t include Google Play services, so Google sign-in can’t run here. Use email and password — everything else works normally.',
+  no_play_services: 'Google Play services aren’t available on this device. Use email and password instead.',
+  firebase_not_configured: 'Google sign-in isn’t configured in this build yet. Use email and password — it works the same way.',
+  web_client_not_configured: 'Google sign-in isn’t configured in this build yet. Use email and password — it works the same way.',
+  google_timeout: 'Google sign-in didn’t respond. Please use email and password instead.',
+  unsupported_platform: 'Google sign-in is not available here. Use email and password instead.',
+  diagnostics_failed: 'Google sign-in could not start on this device. Use email and password instead.',
+  unavailable: 'Google sign-in is not available right now. Use email and password instead.',
+});
+
+Object.assign(extraAr.errors, {
+  play_services_missing: 'خدمات Google غير متوفرة على هذا الجهاز. سجّل الدخول بالبريد وكلمة المرور.',
+  google_plugin_missing: 'تسجيل الدخول عبر Google غير مدعوم في هذه النسخة. سجّل الدخول بالبريد وكلمة المرور.',
+  fire_os_no_play_services: 'هذا الجهاز لا يحتوي على Google Play Services، لذا لا يمكن استخدام الدخول عبر Google هنا. استخدم البريد وكلمة المرور — وبقية المزايا تعمل طبيعيًا.',
+  no_play_services: 'خدمات Google Play غير متوفرة على هذا الجهاز. استخدم البريد وكلمة المرور.',
+  firebase_not_configured: 'الدخول عبر Google غير مهيّأ في هذه النسخة بعد. استخدم البريد وكلمة المرور — النتيجة نفسها.',
+  web_client_not_configured: 'الدخول عبر Google غير مهيّأ في هذه النسخة بعد. استخدم البريد وكلمة المرور — النتيجة نفسها.',
+  google_timeout: 'لم يستجب تسجيل الدخول عبر Google. استخدم البريد وكلمة المرور.',
+  unsupported_platform: 'تسجيل الدخول عبر Google غير متاح هنا. استخدم البريد وكلمة المرور.',
+  diagnostics_failed: 'تعذّر بدء تسجيل الدخول عبر Google على هذا الجهاز. استخدم البريد وكلمة المرور.',
+  unavailable: 'تسجيل الدخول عبر Google غير متاح الآن. استخدم البريد وكلمة المرور.',
+});
+
+// كود خطأ يستخدمه نموذج التسجيل قبل الإرسال (كان يُعرض كرسالة عامة)
+Object.assign(extraEn.errors, {
+  weak_password: 'Password must be at least 6 characters.',
+});
+Object.assign(extraAr.errors, {
+  weak_password: 'يجب أن تتكون كلمة السر من 6 أحرف على الأقل.',
+});

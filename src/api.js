@@ -40,18 +40,35 @@ export class ApiError extends Error {
   constructor(code, status, detail) { super(code); this.code = code; this.status = status; this.detail = detail; }
 }
 
-export async function api(path, { method = 'GET', body, signal, token: tk } = {}) {
+/**
+ * حدّ زمني افتراضي لكل نداء API.
+ * الفشل يجب أن يكون «خطأً يُعرَض» لا «انتظارًا لا ينتهي»: هذا ما جعل شاشة التحميل
+ * في نسخة 43 تبدو معلّقة عند ضعف الشبكة على أجهزة Fire OS.
+ * النداءات الطويلة (تحليل الملفات، التوليد) تمرّر signal الخاص بها فتبقى بلا مهلة.
+ */
+const DEFAULT_TIMEOUT_MS = 45000;
+
+export async function api(path, { method = 'GET', body, signal, token: tk, timeout = DEFAULT_TIMEOUT_MS } = {}) {
   const auth = tk !== undefined ? tk : token;
+  const useTimeout = !signal && timeout > 0;
+  const ctrl = useTimeout ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), timeout) : null;
   let res;
   try {
     res = await fetch(`${API_BASE}/api/${path}`, {
-      method, signal,
+      method,
+      signal: signal || ctrl?.signal,
       headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(auth ? { Authorization: `Bearer ${auth}` } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (e) {
-    if (e.name === 'AbortError') throw e;
+    if (e.name === 'AbortError') {
+      if (ctrl) throw new ApiError('network', 0); // مهلة نحن فرضناها ⟹ رسالة «تحقّق من الاتصال»
+      throw e; // إلغاء من المستخدم
+    }
     throw new ApiError('network', 0);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
   let data = {};
   try { data = await res.json(); } catch { /* empty */ }

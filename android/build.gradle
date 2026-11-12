@@ -17,6 +17,39 @@ buildscript {
 
 apply from: "variables.gradle"
 
+/* ==========================================================================
+   NEXORA AI — هل تتوفّر تهيئة Firebase/Google لهذه الحزمة؟
+   --------------------------------------------------------------------------
+   هذا القرار يجب أن يُتخذ في المشروع الجذر قبل تهيئة المشاريع الفرعية،
+   لأن إضافة capacitor-firebase/authentication تقرأ rootProject.ext.rgcfaIncludeGoogle
+   في build.gradle الخاص بها لتقرّر شحن واجهة Google (Credential Manager /
+   GoogleSignIn) أو عدم شحنها.
+
+   لا google-services.json ⟹ لا واجهة Google في الحزمة ⟹ لا تعليق للوعد
+   على Fire OS. والدخول بالبريد يعمل دائمًا عبر خادم NEXORA.
+   ========================================================================== */
+def googleServicesFile = file('app/google-services.json')
+def googleServicesEnv = System.getenv('GOOGLE_SERVICES_JSON')
+if (googleServicesEnv != null && !googleServicesEnv.trim().isEmpty()) {
+    // إمّا محتوى JSON مباشرة (كما في GitHub Actions secret) أو مسار إلى ملف
+    if (googleServicesEnv.trim().startsWith('{')) {
+        googleServicesFile.text = googleServicesEnv
+        logger.lifecycle("NEXORA: كُتبت تهيئة Firebase من GOOGLE_SERVICES_JSON.")
+    } else {
+        def provided = file(googleServicesEnv)
+        if (provided.exists()) {
+            googleServicesFile.text = provided.text
+            logger.lifecycle("NEXORA: نُسخت تهيئة Firebase من ${provided}.")
+        }
+    }
+}
+def hasFirebaseConfig = googleServicesFile.exists() && googleServicesFile.length() > 0
+ext.rgcfaIncludeGoogle = hasFirebaseConfig
+logger.lifecycle(hasFirebaseConfig
+    ? "NEXORA: google-services.json موجود — Google Sign-In مُفعّل."
+    : "NEXORA: لا google-services.json — سيُبنى التطبيق بالبريد/الهاتف فقط (متوافق مع Fire OS).")
+
+
 allprojects {
     repositories {
         google()

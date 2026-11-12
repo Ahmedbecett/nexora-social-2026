@@ -2,17 +2,26 @@ import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { api, getAccounts, forgetAccount, dropAccountToken } from '../api.js';
 import { t, errText, LANGUAGES, getLang } from '../i18n.js';
-import { useApp, Wordmark, Spinner, Sheet, Avatar, Glyph, FromBrand, ActionSheet, ThemeToggle } from '../components.jsx';
+import {
+  useApp, Wordmark, Spinner, Sheet, Avatar, Glyph, FromBrand, ActionSheet, ThemeToggle,
+} from '../components.jsx';
 import { IEye, IEyeOff, IDown, IBack, ICheck, IClose, IMoreH, IChevron, IGoogle, IPhone, IMail, ISearch, ITrash } from '../icons.jsx';
+import { isValidEmail, isValidNewPassword, googleFailureIsSilent, normalizeEmail } from '../authPolicy.js';
 
 const noAuth = { token: null };
 
-function PasswordInput({ value, onChange, placeholder, autoComplete = 'current-password' }) {
+function PasswordInput({ value, onChange, placeholder, autoComplete = 'current-password', ltr = false }) {
   const [show, setShow] = useState(false);
   return (
     <div className="field with-icon">
-      <input type={show ? 'text' : 'password'} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        autoComplete={autoComplete} dir="auto" />
+      <input
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        dir={ltr ? 'ltr' : 'auto'}
+      />
       <button type="button" className="field-icon" onClick={() => setShow(!show)} aria-label="toggle password">
         {show ? <IEye size={24} /> : <IEyeOff size={24} />}
       </button>
@@ -54,7 +63,7 @@ function LangPicker() {
 
 function GetAppBanner() {
   /* hidden inside the Android app itself (Capacitor build or the WebView shell) */
-  if (Capacitor.isNativePlatform() || insideApp()) return null;
+  if (Capacitor.isNativePlatform()) return null;
   return (
     <a className="get-app" href="/download/Nexora.apk" download>
       <img src="/icon-192.png" alt="" /><span className="flex1"><b>NEXORA AI</b><small>{t('getApp')}</small></span><span className="btn btn-primary btn-sm">APK</span>
@@ -71,6 +80,8 @@ export default function AuthFlow({ onCancel }) {
   const [screen, setScreen] = useState(() => (getAccounts().length ? 'saved' : 'login'));
   const [prefill, setPrefill] = useState('');
   const [pending, setPending] = useState(null);
+  // كود سبب تحويل المستخدم من Google → نموذج البريد (null = لا تحويل)
+  const [fallbackCode, setFallbackCode] = useState(null);
   const history = useRef([]);
 
   const go = (s) => { history.current.push(screen); setScreen(s); };
@@ -86,6 +97,12 @@ export default function AuthFlow({ onCancel }) {
     if (r?.token) login(r.token, r.user);
   };
 
+  // Google غير متاح/فشل: نُبقي المستخدم على نموذج البريد نفسه ونشرح السبب.
+  const useEmailInstead = (reason = 'google_unavailable') => {
+    setFallbackCode(reason);
+    if (screen !== 'login') go('login');
+  };
+
   const refreshAccounts = () => setAccounts(getAccounts());
 
   const common = { go, back, canBack, finish, onCancel };
@@ -93,7 +110,9 @@ export default function AuthFlow({ onCancel }) {
     <div className="auth-root">
       {screen === 'saved' && <SavedProfiles {...common} accounts={accounts} refresh={refreshAccounts}
         onPassword={(u) => { setPrefill(u); go('login'); }} />}
-      {screen === 'login' && <Login {...common} prefill={prefill} hasSaved={accounts.length > 0} />}
+      {screen === 'login' && <Login {...common} prefill={prefill} hasSaved={accounts.length > 0}
+        fallbackCode={fallbackCode}
+        useEmailInstead={useEmailInstead} />}
       {screen === 'signup' && <Signup {...common} />}
       {screen === 'phone' && <PhoneAuth {...common} />}
       {screen === 'forgot' && <Forgot {...common} prefill={prefill} />}
@@ -179,45 +198,102 @@ function SavedProfiles({ accounts, refresh, go, onPassword, finish, onCancel }) 
 /* ------------------------------------------------------------------ */
 /* Login                                                              */
 /* ------------------------------------------------------------------ */
-/* Google blocks its sign-in page inside embedded WebViews, so the Android app hides that button
-   and keeps e-mail / phone sign-in (the app identifies itself with "NexoraAI" in the user agent). */
-const insideApp = () => /NexoraAI/i.test(typeof navigator === 'undefined' ? '' : navigator.userAgent);
-function SocialButtons({ finish, go }) {
+/**
+ * زر Google:
+ * - يستخدم رابط <a> حقيقيًا (تنقّل) ثم يمنع الافتراضي ويعمل بـ JS،
+ *   حتى لا يبتلع WebView النقرة الأولى ولا يبدو الزر «ميتًا».
+ * - يُظهر حالة نجاح/فشل مضمونة: أي فشل ⟹ onFallback (نموذج البريد) + رسالة.
+ */
+function GoogleButton({ finish, onFallback }) {
   const { toast } = useApp();
   const [busy, setBusy] = useState(false);
-  const google = async () => {
-    if (busy) return;
+  const [unavailable, setUnavailable] = useState(null); // سبب عدم التوفّر بعد الفحص
+  const alive = useRef(true);
+  const busyRef = useRef(false);
+  useEffect(() => () => { alive.current = false; }, []);
+
+  // فحص مبكر (لا يُعطّل الزر: أي نتيجة تُترك للمحاولة أو للبديل)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { googleSignInStatus } = await import('../firebase.js');
+        const st = await googleSignInStatus();
+        if (!cancelled && alive.current && !st.attempt) setUnavailable(st.reason);
+      } catch { /* الفحص اختياري */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const run = async (e) => {
+    e?.preventDefault?.();
+    // نقرتان متتاليتان لا تُطلقان محاولتين متوازيتين (نافذتان لنفس الحساب)
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       const { signInWithGoogle } = await import('../firebase.js');
-      finish(await signInWithGoogle());
-    } catch (e) { if (e.code !== 'cancelled') toast(errText(e.code)); }
-    setBusy(false);
+      const result = await signInWithGoogle();
+      if (!alive.current) return;
+      finish(result);
+    } catch (err) {
+      if (!alive.current) return;
+      const code = err?.code || 'auth_provider_error';
+      if (!googleFailureIsSilent(code)) {
+        // شرح قصير ثم بديل قابل للتنفيذ فورًا — لا شاشة تحميل ولا زر صامت
+        toast(errText(code));
+        onFallback?.(code);
+      }
+    } finally {
+      busyRef.current = false;
+      if (alive.current) setBusy(false);
+    }
   };
+
   return (
     <div className="social-btns">
-      {!insideApp() && <button type="button" className="btn btn-social" onClick={google} disabled={busy}>
-        {busy ? <Spinner size={20} /> : <IGoogle size={22} />}<span>{t('continueGoogle')}</span>
-      </button>}
-      <button type="button" className="btn btn-social" onClick={() => go('phone')}>
-        <IPhone size={22} /><span>{t('continuePhone')}</span>
-      </button>
+      <a
+        className="btn btn-social"
+        href="#"
+        role="button"
+        aria-busy={busy ? 'true' : 'false'}
+        aria-disabled={busy ? 'true' : 'false'}
+        onClick={run}
+      >
+        {busy ? <Spinner size={20} /> : <IGoogle size={22} />}
+        <span>{busy ? t('googleWorking') : t('continueGoogle')}</span>
+      </a>
+      {unavailable && !busy && <div className="form-hint google-note">{t('googleUnavailable')}</div>}
     </div>
   );
 }
 
-function Login({ prefill, go, back, canBack, finish }) {
+function Login({ prefill, go, back, canBack, finish, fallbackCode, useEmailInstead }) {
   const [identifier, setIdentifier] = useState(prefill || '');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const emailRef = useRef(null);
+  const [highlight, setHighlight] = useState(false);
+
+  // عند تحويل المستخدم من Google: نُبرز نموذج البريد ونركّز عليه فعلًا.
+  useEffect(() => {
+    if (!fallbackCode) return;
+    setHighlight(true);
+    const tm = setTimeout(() => {
+      setHighlight(false);
+      try { emailRef.current?.focus(); } catch { /* */ }
+    }, 1800);
+    return () => clearTimeout(tm);
+  }, [fallbackCode]);
 
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
     setError(''); setBusy(true);
     try {
-      finish(await api('auth/login', { method: 'POST', body: { identifier, password }, ...noAuth }));
+      const { signInWithEmail } = await import('../firebase.js');
+      finish(await signInWithEmail(identifier.trim(), password));
     } catch (err) {
       if (err.code === 'use_phone_login') { go('phone'); return; }
       setError(errText(err.code));
@@ -236,16 +312,39 @@ function Login({ prefill, go, back, canBack, finish }) {
       </div>
       <form className="auth-body" onSubmit={submit}>
         <div className="auth-logo"><Glyph size={64} filled /><Wordmark size={52} gradient /></div>
-        <div className="field">
-          <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder={t('loginId')}
-            autoCapitalize="none" autoCorrect="off" autoComplete="username" dir="auto" />
+
+        {fallbackCode && (
+          <div className="form-hint google-fallback" role="status">
+            <b>{t('googleFallbackTitle')}</b>
+            <span>{t('googleFallbackBody')}</span>
+          </div>
+        )}
+
+        <div className={`field ${highlight ? 'field-focus' : ''}`}>
+          <input
+            ref={emailRef}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder={t('emailOrUsername')}
+            autoCapitalize="none"
+            autoCorrect="off"
+            inputMode="email"
+            autoComplete="username"
+            dir="auto"
+          />
         </div>
         <PasswordInput value={password} onChange={setPassword} placeholder={t('password')} />
         {error && <div className="form-error">{error}</div>}
         <button className="btn btn-primary btn-lg" disabled={!ready || busy}>{busy ? <Spinner size={22} light /> : t('login')}</button>
         <button type="button" className="text-link" onClick={() => go('forgot')}>{t('forgot')}</button>
         <div className="divider"><span>{t('or')}</span></div>
-        <SocialButtons finish={finish} go={go} />
+        <GoogleButton
+          finish={finish}
+          onFallback={(code) => { useEmailInstead?.(code); }}
+        />
+        <button type="button" className="btn btn-social" onClick={() => go('phone')}>
+          <IPhone size={22} /><span>{t('continuePhone')}</span>
+        </button>
       </form>
       <div className="auth-bottom">
         {t('noAccount')} <button className="text-link strong" onClick={() => go('signup')}>{t('createNew')}</button>
@@ -255,14 +354,16 @@ function Login({ prefill, go, back, canBack, finish }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Sign up (email) — phone and Google sign-ups go through CompleteProfile */
+/* Sign up (email)                                                    */
 /* ------------------------------------------------------------------ */
 function useUsernameCheck(username) {
   const [state, setState] = useState(null);
   useEffect(() => {
     if (username.length < 3) { setState(null); return; }
     const tm = setTimeout(() => {
-      api(`auth/check-username?u=${encodeURIComponent(username)}`, noAuth).then((r) => setState(!r.valid ? 'invalid' : r.available ? 'ok' : 'taken')).catch(() => {});
+      api(`auth/check-username?u=${encodeURIComponent(username)}`, noAuth)
+        .then((r) => setState(!r.valid ? 'invalid' : r.available ? 'ok' : 'taken'))
+        .catch(() => {});
     }, 400);
     return () => clearTimeout(tm);
   }, [username]);
@@ -280,12 +381,17 @@ function Signup({ go, back, finish }) {
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
-    setError(''); setBusy(true);
-    try { finish(await api('auth/register', { method: 'POST', body: f, ...noAuth })); }
-    catch (err) { setError(errText(err.code)); }
+    setError('');
+    if (!isValidEmail(f.email)) { setError(errText('invalid_contact')); return; }
+    if (!isValidNewPassword(f.password)) { setError(errText('weak_password')); return; }
+    setBusy(true);
+    try {
+      const { signUpWithEmail } = await import('../firebase.js');
+      finish(await signUpWithEmail({ ...f, email: normalizeEmail(f.email) }));
+    } catch (err) { setError(errText(err.code)); }
     setBusy(false);
   };
-  const ready = f.fullName.trim() && f.username.length >= 3 && uState !== 'taken' && /\S+@\S+\.\S+/.test(f.email) && f.password.length >= 6;
+  const ready = f.fullName.trim() && f.username.length >= 3 && uState !== 'taken' && isValidEmail(f.email) && isValidNewPassword(f.password);
 
   return (
     <div className="auth">
@@ -300,11 +406,9 @@ function Signup({ go, back, finish }) {
         </div>
         {uState === 'taken' && <div className="form-hint bad">{t('usernameTaken')}</div>}
         <div className="field"><input value={f.email} onChange={set('email')} placeholder={t('email')} autoCapitalize="none" inputMode="email" type="email" autoComplete="email" dir="ltr" /></div>
-        <PasswordInput value={f.password} onChange={(v) => setF({ ...f, password: v })} placeholder={t('password')} autoComplete="new-password" />
+        <PasswordInput value={f.password} onChange={(v) => setF({ ...f, password: v })} placeholder={t('password')} autoComplete="new-password" ltr />
         {error && <div className="form-error">{error}</div>}
         <button className="btn btn-primary btn-lg" disabled={!ready || busy}>{busy ? <Spinner size={22} light /> : t('next')}</button>
-        <div className="divider"><span>{t('or')}</span></div>
-        <SocialButtons finish={finish} go={go} />
         <p className="terms">{t('terms')}</p>
       </form>
       <div className="auth-bottom">
@@ -315,7 +419,7 @@ function Signup({ go, back, finish }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Phone number (Firebase SMS)                                        */
+/* Phone number (Firebase SMS / بوابة NEXORA)                          */
 /* ------------------------------------------------------------------ */
 const COUNTRIES = [
   ['DZ', '213', '🇩🇿'], ['MA', '212', '🇲🇦'], ['TN', '216', '🇹🇳'], ['LY', '218', '🇱🇾'], ['EG', '20', '🇪🇬'], ['SA', '966', '🇸🇦'],
@@ -359,7 +463,7 @@ function guessCountry() {
 let phoneCfg = null;
 const serverPhoneEnabled = () => (phoneCfg ||= api('auth/phone/config').then((r) => !!r.enabled).catch(() => { phoneCfg = null; return false; }));
 
-function PhoneAuth({ back, finish }) {
+function PhoneAuth({ back, finish, go }) {
   const [country, setCountry] = useState(guessCountry);
   const [pickOpen, setPickOpen] = useState(false);
   const [number, setNumber] = useState('');
@@ -421,6 +525,8 @@ function PhoneAuth({ back, finish }) {
           {error && <div className="form-error">{error}</div>}
           <button className="btn btn-primary btn-lg" disabled={busy || number.replace(/\D/g, '').length < 6}>{busy ? <Spinner size={22} light /> : t('sendCode')}</button>
           <p className="terms">{t('smsNote')}</p>
+          {/* بديل دائم: رسائل SMS قد لا تعمل على Fire OS، والبريد يعمل دائمًا */}
+          <button type="button" className="text-link" onClick={() => go('login')}>{t('useEmailInstead')}</button>
         </form>
       ) : (
         <form className="auth-body signup" onSubmit={verify}>
@@ -491,7 +597,7 @@ function CompleteProfile({ pending, back, finish }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Forgot password (Firebase reset e-mail)                            */
+/* Forgot password — رابط حقيقي يُرسَل عبر خادم NEXORA                */
 /* ------------------------------------------------------------------ */
 function Forgot({ prefill, back, go }) {
   const [id, setId] = useState(prefill || '');
@@ -502,8 +608,11 @@ function Forgot({ prefill, back, go }) {
     e.preventDefault();
     if (busy) return;
     setError(''); setBusy(true);
-    try { const r = await api('auth/reset', { method: 'POST', body: { identifier: id }, ...noAuth }); setSent(r.sentTo); }
-    catch (err) {
+    try {
+      const { sendPasswordReset } = await import('../firebase.js');
+      const r = await sendPasswordReset(id.trim());
+      setSent(r.sentTo);
+    } catch (err) {
       if (err.code === 'use_phone_login') { go('phone'); return; }
       setError(errText(err.code));
     }
