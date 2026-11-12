@@ -109,9 +109,55 @@ if (gsConfig) {
     if (!webClient) problems.push('لا يوجد Web OAuth client (client_type 3) — Google Sign-In لن يعمل');
     if (!androidClient) problems.push('لا يوجد Android OAuth client ببصمة SHA — أضِف SHA-1/SHA-256 للتوقيع في Firebase');
     if (webClient && androidClient) notes.push('Google Sign-In مُهيّأ (Web + Android client + بصمة)');
+
+    // بصمة التوقيع الحقيقية للحزمة المنشورة (SHA-1 لمفتاح التوقيع، صيغة Firebase hex).
+    // الملف قد يحمل عدة بصمات (تصحيح + إنتاج)؛ نكتفي بوجودها ضمن القائمة، ونحذّر إن غابت.
+    const RELEASE_SHA1 = '1d2aa8a1eaadef1cf3d0813bd7f1572d88610973';
+    const hashes = (client.oauth_client || [])
+      .filter((o) => o.client_type === 1)
+      .map((o) => String(o?.android_info?.certificate_hash || '').toLowerCase());
+    if (!hashes.includes(RELEASE_SHA1)) {
+      notes.push(
+        'تنبيه: بصمة SHA-1 لمفتاح التوقيع المنشور ' + RELEASE_SHA1 + ' غير مسجّلة في google-services.json — '
+        + 'Google Sign-In سيفشل على الحزمة الموقّعة بالإنتاج (بخطأ 10/DEFAULT_WEB_CLIENT). أضِفها في Firebase.',
+      );
+    } else {
+      notes.push('بصمة SHA-1 لمفتاح التوقيع المنشور مسجّلة ✓');
+    }
   }
 } else {
   notes.push('بدون google-services.json: Google Sign-In سيكون معطّلًا بوعي، والبريد/الهاتف يعملان.');
+}
+
+/* ---------- 4ب) بنية AndroidManifest: أخطاء تُسقط AAPT2 ---------- */
+const manifestPath = 'android/app/src/main/AndroidManifest.xml';
+if (!existsSync(manifestPath)) {
+  problems.push('AndroidManifest.xml غير موجود');
+} else {
+  // إزالة التعليقات أولًا: نصوص التعليقات تحتوي وسومًا (<activity>) تُشوّه العدّ
+  const xml = read(manifestPath).replace(/<!--[\s\S]*?-->/g, '');
+  // <intent-filter> لا يكون صالحًا إلا داخل مكوّن. وجوده مباشرة تحت <application>
+  // يجعل AAPT2 يفشل البناء كله (وهو ما حدث فعلًا في محاولة البناء الأولى).
+  const appBlock = /<application[\s\S]*?<\/application>/.exec(xml)?.[0] || '';
+  const stripped = appBlock
+    .replace(/<activity[\s\S]*?<\/activity>/g, '')
+    .replace(/<service[\s\S]*?<\/service>/g, '')
+    .replace(/<receiver[\s\S]*?<\/receiver>/g, '')
+    .replace(/<provider[\s\S]*?<\/provider>/g, '');
+  if (/<intent-filter/.test(stripped)) {
+    problems.push('AndroidManifest.xml: <intent-filter> خارج مكوّن (داخل <application>) — يفشل AAPT2');
+  }
+  // مراجع الموارد التي لا تكون مضمونة الوجود تُفشل التحقق في AAPT2
+  if (/@integer\/google_play_services_version/.test(xml)) {
+    problems.push('AndroidManifest.xml يشير إلى @integer/google_play_services_version — يُضاف تلقائيًا عند الدمج، والمرجع اليدوي قد يُفشل البناء');
+  }
+  for (const tag of ['activity', 'service', 'receiver', 'provider']) {
+    const re = new RegExp(`<${tag}\\b`, 'g');
+    const open = (xml.match(re) || []).length;
+    const close = (xml.match(new RegExp(`</${tag}>`, 'g')) || []).length;
+    if (open !== close) problems.push(`AndroidManifest.xml: عدد <${tag}> غير متوازن (${open}/${close})`);
+  }
+  notes.push('بنية AndroidManifest.xml سليمة (intent-filter داخل مكوّنات)');
 }
 
 /* ---------- 5) الحزمة المبنية (إن وُجدت) ---------- */

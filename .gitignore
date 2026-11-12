@@ -10,7 +10,9 @@ dist/
 /_*
 
 # تهيئة Firebase (تحتوي معرّفات OAuth للتطبيق) — تُمرَّر وقت البناء لا تُرفع
-android/app/google-services.json
+android/app/google-services.local.json
+# google-services.json مُتتبَّع عمدًا: الـ CI يحتاج إليه، وهو ليس سرًّا
+# (مضمَّن داخل كل APK، ونفس مفتاح API موجود أصلًا في api/_lib/firebase.js)
 *.jks
 *.p12
 *.keystore

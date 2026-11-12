@@ -32,30 +32,24 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="com.amazon.venezia.category.MAIN" />
             </intent-filter>
-        </activity>
 
-        <!--
-          جاهزية استعادة كلمة المرور: روابط Firebase (وWeakDeepLinks) تُفتح في التطبيق.
-          التطبيق يبقى مسجّلًا لاستقبالها حتى لا يُفتح المتصفح على حساب المستخدم.
-        -->
-        <intent-filter android:autoVerify="false">
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.DEFAULT" />
-            <category android:name="android.intent.category.BROWSABLE" />
-            <data android:scheme="https" android:host="nexora-social-2026.firebaseapp.com" />
-        </intent-filter>
+            <!--
+              جاهزية استعادة كلمة المرور: روابط Firebase تُفتح في التطبيق بدل المتصفح.
+              (intent-filter لا يكون صالحًا إلا داخل مكوّن مثل <activity>.)
+            -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="nexora-social-2026.firebaseapp.com" />
+            </intent-filter>
+        </activity>
 
         <!-- AdMob (Google) — معرّف تطبيق NEXORA الحقيقي من لوحة AdMob.
              على Fire OS لا تتوفّر Play Services فلا تُحمَّل الإعلانات، والتطبيق يعمل طبيعيًا. -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-6858364141205978~7081673739" />
-        <!-- لا نجعل Play Services شرطًا للتثبيت على Fire OS -->
-        <meta-data
-            android:name="com.google.android.gms.version"
-            android:value="@integer/google_play_services_version"
-            tools:replace="android:value" />
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

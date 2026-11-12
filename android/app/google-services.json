@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "549843291889",
+    "project_id": "nexora-social-2026",
+    "storage_bucket": "nexora-social-2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:549843291889:android:ab4087c9180b3f28066350",
+        "android_client_info": {
+          "package_name": "com.ahmedbecetti.nexora"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "549843291889-12e5pq24ts0uuom14jhpn1c8ars38q1b.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ahmedbecetti.nexora",
+            "certificate_hash": "6dcb2805d88aecc0b579169d6c208933228e9f4a"
+          }
+        },
+        {
+          "client_id": "549843291889-1ulbmj9r7a87efhl6bsel2fvronjot67.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ahmedbecetti.nexora",
+            "certificate_hash": "44f33ff1e78fe91925e39599689ac93803b09581"
+          }
+        },
+        {
+          "client_id": "549843291889-r62avhn7b93ojh01rocklpu653q7e503.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDIibumDNK3Gps3EsiGjdl0hZC2u7pwQYU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "549843291889-r62avhn7b93ojh01rocklpu653q7e503.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
