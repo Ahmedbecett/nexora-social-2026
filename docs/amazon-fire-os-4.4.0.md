@@ -90,9 +90,9 @@ $ node scripts/inspect-apk.mjs public/download/Nexora.apk
 ```
 $ npm test
 # tests 39
-# pass 38
+# pass 39
 # fail 0
-# skipped 1   ← بصمة الإنتاج: تحتاج خطوة في Firebase Console (انظر 4/ب)
+# skipped 0
 ```
 
 ```
@@ -167,19 +167,14 @@ GET https://nexora-social-2026.vercel.app/api/health
   (انظر 4/أ)، لكن لا يوجد جهاز ولا محاكي في بيئة العمل، ولا يمكن بناء APK محليًا
   (لا JDK ولا Android SDK، والشبكة تسمح بـ github/npm/pypi فقط).
   البند 1 من قائمة Amazon يبقى **غير مُثبت** حتى تُثبّت الحزمة على جهازك.
-- **الدخول عبر Google لن يكتمل بعد** ما لم تُسجَّل بصمة مفتاح الإنتاج في Firebase.
-  ملف `android/app/google-services.json` أُضيف إلى المستودع ويحوي عميل Web وعميلَي
-  أندرويد، لكن البصمتين المسجّلتين هما:
-  - `6d:cb:28:05:…:9f:4a`
-  - `44:f3:3f:f1:…:95:81`
-
-  ولا одна منهما تساوي بصمة مفتاح التوقيع المستخدم في الحزمة المنشورة، وهي
-  **SHA-1 = `1d:2a:a8:a1:ea:ad:ef:1c:f3:d0:81:3b:d7:f1:57:2d:88:61:09:73`**
-  (مشتقّة فعليًا من `CERT.RSA` داخل `Nexora.apk`).
-  بدون تسجيلها يفشل Google Sign-In على الحزمة الموقّعة بالإنتاج بخطأ `10 (DEVELOPER_ERROR)`،
-  ولهذا يظهر اختبار البصمة كـ «متخطّى» لا «ناجح». الخطوة: Firebase Console →
-  Project settings → تطبيق أندرويد `com.ahmedbecetti.nexora` → Add fingerprint (SHA-1 أعلاه)
-  → أعد تنزيل `google-services.json` واستبدل الملف.
+- **بصمة مفتاح الإنتاج صارت مسجّلة ✓** (2026‑11‑12). أُضيفت في Firebase Console
+  ووُلِّد ملف `android/app/google-services.json` جديد يحوي عميل أندرويد ثالثًا:
+  `549843291889-v2gki28q1gn75ja2eh5irmn9rsrp9kg8` ببصمة
+  `1d2aa8a1eaadef1cf3d0813bd7f1572d88610973` — وهي بصمة `CERT.RSA`
+  داخل `Nexora.apk` حرفيًا (تحقّق آلي: تطابق تام).
+  لذلك لم يبقَ أي اختبار متخطّى: `npm test` = 39/39، وفحص `check-login-config`
+  يقول «بصمة SHA-1 لمفتاح التوقيع المنشور مسجّلة ✓».
+- ما يبقى غير مُثبت هو التشغيل على جهاز Fire حقيقي فقط (البند 1).
 
 ### 4/ج) مقارنة بصمات Firebase Console بمفتاح الحزمة المنشورة
 
@@ -191,6 +186,7 @@ GET https://nexora-social-2026.vercel.app/api/health
 | `6D:CB:28:05:…:9F:4A` | SHA-1 | ✗ |
 | `44:F3:3F:F1:…:95:81` | SHA-1 | ✗ |
 | `43:B3:3B:61:…:F6:F0` | SHA-256 | ✗ |
+| `1D:2A:A8:A1:…:09:73` | SHA-1 | **✓ أُضيفت — تطابق تام** |
 
 البصمة الفعلية لمفتاح الحزمة (مستخرجة من `META-INF/CERT.RSA`):
 

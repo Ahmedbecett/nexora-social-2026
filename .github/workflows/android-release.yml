@@ -54,8 +54,12 @@ jobs:
             node -e "JSON.parse(require('fs').readFileSync('android/app/google-services.json','utf8'))" \
               || { echo "::error::GOOGLE_SERVICES_JSON ليس JSON صالحًا"; exit 1; }
             echo "::notice::Google Sign-In مفعّل في هذه الحزمة (google-services.json موجود)."
+          elif [ -s android/app/google-services.json ]; then
+            node -e "JSON.parse(require('fs').readFileSync('android/app/google-services.json','utf8'))" \
+              || { echo "::error::android/app/google-services.json الموجود في المستودع ليس JSON صالحًا"; exit 1; }
+            echo "::notice::استُخدم android/app/google-services.json المُتتبَّع في المستودع — Google Sign-In مفعّل."
           else
-            echo "::warning::لا يوجد سر GOOGLE_SERVICES_JSON — ستُبنى الحزمة بدون Google Sign-In. الدخول بالبريد/الهاتف يعمل، وزر Google يعرض التنبيه بدل أن يتوقف."
+            echo "::warning::لا يوجد سر GOOGLE_SERVICES_JSON ولا ملف في المستودع — ستُبنى الحزمة بدون Google Sign-In. الدخول بالبريد/الهاتف يعمل، وزر Google يعرض التنبيه بدل أن يتوقف."
           fi
 
       - name: Install & build web app
