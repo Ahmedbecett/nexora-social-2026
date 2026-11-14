@@ -1,0 +1,77 @@
+name: Store Screenshots
+
+# يلتقط 20 لقطة شاشة حقيقية من التطبيق نفسه (لا صور مرسومة) بمقاس 1080×1920.
+#
+# لماذا على عدّاء GitHub؟ لأن بيئة العمل المحلية بلا متصفح: Chromium يحتاج
+# libnss3/libnspr4/modern-NSS، ومستودع Debian محجوب (apt يفشل بالاتصال).
+# العدّاء يملك كل ذلك مسبقًا في صورة ubuntu-latest.
+#
+# يُبنى التطبيق محليًا (vite build) ويُقدَّم عبر `vite preview`، ثم:
+#   • تُعترَض كل نداءات /api/** بـ page.route وتُرجَع بيانات تجريبية
+#     ⟹ لا كتابة في قاعدة بيانات الإنتاج إطلاقًا
+#   • يُزرَع localStorage بمستخدم ورمز وهميين لعبور شاشات المصادقة
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/capture-store-shots.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium + system deps
+        run: |
+          npm i --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+
+      - name: Build the app
+        run: npm run build
+
+      - name: Capture 1080x1920 screenshots
+        run: node scripts/capture-store-shots.mjs
+
+      - name: Verify size and format
+        run: |
+          node -e "
+          const fs=require('fs'),path=require('path');
+          const dir='store/capture';
+          const files=fs.readdirSync(dir).filter(f=>/\.(png|jpg)$/i.test(f));
+          let bad=0;
+          for(const f of files){
+            const b=fs.readFileSync(path.join(dir,f));
+            let w=0,h=0,fmt='';
+            if(b[0]===0x89&&b.toString('ascii',1,4)==='PNG'){fmt='PNG';w=b.readUInt32BE(16);h=b.readUInt32BE(20);}
+            else if(b[0]===0xFF&&b[1]===0xD8){fmt='JPEG';
+              let i=2;while(i<b.length){if(b[i]!==0xFF){i++;continue;}const m=b[i+1];
+                if(m>=0xC0&&m<=0xCF&&m!==0xC4&&m!==0xC8&&m!==0xCC){h=b.readUInt16BE(i+5);w=b.readUInt16BE(i+7);break;}
+                i+=2+b.readUInt16BE(i+2);} }
+            const ok=fmt&&w>=1080&&h>=1920;
+            if(!ok)bad++;
+            console.log((ok?'OK  ':'FAIL')+' '+f+' '+fmt+' '+w+'x'+h);
+          }
+          console.log('total='+files.length+' bad='+bad);
+          if(bad||files.length<20){process.exit(1);}
+          "
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-screenshots-1080x1920
+          path: store/capture/**
+          if-no-files-found: error
+          retention-days: 30
