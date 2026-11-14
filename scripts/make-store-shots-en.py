@@ -519,9 +519,239 @@ def shot_8():
     return img
 
 
-SHOTS = [shot_1, shot_2, shot_3, shot_4, shot_5, shot_6, shot_7, shot_8]
+
+# ------------------------------------------------------------------ 9 Settings
+def shot_9():
+    img = background()
+    d = ImageDraw.Draw(img)
+    t(d, (W // 2, 130), 'Make it yours', L(80, 800), TEXT)
+    t(d, (W // 2, 226), 'Language, theme, privacy and account — all in one place', L(34, 400), LINK)
+
+    px, py, pw, ph = 70, 320, W - 140, 1330
+    box(d, [px, py, px + pw, py + ph], 46, fill=(8, 10, 13), outline=(40, 45, 51), w=3)
+
+    # header
+    t(d, (px + 44, py + 62), 'Settings and activity', L(40, 700), TEXT, anchor='lm')
+    d.line([px + 40, py + 110, px + pw - 40, py + 110], fill=SEP, width=2)
+
+    # profile row
+    d.ellipse([px + 44, py + 140, px + 156, py + 252], fill=SURFACE, outline=BLUE, width=3)
+    t(d, (px + 180, py + 176), 'ahmed_becetti', L(34, 700), TEXT, anchor='lm')
+    t(d, (px + 180, py + 224), 'View profile', L(26, 400), MUTED, anchor='lm')
+    t(d, (px + pw - 50, py + 196), '>', L(34, 700), MUTED, anchor='rm')
+
+    # grouped rows — real labels from Settings.jsx
+    groups = [
+        ('Preferences', [
+            ('Language', 'English'),
+            ('Theme', 'Dark'),
+            ('Notifications', 'On'),
+        ]),
+        ('Privacy', [
+            ('Private account', 'Off'),
+            ('Privacy Center', ''),
+        ]),
+        ('Account', [
+            ('Security', ''),
+            ('Account Status', ''),
+            ('Help', ''),
+        ]),
+    ]
+    gy = py + 300
+    for gi, (title, rows) in enumerate(groups):
+        t(d, (px + 44, gy), title.upper(), L(22, 700), MUTED, anchor='lm')
+        gy += 26
+        box(d, [px + 40, gy, px + pw - 40, gy + len(rows) * 92 + 20], 24, fill=SURFACE, outline=BORDER)
+        ry = gy + 56
+        for label, value in rows:
+            t(d, (px + 72, ry), label, L(29, 500), TEXT, anchor='lm')
+            if value:
+                t(d, (px + pw - 84, ry), value, L(26, 400), MUTED, anchor='rm')
+            t(d, (px + pw - 60, ry), '>', L(26, 700), MUTED, anchor='rm')
+            ry += 92
+        gy += len(rows) * 92 + 40
+
+    t(d, (W // 2, 1760), 'Nexora · Version 4.4.0', L(38, 400), MUTED)
+    return img
+
+
+# ------------------------------------------------------------------ 10 Personal AI
+def shot_10():
+    img = background()
+    d = ImageDraw.Draw(img)
+    t(d, (W // 2, 130), 'An AI with your context', L(74, 800), TEXT)
+    t(d, (W // 2, 226), 'It remembers the conversation and keeps it saved', L(36, 400), LINK)
+
+    px, py, pw, ph = 80, 330, W - 160, 1300
+    box(d, [px, py, px + pw, py + ph], 46, fill=(8, 10, 13), outline=(40, 45, 51), w=3)
+
+    # sidebar-style workspace label
+    t(d, (px + 44, py + 56), 'WORKSPACE', L(20, 700), MUTED, anchor='lm')
+    t(d, (px + 44, py + 116), '+  New chat', L(30, 700), BLUE, anchor='lm')
+    d.line([px + 40, py + 160, px + pw - 40, py + 160], fill=SEP, width=2)
+
+    items = [('Smart chat', True), ('Images', False), ('Writing', False),
+             ('Code', False), ('Translation', False), ('Summaries', False)]
+    iy = py + 205
+    for label, active in items:
+        if active:
+            box(d, [px + 34, iy - 34, px + pw - 34, iy + 34], 18, fill=RAISED, outline=BORDER)
+        t(d, (px + 60, iy), ('*  ' if active else '   ') + label, L(28, 700 if active else 400),
+          TEXT if active else TEXT2, anchor='lm')
+        iy += 84
+
+    # saved-chat cards, with room above for the label
+    d.line([px + 40, py + 742, px + pw - 40, py + 742], fill=SEP, width=2)
+    t(d, (px + 44, py + 796), 'SAVED CHATS', L(20, 700), MUTED, anchor='lm')
+    chats = [('Startup ideas list', '2h'), ('Trip plan — Lisbon', 'Yesterday'),
+             ('Fix my CSS grid', '2 days'), ('Voice notes transcript', 'Last week')]
+    cy = py + 872
+    for title, when in chats:
+        box(d, [px + 34, cy - 46, px + pw - 34, cy + 46], 20, fill=SURFACE, outline=BORDER)
+        t(d, (px + 64, cy), title, L(27, 500), TEXT2, anchor='lm')
+        t(d, (px + pw - 64, cy), when, L(23, 400), MUTED, anchor='rm')
+        cy += 106
+
+    t(d, (W // 2, 1760), 'Nothing is lost between sessions', L(40, 400), MUTED)
+    return img
+
+
+# ------------------------------------------------------------------ 11 Search
+def shot_11():
+    img = background()
+    d = ImageDraw.Draw(img)
+    t(d, (W // 2, 130), 'Find anything fast', L(78, 800), TEXT)
+    t(d, (W // 2, 226), 'People, tags and posts — with AI search built in', L(34, 400), LINK)
+
+    px, py, pw, ph = 70, 320, W - 140, 1330
+    box(d, [px, py, px + pw, py + ph], 46, fill=(8, 10, 13), outline=(40, 45, 51), w=3)
+
+    # search field
+    box(d, [px + 40, py + 40, px + pw - 40, py + 132], 46, fill=SURFACE, outline=BORDER)
+    d.ellipse([px + 66, py + 66, px + 108, py + 108], outline=MUTED, width=4)
+    d.line([px + 104, py + 104, px + 122, py + 122], fill=MUTED, width=5)
+    t(d, (px + 140, py + 86), 'ai tools', L(32, 400), TEXT, anchor='lm')
+
+    # tabs
+    tabs = ['For you', 'Accounts', 'Tags', 'Reels']
+    tx = px + 44
+    for i, tab in enumerate(tabs):
+        active = i == 0
+        tw = 150 if len(tab) < 8 else 170
+        if active:
+            box(d, [tx, py + 172, tx + tw, py + 236], 32, fill=BLUE)
+            t(d, (tx + tw // 2, py + 204), tab, L(26, 700), (255, 255, 255))
+        else:
+            box(d, [tx, py + 172, tx + tw, py + 236], 32, fill=RAISED, outline=BORDER)
+            t(d, (tx + tw // 2, py + 204), tab, L(26, 500), TEXT2)
+        tx += tw + 20
+
+    # result grid 3 x 2, sized to fit above the AI strip
+    gx0, gy0 = px + 44, py + 280
+    gap = 12
+    cell = (pw - 88 - gap * 2) // 3
+    for r in range(2):
+        for c in range(3):
+            x0 = gx0 + c * (cell + gap)
+            y0 = gy0 + r * (cell + gap)
+            k = (r * 3 + c) / 6
+            d.rectangle([x0, y0, x0 + cell, y0 + cell],
+                        fill=(int(24 + 60 * k), int(30 + 30 * k), int(70 + 80 * k)))
+            if (r + c) % 3 == 0:
+                d.ellipse([x0 + cell * .28, y0 + cell * .24, x0 + cell * .72, y0 + cell * .68],
+                          fill=(255, 214, 150))
+            elif (r + c) % 3 == 1:
+                d.polygon([(x0, y0 + cell), (x0 + cell * .5, y0 + cell * .36), (x0 + cell, y0 + cell)],
+                          fill=(16, 22, 32))
+
+    # AI suggestion strip, below the grid
+    strip_y = gy0 + 2 * (cell + gap) + 20
+    box(d, [px + 40, strip_y, px + pw - 40, strip_y + 130], 26, fill=RAISED, outline=BLUE)
+    t(d, (px + 76, strip_y + 44), 'Ask Nexora AI:', L(26, 700), LINK, anchor='lm')
+    t(d, (px + 76, strip_y + 90), '"best free tools for photos"', L(26, 400), TEXT2, anchor='lm')
+
+    # suggested accounts
+    sug_y = strip_y + 180
+    t(d, (px + 44, sug_y), 'Suggested for you', L(28, 700), TEXT, anchor='lm')
+    ax = px + 60
+    for nm in ['sara', 'omar', 'layla', 'zayn']:
+        d.ellipse([ax, sug_y + 46, ax + 96, sug_y + 142], fill=SURFACE, outline=BLUE, width=2)
+        t(d, (ax + 48, sug_y + 94), nm[0].upper(), L(34, 700), TEXT)
+        t(d, (ax + 48, sug_y + 172), nm, L(20, 400), MUTED)
+        ax += 218
+    t(d, (W // 2, 1760), 'Search that understands what you mean', L(38, 400), MUTED)
+    return img
+
+
+# ------------------------------------------------------------------ 12 Profile
+def shot_12():
+    img = background()
+    d = ImageDraw.Draw(img)
+    t(d, (W // 2, 130), 'Share your world', L(80, 800), TEXT)
+    t(d, (W // 2, 226), 'Profile, posts and reels — your space to be seen', L(34, 400), LINK)
+
+    px, py, pw, ph = 70, 320, W - 140, 1330
+    box(d, [px, py, px + pw, py + ph], 46, fill=(8, 10, 13), outline=(40, 45, 51), w=3)
+
+    # profile header
+    d.ellipse([px + 50, py + 50, px + 220, py + 220], fill=SURFACE, outline=BLUE, width=4)
+    d.ellipse([px + 76, py + 76, px + 194, py + 194], fill=(30, 36, 44))
+    t(d, (px + 135, py + 135), 'A', L(70, 800), TEXT)
+    t(d, (px + 250, py + 86), 'ahmed_becetti', L(38, 700), TEXT, anchor='lm')
+    t(d, (px + 250, py + 140), 'Building things with AI', L(26, 400), TEXT2, anchor='lm')
+    t(d, (px + 250, py + 190), 'nexora-social-2026.vercel.app', L(24, 500), LINK, anchor='lm')
+
+    # stats
+    stats = [('128', 'Posts'), ('4,812', 'Followers'), ('216', 'Following')]
+    sx = px + 60
+    for val, label in stats:
+        t(d, (sx + 100, py + 290), val, L(40, 800), TEXT)
+        t(d, (sx + 100, py + 344), label, L(24, 400), MUTED)
+        sx += 235
+
+    # buttons
+    box(d, [px + 50, py + 400, px + 470, py + 480], 40, fill=BLUE)
+    t(d, (px + 260, py + 440), 'Edit Profile', L(28, 700), (255, 255, 255))
+    box(d, [px + 490, py + 400, px + pw - 50, py + 480], 40, fill=RAISED, outline=BORDER)
+    t(d, (px + 490 + (pw - 540) // 2, py + 440), 'Share Profile', L(28, 600), TEXT)
+
+    # highlights
+    hx = px + 70
+    for nm in ['New', 'Travel', 'Code', 'Art']:
+        d.ellipse([hx, py + 530, hx + 110, py + 640], outline=BORDER, width=3)
+        t(d, (hx + 55, py + 585), nm[0], L(32, 700), TEXT2)
+        t(d, (hx + 55, py + 676), nm, L(22, 400), MUTED)
+        hx += 180
+    d.line([px + 40, py + 740, px + pw - 40, py + 740], fill=SEP, width=3)
+
+    # post grid 3 x 2 — sized to stay inside the frame
+    gap = 10
+    cell = 252
+    grid_w = cell * 3 + gap * 2
+    gx0 = px + (pw - grid_w) // 2
+    for r in range(2):
+        for c in range(3):
+            x0 = gx0 + c * (cell + gap)
+            y0 = py + 768 + r * (cell + gap)
+            k = (r * 3 + c) / 6
+            d.rectangle([x0, y0, x0 + cell, y0 + cell],
+                        fill=(int(30 + 50 * k), int(28 + 26 * k), int(64 + 84 * k)))
+            if (r + c) % 2 == 0:
+                d.ellipse([x0 + cell * .3, y0 + cell * .26, x0 + cell * .7, y0 + cell * .66],
+                          fill=(255, 214, 150))
+            else:
+                d.polygon([(x0, y0 + cell), (x0 + cell * .55, y0 + cell * .4), (x0 + cell, y0 + cell)],
+                          fill=(14, 20, 30))
+
+    t(d, (W // 2, 1760), 'Your profile, your posts, your rules', L(38, 400), MUTED)
+    return img
+
+
+SHOTS = [shot_1, shot_2, shot_3, shot_4, shot_5, shot_6, shot_7, shot_8,
+         shot_9, shot_10, shot_11, shot_12]
 NAMES = ['brand', 'ai-chat', 'ai-tools', 'image-generation', 'translation',
-         'social-feed', 'chat-expression', 'download']
+         'social-feed', 'chat-expression', 'download',
+         'settings', 'personal-ai', 'search', 'profile']
 
 
 def main():

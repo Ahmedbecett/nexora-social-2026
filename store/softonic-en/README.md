@@ -1,6 +1,6 @@
 # NEXORA AI — English store screenshots (v4.4)
 
-Eight original screenshots at **1080×1920** (the 9:16 minimum), each as PNG and JPG.
+Twelve original screenshots at **1080×1920** (the 9:16 minimum), each as PNG and JPG.
 
 | # | File | What it shows |
 |---|------|---------------|
@@ -12,8 +12,12 @@ Eight original screenshots at **1080×1920** (the 9:16 minimum), each as PNG and
 | 6 | `nexora-en-6-social-feed` | Social feed: stories, post, likes, bottom navigation |
 | 7 | `nexora-en-7-chat-expression` | ChatKit composer: stickers, cutouts, GIFs |
 | 8 | `nexora-en-8-download` | Privacy, account options, download button, v4.4 |
+| 9 | `nexora-en-9-settings` | Settings: language, theme, privacy, account, version |
+| 10 | `nexora-en-10-personal-ai` | AI workspace: tools list and saved chats with context |
+| 11 | `nexora-en-11-search` | Search: field, tabs, result grid, AI search strip, suggestions |
+| 12 | `nexora-en-12-profile` | Profile: avatar, stats, Edit/Share, highlights, post grid |
 
-`NEXORA-AI-Store-Screenshots-EN-v4.4.zip` bundles all 16 files (PNG + JPG, ~2.2 MB).
+`NEXORA-AI-Store-Screenshots-EN-v4.4.zip` bundles all 25 files (PNG + JPG + this README, ~3.1 MB).
 
 ## Where the content comes from
 
@@ -23,7 +27,9 @@ Nothing here is invented — every string and colour is taken from the shipped a
 |--------|----------|
 | `src/styles.css` dark theme | `--bg #0c1014`, `--surface #1c2126`, `--border #363a3f`, `--blue #0095f6`, `--text #f5f5f5`, `--muted #a8a8a8` |
 | `src/ai/AIPlatform.jsx` | The six tools (Chat, Images, Writing, Code, Translate, Summaries), welcome prompts, quick actions |
-| `src/i18n.js` (English) | `Message...`, `On Nexora`, `Suggested for you`, `Your story`, `Stickers`, `Cutouts`, `GIFs` |
+| `src/i18n.js` (English) | `Message...`, `On Nexora`, `Suggested for you`, `Your story`, `Stickers`, `Cutouts`, `GIFs`, `Edit Profile`, `Share Profile`, `For you` |
+| `src/screens/Settings.jsx` | Settings groups: Language, Theme, Notifications, Private account, Privacy Center, Security, Account Status, Help |
+| `src/locales/extra.js` | `Dark`, `Light`, `System default`, `Choose how Nexora looks on this device.` |
 | `src/version.js` | `v4.4` — matches the live deploy |
 | Live site (cache-busted fetch) | Confirmed the deployed build reads **v4.4** |
 | `public/mascot.png` | The real app icon |
