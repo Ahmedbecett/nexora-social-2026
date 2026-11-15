@@ -177,7 +177,7 @@ export async function wsCreate(userId, { name, description, files, framework }) 
   const n = cleanStr(name, 80) || 'مشروع NEXORA ' + new Date().toISOString().slice(0, 10);
   const d = cleanStr(description, 300);
   const f = files && typeof files === 'object' ? files : { 'index.html': '<!doctype html><html><body><h1>مرحبا</h1></body></html>' };
-  const fw = ['static', 'next', 'vite', 'react'].includes(framework) ? framework : 'static';
+  const fw = ['static', 'next', 'vite', 'react', 'api', 'node'].includes(framework) ? framework : 'static';
   const row = await one('insert into workspace_projects(user_id, name, description, files, framework) values ($1,$2,$3,$4,$5) returning *', [userId, n, d, JSON.stringify(f), fw]);
   return row;
 }
@@ -195,7 +195,8 @@ export async function wsUpdate(userId, id, patch) {
   const name = patch.name !== undefined ? cleanStr(patch.name, 80) : cur.name;
   const description = patch.description !== undefined ? cleanStr(patch.description, 300) : cur.description;
   const files = patch.files !== undefined ? patch.files : cur.files;
-  const framework = patch.framework !== undefined ? patch.framework : cur.framework;
+  let framework = patch.framework !== undefined ? patch.framework : cur.framework;
+  if (!['static','next','vite','react','api','node'].includes(framework)) framework = 'static';
   const row = await one('update workspace_projects set name=$3, description=$4, files=$5, framework=$6, updated_at=now() where id=$1 and user_id=$2 returning *', [id, userId, name, description, JSON.stringify(files), framework]);
   return row;
 }
