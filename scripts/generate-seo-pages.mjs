@@ -196,6 +196,7 @@ ${alternateLinks(pairs[key])}
 <link rel="icon" type="image/png" href="/favicon-48.png" />
 <link rel="stylesheet" href="/seo.css" />
 <script type="application/ld+json">${json(schema)}</script>
+<script src="/monetag-web.js" defer></script>
 </head>
 <body class="seo-page">
 <a class="seo-skip" href="#content">${lang === 'ar' ? 'انتقل إلى المحتوى' : 'Skip to content'}</a>
