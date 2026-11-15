@@ -62,13 +62,9 @@ function LangPicker() {
 }
 
 function GetAppBanner() {
-  /* hidden inside the Android app itself (Capacitor build or the WebView shell) */
-  if (Capacitor.isNativePlatform()) return null;
-  return (
-    <a className="get-app" href="/download/Nexora.apk" download>
-      <img src="/icon-192.png" alt="" /><span className="flex1"><b>NEXORA AI</b><small>{t('getApp')}</small></span><span className="btn btn-primary btn-sm">APK</span>
-    </a>
-  );
+  // المنصة الأساسية هي الويب — لا حاجة لبانر APK في شاشة تسجيل الدخول
+  // يُبقي الرابط متاحاً في الصفحات العامة فقط (download.html / en/download.html)
+  return null;
 }
 
 /* ------------------------------------------------------------------ */

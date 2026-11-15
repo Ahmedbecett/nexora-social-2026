@@ -2,7 +2,7 @@ import { APP_VERSION_LABEL } from './version.js';
 
 const ar = {
   language: 'العربية',
-  getApp: `تطبيق NEXORA AI للأندرويد · ${APP_VERSION_LABEL}`,
+  getApp: `منصة NEXORA AI على الويب · ${APP_VERSION_LABEL}`,
   loginId: 'اسم المستخدم أو البريد الإلكتروني أو رقم الهاتف',
   password: 'كلمة السر',
   login: 'تسجيل الدخول',
@@ -107,7 +107,7 @@ const ar = {
   passwordChanged: 'تم تغيير كلمة السر', deleteAccount: 'حذف الحساب',
   deleteAccountDesc: 'سيتم حذف حسابك ومنشوراتك وتعليقاتك نهائياً. أدخل كلمة السر للتأكيد.',
   logoutConfirm: 'هل تريد تسجيل الخروج؟', cancel: 'إلغاء', done: 'تم',
-  helpText: 'NEXORA AI منصة ذكاء اصطناعي: محادثة ذكية مع حفظ السياق، بحث ويب بالمصادر، تحليل ملفات وصور، وصوت داخل وخارج. للإبلاغ عن أي مشكلة راسلنا عبر البريد ahmedbecetti35@gmail.com.',
+  helpText: 'NEXORA AI منصة ويب متكاملة مثل Arena AI: محادثة ذكية مع حفظ السياق، بحث ويب بالمصادر، تحليل ملفات وصور، وصوت — كل ذلك في المتصفح. للإبلاغ راسلنا: ahmedbecetti35@gmail.com.',
   aboutText: 'نيكسورا · الإصدار {v}',
   bio: 'النبذة', website: 'الموقع الإلكتروني', changePhoto: 'تغيير صورة الملف الشخصي', removePhoto: 'إزالة الصورة',
   // post menu
@@ -153,7 +153,7 @@ const ar = {
 
 const en = {
   language: 'English',
-  getApp: `NEXORA AI for Android · ${APP_VERSION_LABEL}`,
+  getApp: `NEXORA AI — Web Platform · ${APP_VERSION_LABEL}`,
   loginId: 'Username, email or mobile number',
   password: 'Password',
   login: 'Log in',
@@ -252,7 +252,7 @@ const en = {
   passwordChanged: 'Password changed', deleteAccount: 'Delete account',
   deleteAccountDesc: 'Your account, posts and comments will be permanently deleted. Enter your password to confirm.',
   logoutConfirm: 'Log out of your account?', cancel: 'Cancel', done: 'Done',
-  helpText: 'NEXORA AI is an AI platform: smart chat with saved context, real web search with sources, file and image analysis, and voice in and out. To report a problem email ahmedbecetti35@gmail.com.',
+  helpText: 'NEXORA AI is a web AI platform like Arena AI: smart chat with saved context, real web search with sources, file and image analysis, and voice — all in your browser. Email ahmedbecetti35@gmail.com for help.',
   aboutText: 'Nexora · Version {v}',
   bio: 'Bio', website: 'Website', changePhoto: 'Change profile photo', removePhoto: 'Remove photo',
   report: 'Report', reported: 'Thanks, your report was sent', unfollow: 'Unfollow', copyLink: 'Copy link', linkCopied: 'Link copied',
