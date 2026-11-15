@@ -93,6 +93,13 @@
 .nx-ai-pinlock small{color:#6f7690;font-size:10.5px}
 @media(max-width:720px){.nx-ai-plans{grid-template-columns:1fr}.nx-ai-mini select{max-width:84px}}
 
+/* ===== Adsterra Native Banner: one separate, responsive placement per web view ===== */
+.nx-adsterra-placement{width:min(850px,calc(100% - 44px));min-width:0;margin:0 auto}
+.nx-adsterra-placement>div{max-width:100%}
+.nx-adsterra-placement>div:not(:empty){margin-block:10px 16px}
+.nx-ai-auth .nx-adsterra-placement{width:min(430px,100%)}
+html.native .nx-adsterra-placement{display:none!important}
+
 /* ===== خانات إعلانات AdSense ===== */
 .nx-ai-ad{position:relative;width:100%;max-width:970px;margin:14px auto 6px;padding:12px 10px 8px;border-radius:14px;background:rgba(255,255,255,.028);border:1px solid rgba(255,255,255,.07);overflow:hidden}
 .nx-ai-ad-tag{position:absolute;top:5px;inset-inline-start:10px;font-size:9.5px;letter-spacing:.6px;color:#8b93ad;text-transform:uppercase;opacity:.85}

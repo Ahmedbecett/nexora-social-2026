@@ -197,6 +197,7 @@ ${alternateLinks(pairs[key])}
 <link rel="stylesheet" href="/seo.css" />
 <script type="application/ld+json">${json(schema)}</script>
 <script src="/monetag-web.js" defer></script>
+<script src="/adsterra-web.js" defer></script>
 </head>
 <body class="seo-page">
 <a class="seo-skip" href="#content">${lang === 'ar' ? 'انتقل إلى المحتوى' : 'Skip to content'}</a>
@@ -204,6 +205,7 @@ ${alternateLinks(pairs[key])}
 <main id="content" class="seo-container">
 ${key === 'home' ? '' : `<nav class="seo-breadcrumb" aria-label="${lang === 'ar' ? 'مسار التصفح' : 'Breadcrumb'}"><a href="${pairs.home[lang]}">${names.home}</a><span aria-hidden="true"> / </span><span>${esc(data.heading)}</span></nav>`}
 <div class="seo-hero${key === 'home' ? ' seo-home' : ''}"><div><p class="seo-eyebrow">${esc(data.eyebrow)}</p><h1>${esc(data.heading)}</h1><p class="seo-lead">${esc(data.lead)}</p>${key === 'home' ? `<div class="seo-actions"><a class="seo-button" href="/">${names.app}</a><a class="seo-button secondary" href="${pairs.features[lang]}">${names.features}</a></div>` : ''}</div>${key === 'home' ? '<img class="seo-hero-image" src="/mascot-ui.webp" alt="NEXORA AI mascot" width="256" height="256" fetchpriority="high" />' : ''}</div>
+<div class="seo-adsterra" role="complementary" aria-label="${lang === 'ar' ? 'مساحة إعلانية' : 'Advertisement'}"><div id="container-5641403c5558334d50a26de1c90fe61d"></div></div>
 ${data.body}
 ${faqBody}
 <section class="seo-more"><h2>${names.related}</h2><p>${names.relatedText}</p><div class="seo-links"><a href="${pairs.about[lang]}">${names.about}</a><a href="${pairs.features[lang]}">${names.features}</a><a href="${pairs.download[lang]}">${names.download}</a><a href="${pairs.faq[lang]}">${names.faq}</a></div></section>
