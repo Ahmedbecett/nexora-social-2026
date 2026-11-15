@@ -173,14 +173,21 @@ export async function vercelStatus(ownerId) {
  * Deploy the files as a static/Vite build. Vercel runs the framework build when
  * a package.json is present; plain HTML projects are served directly.
  */
-export async function deployToVercel(ownerId, { files, projectName, stack = 'static', target = 'production' }) {
+export async function deployToVercel(ownerId, { files, projectName, stack = 'static', target = 'production', existingProjectId = null }) {
   const auth = await vercelToken(ownerId);
   if (!auth) throw new StudioError(400, 'vercel_not_connected', 'connect a Vercel token in Studio settings');
   const safeFiles = sanitizeFiles(files, { maxFiles: 150, maxFileBytes: 400_000, maxTotalBytes: 3_000_000 });
   const entries = Object.entries(safeFiles);
   if (!entries.length) throw new StudioError(400, 'files_required');
 
-  const name = slug(projectName);
+  let name = slug(projectName);
+  if (existingProjectId) {
+    /* deploying into a project that already exists: keep its name, its domains
+       and its settings, instead of creating a look-alike next to it */
+    const existing = await vc(auth.token, `/v9/projects/${encodeURIComponent(existingProjectId)}`);
+    if (!existing.ok) throw new StudioError(404, 'vercel_project_missing', existing.data?.error?.message || 'that Vercel project is not reachable');
+    name = existing.data.name;
+  }
   const payloadFiles = entries.map(([file, content]) => ({
     file: file.replace(/^\/+/, ''),
     data: Buffer.from(content, 'utf8').toString('base64'),
@@ -294,6 +301,38 @@ async function vercelAccountWith(auth) {
   };
 }
 
+
+/**
+ * The newest deployment of a project — this is what "follow it to READY" reads,
+ * and the live URL it returns is the one the user can actually open.
+ */
+export async function vercelProjectState(ownerId, { id = null, name = '' } = {}) {
+  const auth = await vercelToken(ownerId);
+  if (!auth) throw new StudioError(400, 'vercel_not_connected', 'connect a Vercel token in Studio settings');
+  let projectId = id;
+  let projectName = name;
+  if (!projectId) {
+    if (!name) throw new StudioError(400, 'vercel_project_required', 'choose a Vercel project');
+    const proj = await vc(auth.token, `/v9/projects/${encodeURIComponent(name)}`);
+    if (!proj.ok) throw new StudioError(404, 'vercel_project_missing', proj.data?.error?.message || `no Vercel project called ${name}`);
+    projectId = proj.data.id;
+    projectName = proj.data.name;
+  }
+  const dep = await vc(auth.token, `/v6/deployments?projectId=${encodeURIComponent(projectId)}&limit=1`);
+  if (!dep.ok) throw new StudioError(502, 'vercel_query_failed', dep.data?.error?.message || `HTTP ${dep.status}`);
+  const latest = dep.data?.deployments?.[0] || null;
+  return {
+    connected: true,
+    projectId,
+    name: projectName,
+    state: latest?.readyState || latest?.state || null,
+    url: latest?.url ? `https://${latest.url}` : null,
+    inspectorUrl: latest?.inspectorUrl || null,
+    target: latest?.target || null,
+    createdAt: latest?.created ? new Date(latest.created).toISOString() : null,
+    hasDeployment: Boolean(latest),
+  };
+}
 
 /* ------------------------------- status probe ----------------------------- */
 /**

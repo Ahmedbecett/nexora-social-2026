@@ -155,6 +155,25 @@ function installFetch() {
         ],
       });
     }
+    if (url.includes('/api/studio/integrations/vercel')) {
+      return jsonResponse({
+        connected: true,
+        source: 'server',
+        username: 'me',
+        team: 'team_test',
+        projects: [
+          { id: 'prj_1', name: 'shop', url: 'https://shop.vercel.app', updatedAt: new Date().toISOString() },
+          { id: 'prj_2', name: 'blog', url: null, updatedAt: new Date().toISOString() },
+        ],
+      });
+    }
+    if (url.includes('/api/studio/vercel/state')) {
+      return jsonResponse({
+        connected: true, projectId: 'prj_1', name: 'shop', state: 'READY',
+        url: 'https://shop-abc.vercel.app', inspectorUrl: 'https://vercel.com/me/shop/dpl_1',
+        target: 'production', createdAt: new Date().toISOString(), hasDeployment: true,
+      });
+    }
     if (url.includes('/api/studio/repos/import')) {
       return jsonResponse({
         project: {
@@ -592,6 +611,48 @@ test('a repository can be opened from the list and committed back as a pull requ
     const pushed = bodies.filter((b) => b.url.includes('/api/studio/repos/push')).pop();
     assert.equal(pushed.body.pr, true);
     assert.ok(await until(() => /pull request|Pushed/i.test(document.body.textContent)), 'the result is reported');
+    assert.deepEqual(errors, [], 'no React or runtime errors were reported');
+  } finally {
+    root.unmount();
+  }
+});
+
+test('an existing Vercel project is offered, followed to READY and linked live', async () => {
+  mode = 'existing';
+  errors.length = 0;
+  requests.length = 0;
+  const window = installDom();
+  installFetch();
+  const { StudioApp } = await bundleApp();
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(document.getElementById('root'));
+  try {
+    root.render(React.createElement(StudioApp));
+    assert.ok(await until(() => document.body.textContent.includes('NEXORA')));
+
+    const publish = [...document.querySelectorAll('.nxs-tab')].find((b) => /publish/i.test(b.textContent || ''));
+    publish.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    const select = await until(() => document.querySelector('select[aria-label="Vercel project"]'), 5000);
+    const picker = document.querySelector('select[aria-label="Vercel project"]');
+    assert.ok(select && picker, 'the account projects are listed');
+
+    /* choosing a project sets the target */
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+    setter.call(picker, 'prj_1');
+    picker.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    const follow = await until(() => [...document.querySelectorAll('button')].find((b) => /follow to ready/i.test(b.textContent || '')), 5000);
+    const button = [...document.querySelectorAll('button')].find((b) => /follow to ready/i.test(b.textContent || ''));
+    assert.ok(follow && button, 'following is offered');
+    button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(await until(() => requests.some((r) => r.includes('/api/studio/vercel/state'))), 'the state endpoint is read');
+    const sent = bodies.filter((b) => b.url.includes('/api/studio/vercel/state')).pop();
+    assert.deepEqual(sent.body, { id: 'prj_1', name: 'shop' });
+    assert.ok(await until(() => /shop-abc\.vercel\.app/.test(document.body.textContent)), 'the live URL is shown');
+    assert.ok(await until(() => /READY/.test(document.body.textContent)), 'the state is shown');
     assert.deepEqual(errors, [], 'no React or runtime errors were reported');
   } finally {
     root.unmount();

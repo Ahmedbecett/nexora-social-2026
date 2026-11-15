@@ -522,6 +522,11 @@ export function registerStudioRoutes({ route, authUser }) {
 
   /* --------------------------- real repositories -------------------------- */
   /* open an existing GitHub repository as a project, and commit back to it */
+  route('POST', 'studio/vercel/state', async ({ req, body }) => {
+    const owner = await auth(req);
+    return await deploy.vercelProjectState(owner, { id: body.id || null, name: body.name || '' });
+  });
+
   route('POST', 'studio/repos/import', async ({ req, body }) => {
     const owner = await auth(req);
     const imported = await deploy.githubImport(owner, { repo: body.repo, ref: body.ref });
@@ -616,6 +621,7 @@ export function registerStudioRoutes({ route, authUser }) {
         projectName: body.name || project.name,
         stack: project.stack,
         target: body.target === 'preview' ? null : 'production',
+        existingProjectId: body.existingProjectId || null,
       });
       await updateDeployment(owner, record.id, { status: result.state || 'queued', url: result.url, externalId: result.id, meta: result });
       await updateProject(owner, project.id, { status: 'deployed' });

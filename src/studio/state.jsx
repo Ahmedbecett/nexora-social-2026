@@ -787,11 +787,15 @@ export function StudioProvider({ children }) {
     return data;
   }, [notify]);
 
-  const deployVercel = useCallback(async () => {
+  const deployVercel = useCallback(async ({ existingProjectId = null, name = '' } = {}) => {
     const p = stateRef.current.project;
     if (!p) return null;
     try {
-      const data = await request(`studio/projects/${p.id}/deploy/vercel`, { method: 'POST', body: { name: p.name }, timeout: 90_000 });
+      const data = await request(`studio/projects/${p.id}/deploy/vercel`, {
+        method: 'POST',
+        body: { name: name || p.name, existingProjectId },
+        timeout: 90_000,
+      });
       setDeployments((prev) => [data.deployment, ...prev]);
       notify('Deployment queued on Vercel');
       const id = data.deployment?.id;
@@ -812,6 +816,25 @@ export function StudioProvider({ children }) {
       else notify(`Deploy failed: ${e.detail || e.code}`, 'error');
       return null;
     }
+  }, [notify]);
+
+  /** Reads an existing Vercel project's newest deployment until it settles. */
+  const followVercelProject = useCallback(async ({ id = null, name = '', attempts = 20 } = {}) => {
+    let last = null;
+    for (let i = 0; i < attempts; i += 1) {
+      try {
+        last = await request('studio/vercel/state', { method: 'POST', body: { id, name }, timeout: 25_000 });
+      } catch (e) {
+        notify(`Vercel: ${e.detail || e.code}`, 'error');
+        return null;
+      }
+      if (!last.hasDeployment) { notify(`${last.name}: no deployment yet`, 'warn'); return last; }
+      if (last.state === 'READY') { notify(`Live: ${last.url}`, 'ok'); return last; }
+      if (last.state === 'ERROR' || last.state === 'CANCELED') { notify(`Vercel build ${last.state.toLowerCase()}`, 'error'); return last; }
+      await wait(3000);
+    }
+    notify('Vercel is still building — check again in a minute', 'warn');
+    return last;
   }, [notify]);
 
   const pushGithub = useCallback(async ({ repo, isPrivate = true, message } = {}) => {
@@ -889,7 +912,7 @@ export function StudioProvider({ children }) {
     send, stopAgent, fixWithAI, resumeBuild, runTerminal, clearTerminal,
     accounts, loadAccounts,
     buildMode, setBuildMode, BUILD_MODES,
-    importRepo, pushBranch,
+    importRepo, pushBranch, followVercelProject,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   }), [
     session, booting, bootError, boot, refreshSession, projects, project, messages, revisions, deployments, files,
@@ -897,7 +920,7 @@ export function StudioProvider({ children }) {
     previewMode, switchPreview, devServer, startDev, stopDev, previewNonce, consoleEntries, logConsole,
     createProject, openProject, deleteProject, renameProject, loadProjects, writeFile, addFile, removeFile, renameFile,
     saveNow, restoreRevision, persistFiles, send, stopAgent, fixWithAI, runTerminal, clearTerminal,
-    buildMode, setBuildMode, importRepo, pushBranch,
+    buildMode, setBuildMode, importRepo, pushBranch, followVercelProject,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   ]);
 

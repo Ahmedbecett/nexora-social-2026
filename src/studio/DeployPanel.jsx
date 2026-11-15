@@ -42,13 +42,15 @@ export default function DeployPanel() {
   const {
     project, files, deployments, revisions, session, deployVercel, pushGithub,
     connectIntegration, disconnectIntegration, restoreRevision, notify,
-    accounts, loadAccounts, importRepo, pushBranch, openProject,
+    accounts, loadAccounts, importRepo, pushBranch, followVercelProject,
   } = useStudio();
   const [verifying, setVerifying] = useState(null);
   const [branch, setBranch] = useState('');
   const [base, setBase] = useState('');
   const [asPr, setAsPr] = useState(true);
   const [busyRepo, setBusyRepo] = useState(null);
+  const [vercelTarget, setVercelTarget] = useState('');      // '' = a new project
+  const [vercelProbe, setVercelProbe] = useState(null);
 
   const openRepository = async (fullName) => {
     if (!fullName || busyRepo) return;
@@ -109,9 +111,17 @@ export default function DeployPanel() {
 
   const deploy = async () => {
     setDeploying(true);
-    const result = await deployVercel();
+    const result = await deployVercel({ existingProjectId: vercelTarget || null });
     setDeploying(false);
     if (result) setLastVercel(result);
+  };
+
+  const followProject = async () => {
+    const chosen = (vercel.projects || []).find((p) => p.id === vercelTarget);
+    if (!chosen) { notify('Choose a Vercel project first', 'warn'); return; }
+    setVercelProbe({ busy: true, name: chosen.name });
+    const state = await followVercelProject({ id: chosen.id, name: chosen.name });
+    setVercelProbe(state ? { ...state, busy: false } : null);
   };
 
   const push = async () => {
@@ -140,10 +150,29 @@ export default function DeployPanel() {
               </button>
             </div>
             {Array.isArray(vercel.projects) && vercel.projects.length > 0 && (
-              <div style={{ marginTop: 6 }}>
-                projects: {vercel.projects.slice(0, 4).map((p) => (
-                  <a key={p.id} href={p.url || '#'} target="_blank" rel="noreferrer" className="nxs-chip" style={{ marginInlineEnd: 4 }}>{p.name}</a>
-                ))}
+              <div className="nxs-git-branch" style={{ marginTop: 8 }}>
+                <select
+                  className="nxs-input"
+                  aria-label="Vercel project"
+                  value={vercelTarget}
+                  onChange={(e) => { setVercelTarget(e.target.value); setVercelProbe(null); }}
+                  style={{ flex: '1 1 170px' }}
+                >
+                  <option value="">deploy as a new project</option>
+                  {vercel.projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button className="nxs-btn ghost sm" onClick={followProject} disabled={!vercelTarget || vercelProbe?.busy}>
+                  <IconRefresh size={10} /> {vercelProbe?.busy ? 'following…' : 'Follow to READY'}
+                </button>
+              </div>
+            )}
+            {vercelProbe && !vercelProbe.busy && (
+              <div className="nxs-result">
+                {vercelProbe.name}: <b>{vercelProbe.state || 'unknown'}</b>
+                {vercelProbe.url && <> · <a href={vercelProbe.url} target="_blank" rel="noreferrer">live <IconExternal size={10} /></a></>}
+                {vercelProbe.inspectorUrl && <> · <a href={vercelProbe.inspectorUrl} target="_blank" rel="noreferrer">inspect</a></>}
               </div>
             )}
           </div>
@@ -152,7 +181,7 @@ export default function DeployPanel() {
           <>
             <div className="row">
               <button className="nxs-btn primary" onClick={deploy} disabled={deploying || !fileCount}>
-                <IconRocket size={12} /> {deploying ? 'Deploying…' : 'Deploy to production'}
+                <IconRocket size={12} /> {deploying ? 'Deploying…' : (vercelTarget ? 'Deploy into that project' : 'Deploy to production')}
               </button>
               <button className="nxs-btn ghost sm" onClick={() => disconnectIntegration('vercel')}>Disconnect</button>
             </div>
