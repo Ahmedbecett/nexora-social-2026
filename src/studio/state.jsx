@@ -338,6 +338,10 @@ export function StudioProvider({ children }) {
         setAgent((a) => ({ ...a, message: data.text || '' }));
         break;
       case 'done':
+        if (data.project && !data.failed) {
+          /* like Arena: the moment the build lands, the live preview takes over */
+          setTab((t) => (t === 'chat' ? 'preview' : t));
+        }
         if (data.project) {
           setProject((prev) => ({ ...(prev || {}), ...data.project }));
           setFiles(data.project.files || {});
@@ -346,10 +350,14 @@ export function StudioProvider({ children }) {
         if (data.assistantMessage) {
           setMessages((prev) => (prev.some((m) => m.id === data.assistantMessage.id) ? prev : [...prev, data.assistantMessage]));
         }
+        /* a successful round clears the earlier interruption — the banner must
+           never outlive the build it was warning about */
         setAgent((a) => ({
           ...a,
           running: false,
           step: null,
+          interrupted: data.failed ? a.interrupted : false,
+          pending: data.failed ? a.pending : 0,
           plan: data.plan || a.plan,
           provider: data.provider || a.provider,
           error: data.failed ? a.error : null,

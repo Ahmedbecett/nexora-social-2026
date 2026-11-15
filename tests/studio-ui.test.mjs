@@ -343,7 +343,11 @@ test('an interrupted build resumes automatically and keeps the streamed files', 
 
     assert.ok(await until(() => /Built by the agent/.test(document.querySelector('iframe.nxs-frame')?.getAttribute('srcdoc') || ''), 8000),
       'the resumed build reaches the live preview');
-    assert.ok(await until(() => !/pending/.test(document.body.textContent) || !/Continue build/.test(document.body.textContent)), 'no stuck pending banner');
+    assert.ok(await until(() => !/Build interrupted/.test(document.body.textContent) && !/Continue build/.test(document.body.textContent)),
+      'the interruption banner is cleared once the build finishes');
+    const leftover = [...document.querySelectorAll('.nxs-chip, .nxs-live-note, button')]
+      .filter((el) => /\bpending\b|\bcontinue build\b/i.test(el.textContent || ''));
+    assert.equal(leftover.length, 0, 'no leftover pending counter');
     assert.deepEqual(errors, [], 'resuming raised no React errors');
   } finally {
     console.error = origError;

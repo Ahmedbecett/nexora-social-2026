@@ -129,8 +129,19 @@ export async function pushToGitHub(ownerId, { files, repoName, isPrivate = true,
 
 /* -------------------------------- Vercel --------------------------------- */
 async function vc(token, path, { method = 'GET', body } = {}) {
-  const team = process.env.VERCEL_TEAM_ID ? `${path.includes('?') ? '&' : '?'}teamId=${encodeURIComponent(process.env.VERCEL_TEAM_ID)}` : '';
-  const res = await fetch(VERCEL_API + path + team, {
+  const teamId = process.env.VERCEL_TEAM_ID || '';
+  const team = teamId ? `${path.includes('?') ? '&' : '?'}teamId=${encodeURIComponent(teamId)}` : '';
+  const first = await vcOnce(token, path + team, { method, body });
+  /* a personal token is not necessarily scoped to the team id we were handed:
+     fall back to the personal scope instead of failing the whole connection */
+  if (teamId && (first.status === 403 || first.status === 404)) {
+    return vcOnce(token, path, { method, body });
+  }
+  return first;
+}
+
+async function vcOnce(token, path, { method = 'GET', body } = {}) {
+  const res = await fetch(VERCEL_API + path, {
     method,
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
@@ -221,9 +232,17 @@ export async function vercelDeploymentState(ownerId, deploymentId) {
  */
 export async function githubAccount(ownerId) {
   const auth = await githubToken(ownerId).catch(() => null);
-  if (!auth) return { connected: false, source: null };
+  if (!auth) return { connected: false, source: null, error: 'GITHUB_STUDIO_TOKEN is not set on this deployment and no token is saved in your account' };
+  try {
+    return await githubAccountWith(auth);
+  } catch (e) {
+    return { connected: false, source: auth.source, error: `GitHub is unreachable from this deployment (${e.message || e.code || e})` };
+  }
+}
+
+async function githubAccountWith(auth) {
   const me = await gh(auth.token, '/user');
-  if (!me.ok) return { connected: false, source: auth.source, error: `GitHub rejected the token (${me.status})` };
+  if (!me.ok) return { connected: false, source: auth.source, error: `GitHub rejected the token (${me.status}${me.data?.message ? `: ${me.data.message}` : ''})` };
   const repos = await gh(auth.token, '/user/repos?per_page=30&sort=updated&affiliation=owner,collaborator');
   const scope = /scopes?:\s*([^\n]*)/i.exec(me.headers || '')?.[1] || '';
   return {
@@ -247,9 +266,17 @@ export async function githubAccount(ownerId) {
 
 export async function vercelAccount(ownerId) {
   const auth = await vercelToken(ownerId).catch(() => null);
-  if (!auth) return { connected: false, source: null };
+  if (!auth) return { connected: false, source: null, error: 'VERCEL_STUDIO_TOKEN is not set on this deployment and no token is saved in your account' };
+  try {
+    return await vercelAccountWith(auth);
+  } catch (e) {
+    return { connected: false, source: auth.source, error: `Vercel is unreachable from this deployment (${e.message || e.code || e})` };
+  }
+}
+
+async function vercelAccountWith(auth) {
   const me = await vc(auth.token, '/v2/user');
-  if (!me.ok) return { connected: false, source: auth.source, error: `Vercel rejected the token (${me.status})` };
+  if (!me.ok) return { connected: false, source: auth.source, error: `Vercel rejected the token (${me.status}${me.data?.error?.message ? `: ${me.data.error.message}` : ''})` };
   const projects = await vc(auth.token, '/v9/projects?limit=20');
   const list = projects.ok && Array.isArray(projects.data?.projects) ? projects.data.projects : [];
   return {
@@ -265,4 +292,56 @@ export async function vercelAccount(ownerId) {
       updatedAt: p.updatedAt ? new Date(p.updatedAt).toISOString() : null,
     })),
   };
+}
+
+
+/* ------------------------------- status probe ----------------------------- */
+/**
+ * Booleans only: are the deployment-level tokens configured, and do the
+ * providers accept them right now? Used by GET /api/studio/status so the
+ * connection can be verified without a browser session.
+ */
+export async function connectionProbe() {
+  const out = {
+    github: { configured: false, valid: false, status: null, login: null, error: null },
+    vercel: { configured: false, valid: false, status: null, username: null, projects: null, error: null },
+  };
+
+  const gt = await githubToken(0).catch(() => null);
+  if (gt) {
+    out.github.configured = true;
+    try {
+      const me = await gh(gt.token, '/user');
+      out.github.status = me.status;
+      out.github.valid = me.ok;
+      out.github.login = me.ok ? me.data.login : null;
+      if (!me.ok) out.github.error = me.data?.message || `HTTP ${me.status}`;
+    } catch (e) {
+      out.github.error = e.message || 'unreachable';
+    }
+  } else {
+    out.github.error = 'no token configured';
+  }
+
+  const vt = await vercelToken(0).catch(() => null);
+  if (vt) {
+    out.vercel.configured = true;
+    try {
+      const me = await vc(vt.token, '/v2/user');
+      out.vercel.status = me.status;
+      out.vercel.valid = me.ok;
+      out.vercel.username = me.ok ? (me.data?.user?.username || null) : null;
+      if (!me.ok) out.vercel.error = me.data?.error?.message || `HTTP ${me.status}`;
+      else {
+        const list = await vc(vt.token, '/v9/projects?limit=100');
+        out.vercel.projects = list.ok ? (list.data?.projects || []).length : null;
+      }
+    } catch (e) {
+      out.vercel.error = e.message || 'unreachable';
+    }
+  } else {
+    out.vercel.error = 'no token configured';
+  }
+
+  return out;
 }
