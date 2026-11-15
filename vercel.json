@@ -5,23 +5,75 @@
   "outputDirectory": "dist",
   "functions": {
     "api/index.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
   },
   "redirects": [
-    { "source": "/index.html", "destination": "/", "permanent": true },
-    { "source": "/about", "destination": "/about.html", "permanent": true },
-    { "source": "/features", "destination": "/features.html", "permanent": true },
-    { "source": "/download", "destination": "/download.html", "permanent": true },
-    { "source": "/download/", "destination": "/download.html", "permanent": true },
-    { "source": "/faq", "destination": "/faq.html", "permanent": true },
-    { "source": "/privacy", "destination": "/privacy.html", "permanent": true },
-    { "source": "/en", "destination": "/en.html", "permanent": true },
-    { "source": "/en/about", "destination": "/en/about.html", "permanent": true },
-    { "source": "/en/features", "destination": "/en/features.html", "permanent": true },
-    { "source": "/en/download", "destination": "/en/download.html", "permanent": true },
-    { "source": "/en/faq", "destination": "/en/faq.html", "permanent": true },
-    { "source": "/en/privacy", "destination": "/en/privacy.html", "permanent": true }
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/about",
+      "destination": "/about.html",
+      "permanent": true
+    },
+    {
+      "source": "/features",
+      "destination": "/features.html",
+      "permanent": true
+    },
+    {
+      "source": "/download",
+      "destination": "/download.html",
+      "permanent": true
+    },
+    {
+      "source": "/download/",
+      "destination": "/download.html",
+      "permanent": true
+    },
+    {
+      "source": "/faq",
+      "destination": "/faq.html",
+      "permanent": true
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html",
+      "permanent": true
+    },
+    {
+      "source": "/en",
+      "destination": "/en.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/about",
+      "destination": "/en/about.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/features",
+      "destination": "/en/features.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/download",
+      "destination": "/en/download.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/faq",
+      "destination": "/en/faq.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/privacy",
+      "destination": "/en/privacy.html",
+      "permanent": true
+    }
   ],
   "rewrites": [
     {
@@ -33,89 +85,143 @@
     {
       "source": "/api",
       "headers": [
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
       ]
     },
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
       ]
     },
     {
       "source": "/download/(.*)",
       "headers": [
-        { "key": "Content-Disposition", "value": "attachment" },
-        { "key": "Content-Type", "value": "application/vnd.android.package-archive" },
-        { "key": "X-Robots-Tag", "value": "noindex" }
+        {
+          "key": "Content-Disposition",
+          "value": "attachment"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
       ]
     },
     {
       "source": "/assets/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     },
     {
       "source": "/(icon|favicon|apple-touch-icon)(.*)\\.(png|ico)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
       ]
     },
     {
       "source": "/seo.css",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
       ]
     },
     {
       "source": "/monetag-web.js",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
       ]
     },
     {
       "source": "/adsterra-web.js",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
       ]
     },
     {
       "source": "/mascot-ui.webp",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
       ]
     },
     {
       "source": "/mascot-avatar.webp",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
       ]
     },
     {
       "source": "/og-image.jpg",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
       ]
     },
     {
       "source": "/manifest.webmanifest",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
       ]
     },
     {
       "source": "/app-ads.txt",
       "headers": [
-        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
-        { "key": "Cache-Control", "value": "public, max-age=3600" }
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
+        }
       ]
     },
     {
       "source": "/ads.txt",
       "headers": [
-        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
-        { "key": "Cache-Control", "value": "public, max-age=3600" }
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
+        }
       ]
     }
   ]

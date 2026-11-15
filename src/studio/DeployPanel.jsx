@@ -1,0 +1,193 @@
+import { useState } from 'react';
+import { useStudio } from './state.jsx';
+import { zipFiles } from './preview/bundler.js';
+import {
+  IconRocket, IconGit, IconDownload, IconHistory, IconPlug, IconExternal, IconCheck, IconRefresh,
+} from './icons.jsx';
+
+function TokenForm({ provider, onConnect, label, placeholder }) {
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  return (
+    <div>
+      <div className="nxs-key-form">
+        <input
+          className="nxs-input"
+          type="password"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder={placeholder}
+          spellCheck={false}
+        />
+        <button
+          className="nxs-btn sm primary"
+          disabled={busy || token.trim().length < 10}
+          onClick={async () => {
+            setBusy(true); setError(null);
+            try { await onConnect(provider, token.trim()); setToken(''); }
+            catch (e) { setError(e.detail || e.code || 'rejected'); }
+            finally { setBusy(false); }
+          }}
+        >
+          {busy ? 'Checking…' : `Connect ${label}`}
+        </button>
+      </div>
+      {error && <div className="nxs-faint" style={{ color: 'var(--red)', marginTop: 6, fontSize: 11.5 }}>{error}</div>}
+    </div>
+  );
+}
+
+export default function DeployPanel() {
+  const {
+    project, files, deployments, revisions, session, deployVercel, pushGithub,
+    connectIntegration, disconnectIntegration, restoreRevision, notify,
+  } = useStudio();
+  const [repo, setRepo] = useState('');
+  const [isPrivate, setIsPrivate] = useState(true);
+  const [deploying, setDeploying] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [lastVercel, setLastVercel] = useState(null);
+  const [lastGit, setLastGit] = useState(null);
+
+  const github = session?.integrations?.github || { connected: false };
+  const vercel = session?.integrations?.vercel || { connected: false };
+  const fileCount = Object.keys(files || {}).length;
+
+  const exportZip = () => {
+    if (!fileCount) { notify('Nothing to export yet', 'warn'); return; }
+    const blob = zipFiles(files);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(project?.name || 'nexora-project').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.zip`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  };
+
+  const deploy = async () => {
+    setDeploying(true);
+    const result = await deployVercel();
+    setDeploying(false);
+    if (result) setLastVercel(result);
+  };
+
+  const push = async () => {
+    setPushing(true);
+    const result = await pushGithub({ repo: repo.trim() || undefined, isPrivate });
+    setPushing(false);
+    if (result) setLastGit(result);
+  };
+
+  return (
+    <div className="nxs-scroll-pad" style={{ overflowY: 'auto' }}>
+      <div className="nxs-card">
+        <h4><IconRocket size={14} style={{ color: 'var(--violet-2)' }} /> Vercel
+          <span className={`nxs-chip ${vercel.connected ? 'ok' : 'warn'}`} style={{ marginInlineStart: 'auto' }}>
+            {vercel.connected ? `connected${vercel.username ? ` · ${vercel.username}` : ''}` : 'not connected'}
+          </span>
+        </h4>
+        <p>Ship the project to a real URL. Static files are served directly; React/Vite projects are built by Vercel.</p>
+        {vercel.connected ? (
+          <>
+            <div className="row">
+              <button className="nxs-btn primary" onClick={deploy} disabled={deploying || !fileCount}>
+                <IconRocket size={12} /> {deploying ? 'Deploying…' : 'Deploy to production'}
+              </button>
+              <button className="nxs-btn ghost sm" onClick={() => disconnectIntegration('vercel')}>Disconnect</button>
+            </div>
+            {lastVercel && (
+              <div className="nxs-result">
+                {lastVercel.url
+                  ? <>live: <a href={lastVercel.url} target="_blank" rel="noreferrer">{lastVercel.url} <IconExternal size={10} /></a><br /></>
+                  : null}
+                state: {lastVercel.status || lastVercel.state || 'queued'} {lastVercel.inspectorUrl && <a href={lastVercel.inspectorUrl} target="_blank" rel="noreferrer">inspect</a>}
+              </div>
+            )}
+          </>
+        ) : (
+          <TokenForm provider="vercel" onConnect={connectIntegration} label="Vercel" placeholder="Vercel access token (vercel.com/account/tokens)" />
+        )}
+      </div>
+
+      <div className="nxs-card">
+        <h4><IconGit size={14} style={{ color: 'var(--violet-2)' }} /> GitHub
+          <span className={`nxs-chip ${github.connected ? 'ok' : 'warn'}`} style={{ marginInlineStart: 'auto' }}>
+            {github.connected ? `connected · ${github.login}` : 'not connected'}
+          </span>
+        </h4>
+        <p>Create a repository and push every file as one commit, so the project lives in version control.</p>
+        {github.connected ? (
+          <>
+            <div className="row">
+              <input
+                className="nxs-input grow"
+                value={repo}
+                onChange={(e) => setRepo(e.target.value)}
+                placeholder={`repo name (default: ${(project?.name || 'nexora-app').toLowerCase().replace(/[^a-z0-9]+/g, '-')})`}
+              />
+              <label className="nxs-chip" style={{ height: 34, gap: 6, cursor: 'pointer' }}>
+                <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
+                private
+              </label>
+              <button className="nxs-btn primary" onClick={push} disabled={pushing || !fileCount}>
+                <IconGit size={12} /> {pushing ? 'Pushing…' : 'Push'}
+              </button>
+              <button className="nxs-btn ghost sm" onClick={() => disconnectIntegration('github')}>Disconnect</button>
+            </div>
+            {lastGit && (
+              <div className="nxs-result">
+                repo: <a href={lastGit.url} target="_blank" rel="noreferrer">{lastGit.repo} <IconExternal size={10} /></a><br />
+                {lastGit.files} files · branch {lastGit.branch} · {lastGit.created ? 'created' : 'updated'}
+                {lastGit.commitUrl && <> · <a href={lastGit.commitUrl} target="_blank" rel="noreferrer">commit</a></>}
+              </div>
+            )}
+          </>
+        ) : (
+          <TokenForm provider="github" onConnect={connectIntegration} label="GitHub" placeholder="GitHub token with repo scope" />
+        )}
+      </div>
+
+      <div className="nxs-card">
+        <h4><IconDownload size={14} style={{ color: 'var(--violet-2)' }} /> Export</h4>
+        <p>Download the project as a ZIP, ready for any host or your own machine.</p>
+        <button className="nxs-btn" onClick={exportZip} disabled={!fileCount}>
+          <IconDownload size={12} /> Download {fileCount} files
+        </button>
+      </div>
+
+      <div className="nxs-card">
+        <h4><IconHistory size={14} style={{ color: 'var(--violet-2)' }} /> Deployments</h4>
+        {deployments.length === 0 && <p style={{ margin: 0 }}>No deployments yet.</p>}
+        {deployments.map((d) => (
+          <div key={d.id} className="nxs-result" style={{ marginTop: 8 }}>
+            <b>{d.provider}</b> · {d.status}
+            {d.url && <> · <a href={d.url} target="_blank" rel="noreferrer">{d.url}</a></>}
+            <div className="nxs-faint">{d.createdAt ? new Date(d.createdAt).toLocaleString() : ''}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="nxs-card">
+        <h4><IconPlug size={14} style={{ color: 'var(--violet-2)' }} /> Restore points</h4>
+        <p>Every agent build and manual save keeps a snapshot. Restoring is instant and reversible.</p>
+        {revisions.length === 0 && <p style={{ margin: 0 }}>No saves yet.</p>}
+        {revisions.slice(0, 8).map((r) => (
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--line)' }}>
+            <span className="nxs-mono" style={{ flex: 1, fontSize: 11, color: 'var(--text-2)' }}>{r.label || `revision ${r.id}`}</span>
+            <span className="nxs-faint" style={{ fontSize: 10.5 }}>{r.createdAt ? new Date(r.createdAt).toLocaleTimeString() : ''}</span>
+            <button className="nxs-btn sm" onClick={() => restoreRevision(r.id)}><IconRefresh size={10} /> Restore</button>
+          </div>
+        ))}
+      </div>
+
+      <div className="nxs-card">
+        <h4><IconCheck size={14} style={{ color: 'var(--green)' }} /> What is real here</h4>
+        <p style={{ margin: 0 }}>
+          Deployments call the Vercel API with your token; GitHub pushes real commits; restores write the
+          snapshot back into the database. Nothing in this panel simulates success.
+        </p>
+      </div>
+    </div>
+  );
+}

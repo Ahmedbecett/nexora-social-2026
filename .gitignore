@@ -16,3 +16,8 @@ android/app/google-services.local.json
 *.jks
 *.p12
 *.keystore
+
+# NEXORA Studio — local runtime data & generated preview assets
+.nexora/
+public/studio/esbuild.wasm
+public/studio/vendor/

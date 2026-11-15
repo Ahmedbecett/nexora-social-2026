@@ -1,4 +1,4 @@
-import { dispatch, HttpError, nxStreamChat } from './_lib/handlers.js';
+import { dispatch, HttpError, nxStreamChat, studioAgentStream, studioExecStream } from './_lib/handlers.js';
 
 function send(res, status, data) {
   res.statusCode = status;
@@ -45,6 +45,25 @@ export default async function handler(req, res) {
   if (req.method === 'POST' && path === 'ai/stream') {
     try { return await nxStreamChat(req, res, await readBody(req)); }
     catch (e) { console.error(e); res.statusCode = 500; return res.end(); }
+  }
+  /* NEXORA Studio — the agent and the terminal write SSE frames while they work:
+     files appear in the editor as the model writes them and commands stream their
+     real output. Both need the response stream, so they are handled here. */
+  if (req.method === 'POST' && (path === 'studio/agent' || path === 'studio/exec')) {
+    try {
+      const body = await readBody(req);
+      return path === 'studio/agent'
+        ? await studioAgentStream(req, res, body)
+        : await studioExecStream(req, res, body);
+    } catch (e) {
+      const status = e instanceof HttpError ? e.status : 500;
+      if (!res.headersSent) {
+        res.statusCode = status;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.end(JSON.stringify({ error: (e && e.code) || 'server_error', detail: String((e && e.message) || '').slice(0, 300) }));
+      }
+      return res.end();
+    }
   }
   /* إشعارات الدفع: نمرّر الجسم الخام إلى المعالج ليتحقق من التوقيع قبل أي تفعيل */
   if (req.method === 'POST' && path.startsWith('payments/webhook/')) {
