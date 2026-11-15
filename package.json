@@ -38,6 +38,7 @@
     "@vercel/blob": "^1.1.1",
     "bcryptjs": "^3.0.2",
     "dompurify": "^3.4.17",
+    "e2b": "^2.64.0",
     "firebase": "^11.10.0",
     "highlight.js": "^11.12.0",
     "jose": "^5.10.0",
