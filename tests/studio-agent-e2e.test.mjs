@@ -62,7 +62,16 @@ const server = http.createServer((req, res) => {
         '<file path="index.html"><!doctype html><h1>direct</h1></file>',
       ]);
     } else if (/TASK: long-form writing/.test(last)) {
-      if (/append/.test(last)) {
+      if (process.env.FAKE_TEXT_CUT === '1') {
+        /* one whole section lands, the next one is cut mid-sentence */
+        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+        const NL = String.fromCharCode(10);
+        const cutBody = '<file path="article.md"># مقال' + NL + NL + 'نص القسم الأول.</file>' + NL + '<file path="article.md" append>القسم الثاني بلا نهاية';
+        res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: cutBody } }] }) + NL + NL);
+        setTimeout(() => { try { res.destroy(); } catch { /* gone */ } }, 40);
+        return;
+      }
+      if (/already|append/i.test(last)) {
         sse(res, ['<file path="article.md" append>## القسم الثاني\n\nنص القسم الثاني.</file>']);
       } else {
         sse(res, ['<file path="article.md"># مقال\n\nنص القسم الأول.</file>']);
@@ -306,4 +315,31 @@ test('an attached Drive document is read by the model as part of the prompt', as
 
   const frames = events(res.text);
   assert.ok(frames.some((f) => f.event === 'status' && f.data.docs === 2), 'the run reports the attached documents');
+});
+
+test('a cut long-form run keeps the finished section and resumes by appending', async () => {
+  const project = await createProject('dev', { name: 'Article' });
+  process.env.FAKE_TEXT_CUT = '1';
+  let res = fakeRes();
+  try {
+    await studioAgentStream(fakeReq(), res, {
+      projectId: project.id, mode: 'create', buildMode: 'text', message: 'write a long article about lamps',
+    });
+  } finally {
+    delete process.env.FAKE_TEXT_CUT;
+  }
+
+  /* the section that finished is on disk, the cut one is not half-written */
+  let stored = await getProject('dev', project.id);
+  assert.ok(stored.files['article.md'], 'the finished section was saved during the run');
+  assert.match(stored.files['article.md'], /نص القسم الأول/);
+  assert.ok(!stored.files['article.md'].includes('بلا نهاية'), 'an unfinished sentence is not written as content');
+
+  /* resuming appends the next section to the same file */
+  res = fakeRes();
+  await studioAgentStream(fakeReq(), res, {
+    projectId: project.id, mode: 'continue', buildMode: 'text', message: 'write a long article about lamps',
+  });
+  stored = await getProject('dev', project.id);
+  assert.match(stored.files['article.md'], /نص القسم الأول[\s\S]*نص القسم الثاني/, 'the second section follows the first');
 });

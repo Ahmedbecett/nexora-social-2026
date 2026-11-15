@@ -15,13 +15,17 @@ import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 let _pg = null;
+import { HttpError } from '../errors.js';
+
 let _sqlite = null;
 let _sqliteTried = false;
 let _ready = null;
 
-export class StudioError extends Error {
+export class StudioError extends HttpError {
   constructor(status, code, detail = '') {
-    super(code);
+    /* extends the app-wide HttpError so the dispatcher keeps the real status and
+       code instead of collapsing every Studio failure into a 500 server_error */
+    super(status, code, code, detail);
     this.status = status;
     this.code = code;
     this.detail = String(detail || '').slice(0, 400);
