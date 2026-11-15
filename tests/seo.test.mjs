@@ -15,6 +15,17 @@ const attr = (html, attribute) => new RegExp(`\\b${attribute}="([^"]+)"`).exec(h
 const htmlEsc = (s) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 const schema = (html) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
 
+test('Monetag verification meta remains in the public homepage and production build', () => {
+  const token = 'fe0e4e36326c60293c77f9e4cb8c06ff';
+  for (const path of ['index.html', 'dist/index.html']) {
+    if (!existsSync(path)) continue;
+    const html = read(path);
+    const head = html.split('</head>')[0];
+    assert.equal(attr(tag(head, 'meta', 'name', 'monetag'), 'content'), token, path);
+    assert.equal((html.match(/<meta\s+name="monetag"(?=\s|>)/g) || []).length, 1, `${path}: exactly one verification tag`);
+  }
+});
+
 test('committed bilingual pages and sitemap match the single-source generator', () => {
   execFileSync(process.execPath, ['scripts/generate-seo-pages.mjs', '--check']);
 });
