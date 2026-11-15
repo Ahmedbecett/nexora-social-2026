@@ -104,6 +104,30 @@ export function applyOps(files, ops = []) {
   return { files: next, changed: [...changedByPath.values()] };
 }
 
+/* ------------------------------- images ---------------------------------- */
+export const IMAGE_LIMITS = { maxCount: 3, maxBytes: 1_400_000, mimes: ['image/jpeg', 'image/png', 'image/webp'] };
+
+/**
+ * Screenshots and photos the user attaches are sent to a vision model as base64
+ * data. Nothing else is accepted: no remote URLs (the server would fetch an
+ * unknown host) and no SVG (it can carry script).
+ */
+export function sanitizeImages(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const raw of list) {
+    if (!raw || typeof raw !== 'object') continue;
+    const mime = String(raw.mime || '').toLowerCase().trim();
+    const data = String(raw.data || '').replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
+    if (!IMAGE_LIMITS.mimes.includes(mime)) continue;
+    if (!data || data.length > IMAGE_LIMITS.maxBytes) continue;
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) continue;
+    out.push({ mime, data, name: String(raw.name || '').slice(0, 120) || null });
+    if (out.length >= IMAGE_LIMITS.maxCount) break;
+  }
+  return out;
+}
+
 /**
  * Long-form text arrives in sections; sections must not be glued onto the last
  * line of the previous one, so a blank line is inserted when needed.

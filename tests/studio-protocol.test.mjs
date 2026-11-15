@@ -174,3 +174,25 @@ test('build modes are a shared contract with real, bounded behaviour', async () 
   assert.equal(textTargetPath('اكتب لي مقال عن الذكاء الاصطناعي'), 'article.md');
   assert.equal(textTargetPath('write story.md for me'), 'story.md');
 });
+
+test('attachments are sanitised and only the valid ones are kept', async () => {
+  const { sanitizeImages, IMAGE_LIMITS } = await import('../api/_lib/studio/files.js');
+  const { attachImages } = await import('../api/_lib/studio/agent.js');
+  const good = 'iVBORw0KGgoAAAANSUhEUg==';
+
+  assert.equal(sanitizeImages([{ mime: 'image/png', data: good }]).length, 1);
+  assert.equal(sanitizeImages([{ mime: 'image/svg+xml', data: good }]).length, 0, 'svg is refused');
+  assert.equal(sanitizeImages([{ mime: 'image/png', data: 'not base64!!' }]).length, 0, 'only base64 is accepted');
+  assert.equal(sanitizeImages([{ mime: 'image/png', data: 'a'.repeat(IMAGE_LIMITS.maxBytes + 10) }]).length, 0, 'oversized is refused');
+  assert.equal(sanitizeImages(new Array(9).fill({ mime: 'image/jpeg', data: 'aGk=' })).length, IMAGE_LIMITS.maxCount, 'count is capped');
+  assert.equal(sanitizeImages('nope').length, 0, 'a non-array is ignored');
+  assert.equal(sanitizeImages([{ mime: 'image/png', data: `data:image/png;base64,${good}` }])[0].data, good, 'a data URL prefix is stripped');
+
+  const prompt = { instructions: 'i', messages: [{ role: 'user', content: 'TASK: build it' }] };
+  const withImages = attachImages(prompt, [{ mime: 'image/png', data: good }]);
+  assert.equal(withImages.messages.length, 1);
+  assert.equal(withImages.messages[0].images.length, 1);
+  assert.match(withImages.messages[0].content, /attached 1 image/);
+  assert.equal(prompt.messages[0].images, undefined, 'the original prompt is not mutated');
+  assert.equal(attachImages(prompt, []), prompt, 'no images means no change');
+});

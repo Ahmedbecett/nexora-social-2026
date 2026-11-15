@@ -198,6 +198,20 @@ Find the root cause and return the FULL corrected content of only the files that
   };
 }
 
+/**
+ * The user's images belong to the instruction they came with, so they ride on
+ * the last message of whichever prompt is being built.
+ */
+export function attachImages(prompt, images = []) {
+  if (!Array.isArray(images) || !images.length || !prompt?.messages?.length) return prompt;
+  const messages = prompt.messages.slice();
+  const last = { ...messages[messages.length - 1] };
+  last.images = images;
+  last.content = `${last.content || ''}\n\nThe user attached ${images.length} image${images.length > 1 ? 's' : ''} — read the layout, colours and copy from ${images.length > 1 ? 'them' : 'it'} and build exactly that.`;
+  messages[messages.length - 1] = last;
+  return { ...prompt, messages };
+}
+
 /* ------------------------------- parsing --------------------------------- */
 function stripFences(content) {
   let c = String(content || '');
@@ -312,10 +326,14 @@ export function parseAgentOutput(raw) {
  * `push(accumulatedText)` is designed for providers that send the full text so
  * far; only newly completed blocks are emitted.
  */
-export function createProtocolStreamer({ onProse, onFile, onDelete, onPlan, onMessage } = {}) {
+export function createProtocolStreamer({ onProse, onFile, onDelete, onPlan, onMessage, onFilePartial } = {}) {
   let buffer = '';
   let cursor = 0;
   let proseEmitted = 0;
+  /* partial-file streaming: the editor window shows the code as it is written */
+  let lastPartialAt = 0;
+  let lastPartialLen = 0;
+  let partialPath = null;
 
   const emitProse = (chunk) => {
     const clean = chunk.replace(/\n{3,}/g, '\n\n');
@@ -355,7 +373,24 @@ export function createProtocolStreamer({ onProse, onFile, onDelete, onPlan, onMe
       }
       const closeTag = `</${buffer.slice(open.index + 1).match(/^(?:nexora:)?[a-z]+/i)?.[0] || open.kind}>`;
       const closeIdx = buffer.toLowerCase().indexOf(closeTag.toLowerCase(), open.end);
-      if (closeIdx < 0) return; // wait for more tokens
+      if (closeIdx < 0) {
+        /* still inside this block: stream the partial body of a <file> so the
+           window can show the code being written, throttled to stay cheap */
+        if (open.kind === 'file' && onFilePartial) {
+          const pm = open.attrs.match(/path\s*=\s*("([^"]*)"|'([^']*)')/);
+          const path = normalizePath(pm ? (pm[2] || pm[3]) : '');
+          const body = buffer.slice(open.end).replace(/^\s*```[a-zA-Z0-9+#.-]*\n/, '');
+          const now = Date.now();
+          if (path && body.length !== lastPartialLen && (now - lastPartialAt > 180 || body.length - lastPartialLen > 2000)) {
+            lastPartialAt = now;
+            lastPartialLen = body.length;
+            partialPath = path;
+            onFilePartial({ path, partial: body });
+          }
+        }
+        return; // wait for more tokens
+      }
+      if (partialPath) { lastPartialLen = 0; partialPath = null; }
       const body = buffer.slice(open.end, closeIdx);
       const end = closeIdx + closeTag.length;
       if (open.kind === 'file') {

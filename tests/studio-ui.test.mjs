@@ -67,6 +67,11 @@ function installDom() {
   window.document.execCommand = () => true;
   globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 16);
   globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
+  /* browser globals the app uses directly (FileReader for attachments) */
+  globalThis.FileReader = window.FileReader;
+  globalThis.File = window.File;
+  globalThis.Blob = window.Blob;
+  globalThis.Image = window.Image;
   Object.defineProperty(globalThis, 'localStorage', { value: window.localStorage, configurable: true });
   Object.defineProperty(window, 'localStorage', { value: window.localStorage, configurable: true });
   window.matchMedia = window.matchMedia || (() => ({
@@ -94,6 +99,20 @@ const requests = [];
 const bodies = [];
 let mode = 'existing';
 let createAttempts = 0;
+
+function sseStream(frames, delay = 110) {
+  const encoder = new TextEncoder();
+  const chunks = frames.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  return new Response(new ReadableStream({
+    async start(controller) {
+      for (const c of chunks) {
+        controller.enqueue(encoder.encode(c));
+        await new Promise((r) => setTimeout(r, delay));
+      }
+      controller.close();
+    },
+  }), { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+}
 
 function sse(frames) {
   const text = frames.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join('');
@@ -129,11 +148,23 @@ function installFetch() {
       if (method === 'POST') {
         return jsonResponse({ project: { ...PROJECT, id: 9, name: 'Untitled project', stack: 'static', files: {}, fileCount: 0 } });
       }
-      if (mode === 'empty' || mode === 'interrupted') return jsonResponse({ projects: [] });
+      if (mode === 'empty' || mode === 'interrupted' || mode === 'typing') return jsonResponse({ projects: [] });
       return jsonResponse({ projects: [{ ...PROJECT }] });
     }
     if (url.includes('/api/studio/agent')) {
       const body = JSON.parse(init.body || '{}');
+      if (mode === 'typing' && body.mode === 'create') {
+        return sseStream([
+          ['status', { mode: 'create' }],
+          ['file_partial', { path: 'index.html', partial: '<!doctype html>\n<h1>STREAM_MARKER</h1>' }],
+          ['file', { path: 'index.html', content: BUILT_FILES['index.html'], saved: true }],
+          ['done', {
+            project: { ...PROJECT, id: 9, name: 'Typing demo', files: { 'index.html': BUILT_FILES['index.html'] }, status: 'ready', entry: 'index.html', fileCount: 1 },
+            plan: { title: 'Typing demo', files: [{ path: 'index.html' }] },
+            missing: [], pending: 0, changed: ['index.html'], provider: 'openai', notes: [],
+          }],
+        ]);
+      }
       if (mode === 'interrupted' && body.mode !== 'plan') {
         createAttempts += 1;
         if (createAttempts === 1) {
@@ -393,6 +424,93 @@ test('the composer offers every build mode and sends the chosen one', async () =
     const agentCall = bodies.find((b) => b.url.includes('/api/studio/agent'));
     assert.equal(agentCall.body.buildMode, 'direct', 'the selected mode reaches the agent');
     assert.equal(agentCall.body.mode, 'create', 'direct mode starts with create — no plan request');
+    assert.deepEqual(errors, []);
+  } finally {
+    console.error = origError;
+    root.unmount();
+  }
+});
+
+test('the live window opens while the agent writes and shows the code as it streams', async () => {
+  mode = 'typing';
+  errors.length = 0;
+  requests.length = 0;
+  bodies.length = 0;
+  const window = installDom();
+  installFetch();
+  const { StudioApp } = await bundleApp();
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+
+  const root = createRoot(document.getElementById('root'));
+  const origError = console.error;
+  console.error = (...args) => { errors.push(args.map(String).join(' ')); origError(...args); };
+  try {
+    root.render(React.createElement(StudioApp));
+    assert.ok(await until(() => document.querySelector('textarea[aria-label="Message NEXORA Studio"]')), 'composer ready');
+    assert.equal(document.querySelector('.nxs-agentwin'), null, 'no window before anything runs');
+
+    const area = document.querySelector('textarea[aria-label="Message NEXORA Studio"]');
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+    setValue.call(area, 'build a page with a heading');
+    area.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await until(() => document.querySelector('button.nxs-send:not(.stop)'));
+    document.querySelector('button.nxs-send:not(.stop)').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(await until(() => document.querySelector('.nxs-agentwin')), 'the window opened with the run');
+    assert.ok(await until(() => /STREAM_MARKER/.test(document.querySelector('.nxs-aw-code pre')?.textContent || '')),
+      'the code being written is streamed into the window');
+    assert.match(document.querySelector('.nxs-aw-code-head')?.textContent || '', /index\.html/);
+
+    assert.ok(await until(() => /Build finished|Writing/.test(document.querySelector('.nxs-agentwin')?.textContent || '')), 'the window settles');
+    assert.ok(await until(() => document.querySelector('.nxs-aw-file')), 'the written file is listed after it lands');
+    assert.deepEqual(errors, []);
+  } finally {
+    console.error = origError;
+    root.unmount();
+  }
+});
+
+test('a screenshot can be attached and travels with the message', async () => {
+  mode = 'typing';
+  errors.length = 0;
+  requests.length = 0;
+  bodies.length = 0;
+  const window = installDom();
+  installFetch();
+  const { StudioApp } = await bundleApp();
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+
+  const root = createRoot(document.getElementById('root'));
+  const origError = console.error;
+  console.error = (...args) => { errors.push(args.map(String).join(' ')); origError(...args); };
+  try {
+    root.render(React.createElement(StudioApp));
+    assert.ok(await until(() => document.querySelector('input[aria-label="Attach images"]')), 'attach control exists');
+    const input = document.querySelector('input[aria-label="Attach images"]');
+
+    const file = new window.File([Uint8Array.from([137, 80, 78, 71])], 'shot.png', { type: 'image/png' });
+    Object.defineProperty(input, 'files', { value: { 0: file, length: 1, item: (i) => (i === 0 ? file : null) }, configurable: true });
+    input.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    assert.ok(await until(() => document.querySelector('.nxs-attach img'), 6000), 'the thumbnail appears in the composer');
+
+    const area = document.querySelector('textarea[aria-label="Message NEXORA Studio"]');
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+    setValue.call(area, 'build this screenshot');
+    area.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await until(() => document.querySelector('button.nxs-send:not(.stop)'));
+    document.querySelector('button.nxs-send:not(.stop)').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(await until(() => bodies.some((b) => b.url.includes('/api/studio/agent'))), 'the agent was called');
+    const call = bodies.find((b) => b.url.includes('/api/studio/agent'));
+    assert.equal(call.body.images.length, 1, 'the image is part of the request');
+    assert.equal(call.body.images[0].mime, 'image/png');
+    assert.ok(call.body.images[0].data.length > 0);
+    const bubble = await until(() => document.querySelector('.nxs-bubble-imgs img'), 4000);
+    if (!bubble) console.log('BUBBLE-DEBUG', JSON.stringify({ users: [...document.querySelectorAll('.nxs-msg.user')].map((el) => el.textContent.slice(0, 80)), bubbles: document.querySelectorAll('.nxs-bubble-imgs').length, reqs: requests.slice(-4) }));
+    assert.ok(bubble, 'the message shows what was attached');
     assert.deepEqual(errors, []);
   } finally {
     console.error = origError;

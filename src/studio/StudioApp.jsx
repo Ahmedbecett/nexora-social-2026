@@ -4,6 +4,7 @@ import { loginWithPassword } from './api.js';
 import ProjectsPanel from './ProjectsPanel.jsx';
 import ChatPanel from './ChatPanel.jsx';
 import Workspace from './Workspace.jsx';
+import AgentWindow from './AgentWindow.jsx';
 import SettingsPanel from './SettingsPanel.jsx';
 import {
   IconPlus, IconGear, IconSearch, IconSpark, IconSave, IconRocket, IconCommand,
@@ -222,6 +223,22 @@ function Shell() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  /* Android and iOS do not all resize the layout viewport when the keyboard
+     opens; measuring it keeps the composer above the keyboard everywhere. */
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return undefined;
+    const apply = () => {
+      const covered = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty('--nxs-kb', `${Math.round(covered)}px`);
+      document.documentElement.style.setProperty('--nxs-vvh', `${Math.round(vv.height)}px`);
+    };
+    apply();
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    return () => { vv.removeEventListener('resize', apply); vv.removeEventListener('scroll', apply); };
+  }, []);
+
   if (booting) {
     return (
       <div className="nxs">
@@ -282,6 +299,7 @@ function Shell() {
         </div>
       )}
 
+      <AgentWindow />
       {settingsOpen && <SettingsPanel />}
       <Palette />
       {toast && <div className={`nxs-toast ${toast.tone}`}>{toast.text}</div>}

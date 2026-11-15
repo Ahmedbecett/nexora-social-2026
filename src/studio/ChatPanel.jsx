@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Markdown from '../ai/Markdown.jsx';
 import { useStudio } from './state.jsx';
-import { IconSend, IconStop, IconSpark, IconFile, IconLayers, IconWarn } from './icons.jsx';
+import { IconSend, IconStop, IconSpark, IconFile, IconLayers, IconWarn, IconPlus, IconX } from './icons.jsx';
+import { ACCEPTED, IMAGE_ERRORS, MAX_IMAGES, prepareImage } from './images.js';
 
 const IDEAS = [
   { title: 'Personal dashboard', prompt: 'Build a personal finance dashboard: monthly balance cards, a bar chart of spending by category, and a transactions table with filters. Dark theme, Arabic RTL.' },
@@ -29,12 +30,35 @@ function FileChip({ path, op, onOpen }) {
 export default function ChatPanel() {
   const {
     project, messages, agent, send, stopAgent, resumeBuild, createProject, setActiveFile, setTab,
-    session, setSettingsOpen, booting, buildMode, setBuildMode, BUILD_MODES,
+    session, setSettingsOpen, booting, buildMode, setBuildMode, BUILD_MODES, notify,
   } = useStudio();
   const [text, setText] = useState('');
   const [focus, setFocus] = useState(false);
+  const [shots, setShots] = useState([]);
+  const [picking, setPicking] = useState(false);
   const scrollRef = useRef(null);
   const areaRef = useRef(null);
+  const fileRef = useRef(null);
+
+  const addShots = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    const room = MAX_IMAGES - shots.length;
+    if (room <= 0) { notify(`Up to ${MAX_IMAGES} images per message`, 'warn'); return; }
+    setPicking(true);
+    const added = [];
+    for (const file of files.slice(0, room)) {
+      try {
+        const shot = await prepareImage(file);
+        added.push({ ...shot, id: `${Date.now()}-${added.length}` });
+      } catch (e) {
+        notify(IMAGE_ERRORS[e.message] || 'That image could not be used', 'error');
+      }
+    }
+    if (added.length) setShots((prev) => [...prev, ...added].slice(0, MAX_IMAGES));
+    setPicking(false);
+    if (files.length > room) notify(`Up to ${MAX_IMAGES} images per message`, 'warn');
+  };
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -52,9 +76,11 @@ export default function ChatPanel() {
 
   const submit = async (value) => {
     const message = String(value ?? text).trim();
-    if (!message || agent.running) return;
+    if ((!message && !shots.length) || agent.running) return;
+    const images = shots.map((s) => ({ mime: s.mime, data: s.data, name: s.name }));
     setText('');
-    await send(message);
+    setShots([]);
+    await send(message || 'Build exactly what is in the attached image.', { images });
   };
 
   const startIdea = async (prompt) => {
@@ -118,7 +144,20 @@ export default function ChatPanel() {
                     {m.createdAt && <span className="nxs-faint" style={{ fontSize: 10 }}>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
                   </div>
                   {role === 'user'
-                    ? <div className="text">{m.text}</div>
+                    ? (
+                      <div className="text">
+                        {m.text}
+                        {Array.isArray(m.meta?.images) && m.meta.images.length > 0 && (
+                          <div className="nxs-bubble-imgs">
+                            {m.meta.images.map((im, i) => (
+                              <a key={i} href={im.url} target="_blank" rel="noreferrer">
+                                <img src={im.url} alt={`attachment ${i + 1}`} />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
                     : <div className="text"><Markdown text={m.text} /></div>}
                   {m.meta?.plan && role === 'agent' && <PlanCard plan={m.meta.plan} compact />}
                   {ops.length > 0 && (
@@ -208,6 +247,32 @@ export default function ChatPanel() {
 
       <div className="nxs-composer-wrap">
         <div className="nxs-composer" data-focus={focus}>
+          <input
+            ref={fileRef}
+            type="file"
+            accept={ACCEPTED}
+            multiple
+            hidden
+            onChange={(e) => { addShots(e.target.files); e.target.value = ''; }}
+            aria-label="Attach images"
+          />
+          {shots.length > 0 && (
+            <div className="nxs-attach-row">
+              {shots.map((shot) => (
+                <span key={shot.id} className="nxs-attach">
+                  <img src={shot.url} alt={shot.name} />
+                  <button
+                    type="button"
+                    className="nxs-attach-x"
+                    aria-label={`Remove ${shot.name}`}
+                    onClick={() => setShots((prev) => prev.filter((x) => x.id !== shot.id))}
+                  >
+                    <IconX size={9} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           <textarea
             ref={areaRef}
             value={text}
@@ -231,6 +296,15 @@ export default function ChatPanel() {
                 <IconWarn size={11} /> no model connected
               </button>
             )}
+            <button
+              type="button"
+              className="nxs-chip"
+              onClick={() => fileRef.current && fileRef.current.click()}
+              disabled={agent.running || shots.length >= MAX_IMAGES}
+              title="Attach a screenshot or design"
+            >
+              <IconPlus size={11} /> {picking ? 'reading…' : 'image'}
+            </button>
             <label className="nxs-mode" title="Build mode — it really changes how the agent works">
               <IconSpark size={11} />
               <select
@@ -255,7 +329,7 @@ export default function ChatPanel() {
             {agent.running ? (
               <button className="nxs-send stop" onClick={stopAgent} title="Stop"><IconStop size={14} /></button>
             ) : (
-              <button className="nxs-send" onClick={() => submit()} disabled={!text.trim()} title="Send"><IconSend size={15} /></button>
+              <button className="nxs-send" onClick={() => submit()} disabled={!text.trim() && !shots.length} title="Send"><IconSend size={15} /></button>
             )}
           </div>
         </div>

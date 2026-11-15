@@ -59,7 +59,7 @@ export function StudioProvider({ children }) {
   const [toast, setToast] = useState(null);
 
   /* -------------------------------- agent -------------------------------- */
-  const [agent, setAgent] = useState({ running: false, step: null, round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false, interrupted: false, pending: 0, lastNotes: [] });
+  const [agent, setAgent] = useState({ running: false, step: null, round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false, interrupted: false, pending: 0, lastNotes: [], typing: null });
   const [accounts, setAccounts] = useState({ github: null, vercel: null });
 
   /* ----------------------------- build mode ------------------------------ */
@@ -326,8 +326,14 @@ export function StudioProvider({ children }) {
       case 'user_message':
         setMessages((prev) => {
           if (prev.some((m) => m.id === data.message?.id)) return prev;
-          const withoutTemp = prev.filter((m) => !(m.local && m.role === 'user' && m.text === data.message?.text));
-          return [...withoutTemp, data.message];
+          const local = prev.find((m) => m.local && m.role === 'user' && m.text === data.message?.text);
+          const withoutTemp = prev.filter((m) => m !== local);
+          /* the server keeps a light record; the picture the user attached only
+             exists in this session, so it rides along with the echoed message */
+          const merged = local?.meta?.images?.length
+            ? { ...data.message, meta: { ...(data.message.meta || {}), images: local.meta.images } }
+            : data.message;
+          return [...withoutTemp, merged];
         });
         break;
       case 'status':
@@ -336,7 +342,12 @@ export function StudioProvider({ children }) {
       case 'prose':
         setAgent((a) => ({ ...a, prose: data.text || '' }));
         break;
+      case 'file_partial':
+        /* the code being written right now — shown in the live window */
+        setAgent((a) => ({ ...a, typing: { path: data.path, text: String(data.partial || ''), at: Date.now() } }));
+        break;
       case 'file':
+        setAgent((a) => (a.typing && a.typing.path === data.path ? { ...a, typing: null } : a));
         setFiles((prev) => ({
           ...prev,
           [data.path]: data.append ? appendPart(prev[data.path], data.content) : data.content,
@@ -430,7 +441,7 @@ export function StudioProvider({ children }) {
    * request, so nothing depends on a single long-lived connection; an
    * interrupted round is retried from the files that already exist.
    */
-  const buildUntilComplete = useCallback(async ({ projectId, message, planFiles = [], parts = 0, textPath = '', onRound }) => {
+  const buildUntilComplete = useCallback(async ({ projectId, message, planFiles = [], parts = 0, textPath = '', images = [], onRound }) => {
     const cfg = buildModeConfig(stateRef.current.buildMode);
     const maxRounds = Math.max(1, Math.min(40, cfg.rounds || MAX_AGENT_ROUNDS));
     const retries = Math.max(0, cfg.retries ?? INTERRUPT_RETRIES);
@@ -457,6 +468,7 @@ export function StudioProvider({ children }) {
         extra: {
           batch: cfg.batch,
           ...(isText ? { parts, part: round, textPath } : {}),
+          ...(round === 1 && images.length ? { images } : {}),
         },
       });
 
@@ -502,8 +514,16 @@ export function StudioProvider({ children }) {
     notify('Stopped — the files written so far are kept', 'warn');
   }, [notify, persistFiles]);
 
-  const appendLocalUser = useCallback((text) => {
-    setMessages((prev) => [...prev, { id: `local-${Date.now()}`, local: true, role: 'user', kind: 'text', text, createdAt: new Date().toISOString(), meta: {} }]);
+  const appendLocalUser = useCallback((text, images = []) => {
+    setMessages((prev) => [...prev, {
+      id: `local-${Date.now()}`,
+      local: true,
+      role: 'user',
+      kind: 'text',
+      text,
+      createdAt: new Date().toISOString(),
+      meta: images.length ? { images: images.map((im) => ({ url: `data:${im.mime};base64,${im.data}` })) } : {},
+    }]);
   }, []);
 
   const appendLocalError = useCallback((text) => {
@@ -514,9 +534,10 @@ export function StudioProvider({ children }) {
    * The main loop: plan (new projects) → create until the plan is complete →
    * preview rebuild. Edits skip the plan.
    */
-  const send = useCallback(async (rawText) => {
+  const send = useCallback(async (rawText, opts = {}) => {
     const text = String(rawText || '').trim();
     if (!text || stateRef.current.agent.running) return;
+    const images = Array.isArray(opts.images) ? opts.images : [];
 
     const cfg = buildModeConfig(stateRef.current.buildMode);
     let p = stateRef.current.project;
@@ -527,14 +548,15 @@ export function StudioProvider({ children }) {
       step: cfg.plan && !cfg.append ? 'plan' : 'create',
       round: 0, prose: '', message: '', plan: null, activity: [],
       error: null, provider: null, stopped: false, interrupted: false, pending: 0,
-      buildMode: cfg.id,
+      typing: null, started: Date.now(), buildMode: cfg.id,
     });
-    appendLocalUser(text);
-
     try {
       if (!p) {
+        /* opening the new project replaces the message list, so the optimistic
+           message is added after it — otherwise the attachment would vanish */
         p = await createProject({ prompt: text, keepAgent: true });
       }
+      appendLocalUser(text, images);
 
       if (empty && cfg.append) {
         /* long-form text: one markdown file grows section by section */
@@ -545,6 +567,7 @@ export function StudioProvider({ children }) {
           message: text,
           parts: cfg.parts,
           textPath,
+          images,
           onRound: ({ round, maxRounds }) => {
             setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round, maxRounds }));
             if (round > 1) pushActivity({ kind: 'note', text: `section ${round}` });
@@ -555,7 +578,7 @@ export function StudioProvider({ children }) {
       } else if (empty) {
         let planFiles = [];
         if (cfg.plan) {
-          const planRes = await runAgent({ mode: 'plan', message: text, projectId: p.id });
+          const planRes = await runAgent({ mode: 'plan', message: text, projectId: p.id, extra: images.length ? { images } : {} });
           planFiles = (planRes.done?.missing?.length
             ? planRes.done.missing
             : (planRes.done?.plan?.files || planRes.done?.project?.plan?.files || []).map((f) => f.path));
@@ -567,6 +590,7 @@ export function StudioProvider({ children }) {
           projectId: p.id,
           message: text,
           planFiles,
+          images,
           onRound: ({ round, missing, maxRounds }) => {
             setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round, maxRounds }));
             if (missing) pushActivity({ kind: 'note', text: `round ${round} · ${missing} file(s) queued` });
@@ -606,7 +630,7 @@ export function StudioProvider({ children }) {
     const p = stateRef.current.project;
     if (!p || stateRef.current.agent.running) return;
     abortRef.current = new AbortController();
-    setAgent((a) => ({ ...a, running: true, step: 'fix', activity: [], error: null }));
+    setAgent((a) => ({ ...a, running: true, step: 'fix', activity: [], error: null, started: Date.now(), typing: null }));
     try {
       const fix = await runAgent({ mode: 'fix', logs, message: 'Fix the failure shown in the terminal output.', projectId: p.id });
       if (fix.interrupted) notify('The fix was cut off — check the terminal and try again', 'warn');
@@ -692,7 +716,7 @@ export function StudioProvider({ children }) {
     if (!p || stateRef.current.agent.running) return null;
     const planFiles = (p.plan?.files || []).map((f) => f.path);
     abortRef.current = new AbortController();
-    setAgent((a) => ({ ...a, running: true, step: 'continue', error: null, interrupted: false }));
+    setAgent((a) => ({ ...a, running: true, step: 'continue', error: null, interrupted: false, started: Date.now() }));
     try {
       const built = await buildUntilComplete({
         projectId: p.id,

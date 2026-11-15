@@ -12,11 +12,11 @@ import {
   addDeployment, updateDeployment, listDeployments,
 } from './projects.js';
 import {
-  buildPlanPrompt, buildCreatePrompt, buildEditPrompt, buildFixPrompt, buildTextPrompt,
+  attachImages, buildPlanPrompt, buildCreatePrompt, buildEditPrompt, buildFixPrompt, buildTextPrompt,
   createProtocolStreamer, parseAgentOutput,
 } from './agent.js';
 import * as ai from './ai.js';
-import { appendPart, applyOps, detectStack, guessEntry, normalizePath, sanitizeFiles, summarizeFiles } from './files.js';
+import { appendPart, applyOps, detectStack, guessEntry, normalizePath, sanitizeFiles, sanitizeImages, summarizeFiles } from './files.js';
 import { buildModeConfig, textTargetPath } from './modes.js';
 import * as exec from './exec.js';
 import * as deploy from './deploy.js';
@@ -115,7 +115,13 @@ export async function studioAgentStream(req, res, body = {}) {
     /* persist the user's own words once — retries must not duplicate them */
     let userMessage = null;
     if (message && !body.retry) {
-      userMessage = await addMessage(ownerId, projectId, { role: 'user', text: message, kind: 'text' });
+      const attached = sanitizeImages(body.images);
+      userMessage = await addMessage(ownerId, projectId, {
+        role: 'user',
+        text: message,
+        kind: 'text',
+        meta: attached.length ? { attached: attached.map((im) => ({ mime: im.mime, bytes: im.data.length })) } : {},
+      });
       sse.send('user_message', { message: userMessage });
     }
 
@@ -181,6 +187,13 @@ export async function studioAgentStream(req, res, body = {}) {
       maxTokens = 8000;
     }
 
+    /* attached screenshots ride on the prompt the user wrote them for */
+    const images = sanitizeImages(body.images);
+    if (images.length) {
+      prompt = attachImages(prompt, images);
+      sse.send('status', { step: mode, label: MODE_LABEL[mode], provider: null, images: images.length, at: nowIso() });
+    }
+
     /* live protocol parsing: files land in the editor as they are written */
     const seen = [];
     let prose = '';
@@ -213,6 +226,10 @@ export async function studioAgentStream(req, res, body = {}) {
         delete liveFiles[path];
         sse.send('delete', { path });
         persistNow();
+      },
+      onFilePartial: ({ path, partial }) => {
+        if (aborted) return;
+        sse.send('file_partial', { path, partial: partial.slice(-24_000) });
       },
       onPlan: (plan) => { livePlan = plan; sse.send('plan', { plan }); },
       onMessage: (text) => { liveMessage = text; sse.send('message', { text }); },

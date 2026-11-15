@@ -43,12 +43,15 @@ function sse(res, chunks) {
   tick();
 }
 
+const captured = [];
+
 const server = http.createServer((req, res) => {
   let raw = '';
   req.on('data', (c) => { raw += c; });
   req.on('end', () => {
     let body = {};
     try { body = JSON.parse(raw || '{}'); } catch { /* ignore */ }
+    captured.push(body);
     const last = body.messages?.at(-1)?.content || '';
     if (/produce a build plan/.test(last)) {
       sse(res, [`Here is the plan.\n<plan>${JSON.stringify(PLAN)}</plan>\n<message>خطة جاهزة: تطبيق عدّاد صغير.</message>`]);
@@ -255,4 +258,25 @@ test('long-text mode appends the next section to the same file', async () => {
   const stored = await getProject('dev', project.id);
   assert.equal(stored.files['article.md'], '# مقال\n\nنص القسم الأول.\n\n## القسم الثاني\n\nنص القسم الثاني.',
     'both sections live in one file, separated by a blank line');
+});
+
+test('an attached image reaches the provider in its own image format', async () => {
+  const project = await createProject('dev', { name: 'From a screenshot' });
+  captured.length = 0;
+  const png = 'iVBORw0KGgoAAAANSUhEUg==';
+  const res = fakeRes();
+  await studioAgentStream(fakeReq(), res, {
+    projectId: project.id,
+    mode: 'create',
+    message: 'copy this design',
+    buildMode: 'direct',
+    images: [{ mime: 'image/png', data: png }, { mime: 'image/svg+xml', data: png }, { mime: 'image/png', data: 'not base64!!' }],
+  });
+  const call = captured[captured.length - 1];
+  const last = call.messages[call.messages.length - 1];
+  assert.ok(Array.isArray(last.content), 'the OpenAI-compatible call uses content parts');
+  const imageParts = last.content.filter((p) => p.type === 'image_url');
+  assert.equal(imageParts.length, 1, 'only the valid PNG survives sanitising');
+  assert.equal(imageParts[0].image_url.url, `data:image/png;base64,${png}`);
+  assert.ok(last.content.some((p) => p.type === 'text' && /attached 1 image/.test(p.text)), 'the prompt mentions the image');
 });
