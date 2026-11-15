@@ -31,7 +31,7 @@
 - **الحلقة:** خطة ← إنشاء (جولات محدودة) ← تعديل، ببروتوكول وسوم مُختبَر، ومعاينة تُبنى من نفس
   الملفات (esbuild-wasm داخل المتصفح أو خادم تطوير حقيقي).
 - **التشغيل:** `npm run studio` · **فحص شامل حقيقي:** `npm run smoke` · **الدليل الكامل:** [`docs/studio.md`](docs/studio.md)
-- **الاختبارات:** 28 اختبارًا جديدًا لـ Studio (`protocol`, `agent-e2e`, `exec`, `preview`, `ui`)
+- **الاختبارات:** 30 اختبارًا جديدًا لـ Studio (`protocol`, `agent-e2e`, `exec`, `preview`, `ui`, `vendor`)
   ضمن `npm test`.
 
 ---
