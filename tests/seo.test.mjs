@@ -103,6 +103,11 @@ test('public links and referenced images/styles resolve to local assets', () => 
 test('Vercel keeps API/download behavior, normalizes friendly URLs and avoids indexing API responses', () => {
   const config = JSON.parse(read('vercel.json'));
   assert.equal(config.outputDirectory, 'dist');
+  // Vercel filters .vercelignore before running the build, which needs this generator.
+  const ignored = read('.vercelignore').split(/\r?\n/).map((line) => line.trim());
+  assert.ok(!ignored.some((line) => ['scripts', 'scripts/', 'scripts/*', 'scripts/**', 'scripts/generate-seo-pages.mjs'].includes(line)),
+    'do not omit scripts/generate-seo-pages.mjs from the Vercel build');
+  assert.match(JSON.parse(read('package.json')).scripts.build, /generate:seo/);
   assert.equal(config.rewrites.find((r) => r.source === '/api/:path*')?.destination, '/api/index?__p=:path*');
   for (const redirect of config.redirects) {
     assert.ok(redirect.permanent, redirect.source);
