@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useStudio } from './state.jsx';
 import { zipFiles } from './preview/bundler.js';
 import {
-  IconRocket, IconGit, IconDownload, IconHistory, IconPlug, IconExternal, IconCheck, IconRefresh,
+  IconRocket, IconGit, IconDownload, IconHistory, IconPlug, IconExternal, IconCheck, IconRefresh, IconFile,
 } from './icons.jsx';
 
 function TokenForm({ provider, onConnect, label, placeholder }) {
@@ -42,7 +42,7 @@ export default function DeployPanel() {
   const {
     project, files, deployments, revisions, session, deployVercel, pushGithub,
     connectIntegration, disconnectIntegration, restoreRevision, notify,
-    accounts, loadAccounts, importRepo, pushBranch, followVercelProject,
+    accounts, loadAccounts, importRepo, pushBranch, followVercelProject, exportToDrive,
   } = useStudio();
   const [verifying, setVerifying] = useState(null);
   const [branch, setBranch] = useState('');
@@ -51,6 +51,7 @@ export default function DeployPanel() {
   const [busyRepo, setBusyRepo] = useState(null);
   const [vercelTarget, setVercelTarget] = useState('');      // '' = a new project
   const [vercelProbe, setVercelProbe] = useState(null);
+  const [driveExporting, setDriveExporting] = useState(null);
 
   const openRepository = async (fullName) => {
     if (!fullName || busyRepo) return;
@@ -90,6 +91,7 @@ export default function DeployPanel() {
 
   const github = accounts.github || session?.integrations?.github || { connected: false };
   const vercel = accounts.vercel || session?.integrations?.vercel || { connected: false };
+  const drive = accounts.google || session?.integrations?.google || { connected: false };
   const verify = async (provider) => {
     setVerifying(provider);
     try { await loadAccounts(); notify(`${provider} connection checked`, 'ok'); }
@@ -114,6 +116,29 @@ export default function DeployPanel() {
     const result = await deployVercel({ existingProjectId: vercelTarget || null });
     setDeploying(false);
     if (result) setLastVercel(result);
+  };
+
+  const saveToDrive = async (as) => {
+    if (!fileCount) { notify('Nothing to export yet', 'warn'); return; }
+    setDriveExporting(as);
+    try {
+      let zipBase64 = null;
+      if (as === 'zip') {
+        const blob = zipFiles(files);
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 8192) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+        }
+        zipBase64 = btoa(binary);
+      }
+      const out = await exportToDrive({ as, zipBase64 });
+      if (out?.url) window.open(out.url, '_blank', 'noopener');
+    } catch (e) {
+      notify(`Drive export failed: ${e.detail || e.code}`, 'error');
+    } finally {
+      setDriveExporting(null);
+    }
   };
 
   const followProject = async () => {
@@ -196,6 +221,44 @@ export default function DeployPanel() {
           </>
         ) : (
           <TokenForm provider="vercel" onConnect={connectIntegration} label="Vercel" placeholder="Vercel access token (vercel.com/account/tokens)" />
+        )}
+      </div>
+
+      <div className="nxs-card">
+        <h4><IconFile size={14} style={{ color: 'var(--violet-2)' }} /> Google Drive
+          <span className={`nxs-chip ${drive.connected ? 'ok' : 'warn'}`} style={{ marginInlineStart: 'auto' }}>
+            {drive.connected ? `connected${drive.email ? ` · ${drive.email}` : ''}` : (drive.error || 'not connected')}
+          </span>
+        </h4>
+        <p>Read a Doc, Sheet or text file as context for a build, and save the finished project back to Drive.</p>
+        {drive.connected ? (
+          <>
+            {Array.isArray(drive.files) && drive.files.length > 0 && (
+              <div className="nxs-drive-list">
+                {drive.files.slice(0, 5).map((f) => (
+                  <a key={f.id} href={f.url} target="_blank" rel="noreferrer" className="nxs-chip">
+                    <IconFile size={10} /> {f.name}
+                  </a>
+                ))}
+              </div>
+            )}
+            <div className="row" style={{ marginTop: 8 }}>
+              <button className="nxs-btn primary" onClick={() => saveToDrive('doc')} disabled={!fileCount || Boolean(driveExporting)}>
+                <IconFile size={12} /> {driveExporting === 'doc' ? 'saving…' : 'Save as a Google Doc'}
+              </button>
+              <button className="nxs-btn ghost sm" onClick={() => saveToDrive('zip')} disabled={!fileCount || Boolean(driveExporting)}>
+                {driveExporting === 'zip' ? 'saving…' : 'Save .zip'}
+              </button>
+              <button className="nxs-btn ghost sm" onClick={() => disconnectIntegration('google')}>Disconnect</button>
+            </div>
+          </>
+        ) : (
+          <TokenForm
+            provider="google"
+            onConnect={connectIntegration}
+            label="Google Drive"
+            placeholder="Google OAuth access token with drive scope"
+          />
         )}
       </div>
 

@@ -174,6 +174,37 @@ function installFetch() {
         target: 'production', createdAt: new Date().toISOString(), hasDeployment: true,
       });
     }
+    if (url.includes('/api/studio/integrations/google')) {
+      return jsonResponse({
+        connected: true,
+        source: 'server',
+        email: 'a@example.com',
+        name: 'Ahmed',
+        files: [
+          { id: 'doc1', name: 'Product brief', mimeType: 'application/vnd.google-apps.document', kind: 'doc', readable: true, url: 'https://docs.google.com/document/d/doc1', modifiedAt: new Date().toISOString(), size: null },
+          { id: 'img1', name: 'shot.png', mimeType: 'image/png', kind: 'file', readable: false, url: null, modifiedAt: null, size: 10 },
+        ],
+        error: null,
+      });
+    }
+    if (url.includes('/api/studio/drive/read')) {
+      return jsonResponse({
+        document: {
+          id: 'doc1',
+          name: 'Product brief',
+          mimeType: 'application/vnd.google-apps.document',
+          url: 'https://docs.google.com/document/d/doc1',
+          text: 'We sell lamps. Tone: warm.',
+          truncated: false,
+          bytes: 27,
+        },
+      });
+    }
+    if (url.includes('/api/studio/drive/export')) {
+      return jsonResponse({
+        export: { id: 'new1', name: 'Counter demo.txt', mimeType: 'application/vnd.google-apps.document', url: 'https://docs.google.com/document/d/new1', as: 'doc', files: 2, bytes: 120 },
+      });
+    }
     if (url.includes('/api/studio/repos/import')) {
       return jsonResponse({
         project: {
@@ -653,6 +684,64 @@ test('an existing Vercel project is offered, followed to READY and linked live',
     assert.deepEqual(sent.body, { id: 'prj_1', name: 'shop' });
     assert.ok(await until(() => /shop-abc\.vercel\.app/.test(document.body.textContent)), 'the live URL is shown');
     assert.ok(await until(() => /READY/.test(document.body.textContent)), 'the state is shown');
+    assert.deepEqual(errors, [], 'no React or runtime errors were reported');
+  } finally {
+    root.unmount();
+  }
+});
+
+test('a Google Doc becomes build context and the project can be saved back to Drive', async () => {
+  mode = 'existing';
+  errors.length = 0;
+  requests.length = 0;
+  const window = installDom();
+  installFetch();
+  const { StudioApp } = await bundleApp();
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(document.getElementById('root'));
+  try {
+    root.render(React.createElement(StudioApp));
+    assert.ok(await until(() => document.body.textContent.includes('NEXORA')));
+
+    /* open the Drive picker and attach the doc */
+    const chip = await until(() => document.querySelector('button[aria-label="Attach a Drive document"]'), 6000);
+    const driveChip = document.querySelector('button[aria-label="Attach a Drive document"]');
+    assert.ok(chip && driveChip, 'the Drive chip is in the composer');
+    driveChip.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(await until(() => document.querySelector('.nxs-drive-pop')), 'the picker lists the account files');
+    const file = [...document.querySelectorAll('.nxs-drive-file')].find((b) => /Product brief/.test(b.textContent || ''));
+    assert.ok(file, 'the doc is offered');
+    file.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(await until(() => document.querySelector('.nxs-attach-doc')), 'the document chip appears in the composer');
+    assert.ok(requests.some((r) => r.includes('/api/studio/drive/read')), 'the document is read');
+
+    /* send it with a message */
+    const area = document.querySelector('textarea[aria-label="Message NEXORA Studio"]');
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+    setter.call(area, 'Build a page using this brief');
+    area.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await wait(60);
+    document.querySelector('button.nxs-send:not(.stop)').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(await until(() => bodies.some((b) => b.url.includes('/api/studio/agent') && b.body?.docs?.length), 6000), 'the document travels with the message');
+    const sent = bodies.filter((b) => b.url.includes('/api/studio/agent') && b.body?.docs?.length).pop();
+    assert.equal(sent.body.docs[0].name, 'Product brief');
+    assert.match(sent.body.docs[0].text, /We sell lamps/);
+    assert.ok(await until(() => document.querySelector('.nxs-bubble-docs'), 6000), 'the message shows which document was used');
+
+    /* save it back */
+    const publish = [...document.querySelectorAll('.nxs-tab')].find((b) => /publish/i.test(b.textContent || ''));
+    publish.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    assert.ok(await until(() => [...document.querySelectorAll('button')].find((b) => /google doc/i.test(b.textContent || '')), 5000), 'saving to Drive is offered');
+    const save = [...document.querySelectorAll('button')].find((b) => /save as a google doc/i.test(b.textContent || ''));
+    save.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    assert.ok(await until(() => requests.some((r) => r.includes('/api/studio/drive/export'))), 'the export is called');
+    const exported = bodies.filter((b) => b.url.includes('/api/studio/drive/export')).pop();
+    assert.equal(exported.body.as, 'doc');
+    assert.ok(await until(() => /Saved to Drive|Counter demo\.txt/i.test(document.body.textContent)), 'the save is reported');
     assert.deepEqual(errors, [], 'no React or runtime errors were reported');
   } finally {
     root.unmount();

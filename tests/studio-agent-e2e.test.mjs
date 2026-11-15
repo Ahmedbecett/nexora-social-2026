@@ -280,3 +280,30 @@ test('an attached image reaches the provider in its own image format', async () 
   assert.equal(imageParts[0].image_url.url, `data:image/png;base64,${png}`);
   assert.ok(last.content.some((p) => p.type === 'text' && /attached 1 image/.test(p.text)), 'the prompt mentions the image');
 });
+
+test('an attached Drive document is read by the model as part of the prompt', async () => {
+  const project = await createProject('dev', { name: 'From a brief' });
+  captured.length = 0;
+  const res = fakeRes();
+  await studioAgentStream(fakeReq(), res, {
+    projectId: project.id,
+    mode: 'create',
+    message: 'build the page described in the brief',
+    buildMode: 'direct',
+    docs: [
+      { name: 'Brief', url: 'https://docs.google.com/document/d/1', text: 'Headline: أهلاً — lamp shop, tone warm.' },
+      { name: 'Ignored binary', url: 'javascript:x', text: '' },
+      { name: 'Second', text: 'Sections: hero, grid, footer.' },
+    ],
+  });
+
+  const call = captured[captured.length - 1];
+  const prompt = call.messages.map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n');
+  assert.match(prompt, /Reference material/, 'the prompt carries a reference section');
+  assert.match(prompt, /lamp shop, tone warm/, 'the document text reaches the model');
+  assert.match(prompt, /Sections: hero, grid, footer/, 'a second document is included too');
+  assert.ok(!prompt.includes('Ignored binary'), 'an empty document is not sent');
+
+  const frames = events(res.text);
+  assert.ok(frames.some((f) => f.event === 'status' && f.data.docs === 2), 'the run reports the attached documents');
+});

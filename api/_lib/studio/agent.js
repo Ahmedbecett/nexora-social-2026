@@ -423,3 +423,27 @@ export function createProtocolStreamer({ onProse, onFile, onDelete, onPlan, onMe
     get proseLength() { return proseEmitted; },
   };
 }
+
+/**
+ * Reference material (Google Docs, sheets, text files) rides in the prompt: the
+ * model has to read it as instructions for the build, not as a summary of it.
+ */
+export function attachDocs(prompt, docs = []) {
+  const list = (Array.isArray(docs) ? docs : []).filter((d) => d && typeof d.text === 'string' && d.text.trim());
+  if (!list.length) return prompt;
+  const body = list
+    .map((d) => `--- ${String(d.name || 'Reference document').slice(0, 160)} ---\n${d.text}`)
+    .join('\n\n');
+  const block = `\n\nReference material the user attached (read it, and follow it as the source of truth for content, copy and structure):\n\n${body}`;
+
+  /* a built prompt is { instructions, messages }: the material belongs in the
+     last user message, exactly like an attached image */
+  if (prompt && Array.isArray(prompt.messages) && prompt.messages.length) {
+    const messages = prompt.messages.slice();
+    const last = { ...messages[messages.length - 1] };
+    last.content = `${last.content || ''}${block}`;
+    messages[messages.length - 1] = last;
+    return { ...prompt, messages };
+  }
+  return `${prompt}${block}`;
+}

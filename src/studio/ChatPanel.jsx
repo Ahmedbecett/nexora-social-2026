@@ -31,11 +31,17 @@ export default function ChatPanel() {
   const {
     project, messages, agent, send, stopAgent, resumeBuild, createProject, setActiveFile, setTab,
     session, setSettingsOpen, booting, buildMode, setBuildMode, BUILD_MODES, notify,
+    accounts, readDriveDoc,
   } = useStudio();
   const [text, setText] = useState('');
   const [focus, setFocus] = useState(false);
   const [shots, setShots] = useState([]);
   const [picking, setPicking] = useState(false);
+  const [docs, setDocs] = useState([]);
+  const [driveOpen, setDriveOpen] = useState(false);
+  const [driveBusy, setDriveBusy] = useState(false);
+  const drive = accounts?.google;
+  const driveFiles = Array.isArray(drive?.files) ? drive.files : [];
   const scrollRef = useRef(null);
   const areaRef = useRef(null);
   const fileRef = useRef(null);
@@ -76,11 +82,12 @@ export default function ChatPanel() {
 
   const submit = async (value) => {
     const message = String(value ?? text).trim();
-    if ((!message && !shots.length) || agent.running) return;
+    if ((!message && !shots.length && !docs.length) || agent.running) return;
     const images = shots.map((s) => ({ mime: s.mime, data: s.data, name: s.name }));
     setText('');
     setShots([]);
-    await send(message || 'Build exactly what is in the attached image.', { images });
+    setDocs([]);
+    await send(message || (docs.length ? 'Follow the attached document.' : 'Build exactly what is in the attached image.'), { images, docs });
   };
 
   const startIdea = async (prompt) => {
@@ -147,6 +154,13 @@ export default function ChatPanel() {
                     ? (
                       <div className="text">
                         {m.text}
+                        {Array.isArray(m.meta?.docs) && m.meta.docs.length > 0 && (
+                          <div className="nxs-bubble-docs">
+                            {m.meta.docs.map((d, i) => (d.url
+                              ? <a key={i} href={d.url} target="_blank" rel="noreferrer" className="nxs-chip"><IconFile size={10} /> {d.name}</a>
+                              : <span key={i} className="nxs-chip"><IconFile size={10} /> {d.name}</span>))}
+                          </div>
+                        )}
                         {Array.isArray(m.meta?.images) && m.meta.images.length > 0 && (
                           <div className="nxs-bubble-imgs">
                             {m.meta.images.map((im, i) => (
@@ -256,8 +270,22 @@ export default function ChatPanel() {
             onChange={(e) => { addShots(e.target.files); e.target.value = ''; }}
             aria-label="Attach images"
           />
-          {shots.length > 0 && (
+          {(shots.length > 0 || docs.length > 0) && (
             <div className="nxs-attach-row">
+              {docs.map((doc) => (
+                <span key={doc.id} className="nxs-attach nxs-attach-doc" title={doc.name}>
+                  <IconFile size={11} />
+                  <span className="nxs-attach-name">{doc.name}</span>
+                  <button
+                    type="button"
+                    className="nxs-attach-x"
+                    aria-label={`Remove ${doc.name}`}
+                    onClick={() => setDocs((prev) => prev.filter((x) => x.id !== doc.id))}
+                  >
+                    <IconX size={9} />
+                  </button>
+                </span>
+              ))}
               {shots.map((shot) => (
                 <span key={shot.id} className="nxs-attach">
                   <img src={shot.url} alt={shot.name} />
@@ -286,6 +314,40 @@ export default function ChatPanel() {
             rows={1}
             aria-label="Message NEXORA Studio"
           />
+          {driveOpen && drive?.connected && (
+            <div className="nxs-drive-pop" role="dialog" aria-label="Google Drive documents">
+              <div className="nxs-drive-head">
+                <b>Google Drive</b>
+                <span className="nxs-faint">{drive.email || drive.name || 'connected'}</span>
+                <button className="nxs-btn ghost sm" onClick={() => setDriveOpen(false)} aria-label="Close Drive picker"><IconX size={10} /></button>
+              </div>
+              {driveFiles.length === 0 && <p className="nxs-faint" style={{ margin: '6px 2px' }}>No documents were listed for this account.</p>}
+              {driveFiles.map((f) => (
+                <button
+                  key={f.id}
+                  className="nxs-drive-file"
+                  disabled={!f.readable || driveBusy || docs.some((d) => d.id === f.id)}
+                  title={f.readable ? `Use “${f.name}” as context` : `${f.mimeType} cannot be read as text`}
+                  onClick={async () => {
+                    setDriveBusy(true);
+                    try {
+                      const doc = await readDriveDoc(f.id);
+                      setDocs((prev) => [...prev, { ...doc, id: f.id }].slice(0, 3));
+                      setDriveOpen(false);
+                    } catch (e) {
+                      notify(`Drive: ${e.detail || e.code}`, 'error');
+                    } finally {
+                      setDriveBusy(false);
+                    }
+                  }}
+                >
+                  <span className={`nxs-drive-kind ${f.kind}`}>{f.kind === 'doc' ? 'Doc' : f.kind === 'sheet' ? 'Sheet' : f.kind === 'slides' ? 'Deck' : 'Text'}</span>
+                  <span className="nxs-drive-name">{f.name}</span>
+                  {!f.readable && <span className="nxs-faint">not text</span>}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="nxs-composer-bar">
             {primary ? (
               <span className="nxs-chip violet" title={primary.source === 'account' ? 'from your account key' : 'from the server environment'}>
@@ -304,6 +366,16 @@ export default function ChatPanel() {
               title="Attach a screenshot or design"
             >
               <IconPlus size={11} /> {picking ? 'reading…' : 'image'}
+            </button>
+            <button
+              type="button"
+              className="nxs-chip"
+              aria-label="Attach a Drive document"
+              onClick={() => setDriveOpen((v) => !v)}
+              disabled={agent.running || !drive?.connected || docs.length >= 3}
+              title={drive?.connected ? 'Use a Google Doc as context' : 'Connect Google Drive in Publish → Settings'}
+            >
+              <IconFile size={11} /> {driveBusy ? 'reading…' : 'Drive'}
             </button>
             <label className="nxs-mode" title="Build mode — it really changes how the agent works">
               <IconSpark size={11} />
@@ -329,7 +401,7 @@ export default function ChatPanel() {
             {agent.running ? (
               <button className="nxs-send stop" onClick={stopAgent} title="Stop"><IconStop size={14} /></button>
             ) : (
-              <button className="nxs-send" onClick={() => submit()} disabled={!text.trim() && !shots.length} title="Send"><IconSend size={15} /></button>
+              <button className="nxs-send" onClick={() => submit()} disabled={!text.trim() && !shots.length && !docs.length} title="Send"><IconSend size={15} /></button>
             )}
           </div>
         </div>

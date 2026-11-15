@@ -132,12 +132,13 @@ export function StudioProvider({ children }) {
   }, [notify]);
 
   const loadAccounts = useCallback(async () => {
-    const [github, vercel] = await Promise.all([
+    const [github, vercel, google] = await Promise.all([
       request('studio/integrations/github', { timeout: 30_000 }).catch(() => null),
       request('studio/integrations/vercel', { timeout: 30_000 }).catch(() => null),
+      request('studio/integrations/google', { timeout: 30_000 }).catch(() => null),
     ]);
-    setAccounts({ github, vercel });
-    return { github, vercel };
+    setAccounts({ github, vercel, google });
+    return { github, vercel, google };
   }, []);
 
   const boot = useCallback(async () => {
@@ -330,8 +331,15 @@ export function StudioProvider({ children }) {
           const withoutTemp = prev.filter((m) => m !== local);
           /* the server keeps a light record; the picture the user attached only
              exists in this session, so it rides along with the echoed message */
-          const merged = local?.meta?.images?.length
-            ? { ...data.message, meta: { ...(data.message.meta || {}), images: local.meta.images } }
+          const merged = local?.meta && (local.meta.images?.length || local.meta.docs?.length)
+            ? {
+              ...data.message,
+              meta: {
+                ...(data.message.meta || {}),
+                ...(local.meta.images?.length ? { images: local.meta.images } : {}),
+                ...(local.meta.docs?.length ? { docs: local.meta.docs } : {}),
+              },
+            }
             : data.message;
           return [...withoutTemp, merged];
         });
@@ -441,7 +449,7 @@ export function StudioProvider({ children }) {
    * request, so nothing depends on a single long-lived connection; an
    * interrupted round is retried from the files that already exist.
    */
-  const buildUntilComplete = useCallback(async ({ projectId, message, planFiles = [], parts = 0, textPath = '', images = [], onRound }) => {
+  const buildUntilComplete = useCallback(async ({ projectId, message, planFiles = [], parts = 0, textPath = '', images = [], docs = [], onRound }) => {
     const cfg = buildModeConfig(stateRef.current.buildMode);
     const maxRounds = Math.max(1, Math.min(40, cfg.rounds || MAX_AGENT_ROUNDS));
     const retries = Math.max(0, cfg.retries ?? INTERRUPT_RETRIES);
@@ -469,6 +477,7 @@ export function StudioProvider({ children }) {
           batch: cfg.batch,
           ...(isText ? { parts, part: round, textPath } : {}),
           ...(round === 1 && images.length ? { images } : {}),
+          ...(round === 1 && docs.length ? { docs } : {}),
         },
       });
 
@@ -514,7 +523,7 @@ export function StudioProvider({ children }) {
     notify('Stopped — the files written so far are kept', 'warn');
   }, [notify, persistFiles]);
 
-  const appendLocalUser = useCallback((text, images = []) => {
+  const appendLocalUser = useCallback((text, images = [], docs = []) => {
     setMessages((prev) => [...prev, {
       id: `local-${Date.now()}`,
       local: true,
@@ -522,7 +531,10 @@ export function StudioProvider({ children }) {
       kind: 'text',
       text,
       createdAt: new Date().toISOString(),
-      meta: images.length ? { images: images.map((im) => ({ url: `data:${im.mime};base64,${im.data}` })) } : {},
+      meta: {
+        ...(images.length ? { images: images.map((im) => ({ url: `data:${im.mime};base64,${im.data}` })) } : {}),
+        ...(docs.length ? { docs: docs.map((d) => ({ name: d.name, url: d.url })) } : {}),
+      },
     }]);
   }, []);
 
@@ -538,6 +550,7 @@ export function StudioProvider({ children }) {
     const text = String(rawText || '').trim();
     if (!text || stateRef.current.agent.running) return;
     const images = Array.isArray(opts.images) ? opts.images : [];
+    const docs = Array.isArray(opts.docs) ? opts.docs : [];
 
     const cfg = buildModeConfig(stateRef.current.buildMode);
     let p = stateRef.current.project;
@@ -556,7 +569,7 @@ export function StudioProvider({ children }) {
            message is added after it — otherwise the attachment would vanish */
         p = await createProject({ prompt: text, keepAgent: true });
       }
-      appendLocalUser(text, images);
+      appendLocalUser(text, images, docs);
 
       if (empty && cfg.append) {
         /* long-form text: one markdown file grows section by section */
@@ -568,6 +581,7 @@ export function StudioProvider({ children }) {
           parts: cfg.parts,
           textPath,
           images,
+          docs,
           onRound: ({ round, maxRounds }) => {
             setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round, maxRounds }));
             if (round > 1) pushActivity({ kind: 'note', text: `section ${round}` });
@@ -578,7 +592,12 @@ export function StudioProvider({ children }) {
       } else if (empty) {
         let planFiles = [];
         if (cfg.plan) {
-          const planRes = await runAgent({ mode: 'plan', message: text, projectId: p.id, extra: images.length ? { images } : {} });
+          const planRes = await runAgent({
+            mode: 'plan',
+            message: text,
+            projectId: p.id,
+            extra: { ...(images.length ? { images } : {}), ...(docs.length ? { docs } : {}) },
+          });
           planFiles = (planRes.done?.missing?.length
             ? planRes.done.missing
             : (planRes.done?.plan?.files || planRes.done?.project?.plan?.files || []).map((f) => f.path));
@@ -591,6 +610,7 @@ export function StudioProvider({ children }) {
           message: text,
           planFiles,
           images,
+          docs,
           onRound: ({ round, missing, maxRounds }) => {
             setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round, maxRounds }));
             if (missing) pushActivity({ kind: 'note', text: `round ${round} · ${missing} file(s) queued` });
@@ -602,7 +622,13 @@ export function StudioProvider({ children }) {
         }
       } else {
         setAgent((a) => ({ ...a, running: true, step: 'edit' }));
-        await runAgent({ mode: 'edit', message: text, selectedFile: stateRef.current.activeFile || '', projectId: p.id });
+        await runAgent({
+          mode: 'edit',
+          message: text,
+          selectedFile: stateRef.current.activeFile || '',
+          projectId: p.id,
+          extra: { ...(images.length ? { images } : {}), ...(docs.length ? { docs } : {}) },
+        });
       }
       if (empty) setTab('preview');
       setPreviewNonce((n) => n + 1);
@@ -741,6 +767,35 @@ export function StudioProvider({ children }) {
   }, [buildUntilComplete, loadProjects, notify, pushActivity]);
 
   /* ================================ deploy ================================ */
+  /* ----------------------------- Google Drive ----------------------------- */
+  /** Reads a Doc/Sheet/text file so it can ride along as build context. */
+  const readDriveDoc = useCallback(async (id) => {
+    const data = await request('studio/drive/read', { method: 'POST', body: { id }, timeout: 60_000 });
+    const doc = data.document;
+    notify(`Read “${doc.name}”${doc.truncated ? ' (trimmed)' : ''}`, 'ok');
+    return doc;
+  }, [notify]);
+
+  /** Writes the project back to Drive: one Google Doc, or the files as a .zip. */
+  const exportToDrive = useCallback(async ({ as = 'doc', zipBase64 = null } = {}) => {
+    const p = stateRef.current.project;
+    if (!p) return null;
+    const data = await request('studio/drive/export', {
+      method: 'POST',
+      body: { projectId: p.id, as, zipBase64 },
+      timeout: 90_000,
+    });
+    setDeployments((prev) => [{
+      id: `drive-${Date.now()}`,
+      provider: 'google',
+      status: 'exported',
+      url: data.export?.url,
+      createdAt: new Date().toISOString(),
+    }, ...prev]);
+    notify(`Saved to Drive: ${data.export?.name || 'project'}`, 'ok');
+    return data.export;
+  }, [notify]);
+
   /* --------------------------- git repositories --------------------------- */
   /** Opens a real GitHub repository as a Studio project (files, stack, entry). */
   const importRepo = useCallback(async ({ repo, ref, name } = {}) => {
@@ -912,7 +967,7 @@ export function StudioProvider({ children }) {
     send, stopAgent, fixWithAI, resumeBuild, runTerminal, clearTerminal,
     accounts, loadAccounts,
     buildMode, setBuildMode, BUILD_MODES,
-    importRepo, pushBranch, followVercelProject,
+    importRepo, pushBranch, followVercelProject, readDriveDoc, exportToDrive,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   }), [
     session, booting, bootError, boot, refreshSession, projects, project, messages, revisions, deployments, files,
@@ -920,7 +975,7 @@ export function StudioProvider({ children }) {
     previewMode, switchPreview, devServer, startDev, stopDev, previewNonce, consoleEntries, logConsole,
     createProject, openProject, deleteProject, renameProject, loadProjects, writeFile, addFile, removeFile, renameFile,
     saveNow, restoreRevision, persistFiles, send, stopAgent, fixWithAI, runTerminal, clearTerminal,
-    buildMode, setBuildMode, importRepo, pushBranch, followVercelProject,
+    buildMode, setBuildMode, importRepo, pushBranch, followVercelProject, readDriveDoc, exportToDrive,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   ]);
 

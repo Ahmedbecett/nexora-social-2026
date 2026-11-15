@@ -182,3 +182,28 @@ export function summarizeFiles(files) {
 }
 
 export const FILE_LIMITS = { MAX_FILES, MAX_FILE_BYTES, MAX_TOTAL_BYTES };
+
+/* ----------------------- documents attached as context -------------------- */
+export const DOC_LIMITS = { maxDocs: 3, maxChars: 24_000 };
+
+/**
+ * Documents picked from Google Drive, reduced to what the model needs: a name,
+ * a link for the transcript, and text. Anything else is dropped, not trusted.
+ */
+export function sanitizeDocs(docs) {
+  const list = Array.isArray(docs) ? docs : [];
+  const out = [];
+  for (const doc of list) {
+    if (!doc || typeof doc !== 'object') continue;
+    const text = typeof doc.text === 'string' ? doc.text : '';
+    if (!text.trim()) continue;
+    out.push({
+      name: String(doc.name || 'Drive document').slice(0, 160),
+      url: typeof doc.url === 'string' && /^https:\/\//.test(doc.url) ? doc.url.slice(0, 400) : '',
+      mime: typeof doc.mime === 'string' ? doc.mime.slice(0, 120) : '',
+      text: text.slice(0, DOC_LIMITS.maxChars),
+    });
+    if (out.length >= DOC_LIMITS.maxDocs) break;
+  }
+  return out;
+}

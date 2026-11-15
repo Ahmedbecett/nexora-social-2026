@@ -12,14 +12,17 @@ import {
   addDeployment, updateDeployment, listDeployments,
 } from './projects.js';
 import {
-  attachImages, buildPlanPrompt, buildCreatePrompt, buildEditPrompt, buildFixPrompt, buildTextPrompt,
+  attachDocs, attachImages, buildPlanPrompt, buildCreatePrompt, buildEditPrompt, buildFixPrompt, buildTextPrompt,
   createProtocolStreamer, parseAgentOutput,
 } from './agent.js';
 import * as ai from './ai.js';
-import { appendPart, applyOps, detectStack, guessEntry, normalizePath, sanitizeFiles, sanitizeImages, summarizeFiles } from './files.js';
+import {
+  appendPart, applyOps, detectStack, guessEntry, normalizePath, sanitizeFiles, sanitizeImages, sanitizeDocs, summarizeFiles,
+} from './files.js';
 import { buildModeConfig, textTargetPath } from './modes.js';
 import * as exec from './exec.js';
 import * as deploy from './deploy.js';
+import * as google from './google.js';
 import { startSSE } from './stream.js';
 
 let deps = {};
@@ -116,16 +119,20 @@ export async function studioAgentStream(req, res, body = {}) {
     let userMessage = null;
     if (message && !body.retry) {
       const attached = sanitizeImages(body.images);
+      const docList = sanitizeDocs(body.docs);
       userMessage = await addMessage(ownerId, projectId, {
         role: 'user',
         text: message,
         kind: 'text',
-        meta: attached.length ? { attached: attached.map((im) => ({ mime: im.mime, bytes: im.data.length })) } : {},
+        meta: {
+          ...(attached.length ? { attached: attached.map((im) => ({ mime: im.mime, bytes: im.data.length })) } : {}),
+          ...(docList.length ? { docs: docList.map((d) => ({ name: d.name, url: d.url })) } : {}),
+        },
       });
       sse.send('user_message', { message: userMessage });
     }
 
-    sse.send('status', { step: mode, label: MODE_LABEL[mode], provider: null, at: nowIso() });
+    sse.send('status', { step: mode, label: MODE_LABEL[mode], provider: null, docs: sanitizeDocs(body.docs).length, at: nowIso() });
 
     /* the build mode is what the composer selected; it decides the batch size,
        the temperature and whether long-form text is appended section by section */
@@ -192,6 +199,13 @@ export async function studioAgentStream(req, res, body = {}) {
     if (images.length) {
       prompt = attachImages(prompt, images);
       sse.send('status', { step: mode, label: MODE_LABEL[mode], provider: null, images: images.length, at: nowIso() });
+    }
+
+    /* Drive documents are reference material for the same prompt */
+    const docs = sanitizeDocs(body.docs);
+    if (docs.length) {
+      prompt = attachDocs(prompt, docs);
+      sse.send('status', { step: mode, label: MODE_LABEL[mode], provider: null, docs: docs.length, at: nowIso() });
     }
 
     /* live protocol parsing: files land in the editor as they are written */
@@ -519,6 +533,29 @@ export function registerStudioRoutes({ route, authUser }) {
   /* live connection checks used by the publish and settings panels */
   route('GET', 'studio/integrations/github', async ({ req }) => deploy.githubAccount(await auth(req)));
   route('GET', 'studio/integrations/vercel', async ({ req }) => deploy.vercelAccount(await auth(req)));
+  route('GET', 'studio/integrations/google', async ({ req }) => google.driveAccount(await auth(req)));
+
+  /* ------------------------------ Google Drive ---------------------------- */
+  route('POST', 'studio/drive/read', async ({ req, body }) => {
+    const owner = await auth(req);
+    return { document: await google.readDriveFile(owner, { id: body.id }) };
+  });
+
+  route('POST', 'studio/drive/export', async ({ req, body }) => {
+    const owner = await auth(req);
+    const project = body.projectId ? await getProject(owner, Number(body.projectId)) : null;
+    const result = await google.exportToDrive(owner, {
+      project,
+      files: project?.files || {},
+      name: body.name || '',
+      as: body.as === 'zip' ? 'zip' : 'doc',
+      zipBase64: body.zipBase64 || null,
+    });
+    if (project) {
+      await addDeployment(owner, project.id, { provider: 'google', status: 'exported', url: result.url, meta: result });
+    }
+    return { export: result };
+  });
 
   /* --------------------------- real repositories -------------------------- */
   /* open an existing GitHub repository as a project, and commit back to it */
@@ -590,13 +627,15 @@ export function registerStudioRoutes({ route, authUser }) {
   route('POST', 'studio/integrations/:provider', async ({ req, params, body }) => {
     const owner = await auth(req);
     const provider = params.provider;
-    if (!['github', 'vercel'].includes(provider)) throw new StudioError(400, 'unknown_integration');
+    if (!['github', 'vercel', 'google'].includes(provider)) throw new StudioError(400, 'unknown_integration');
     const token = String(body.token || '').trim();
     if (token.length < 10) throw new StudioError(400, 'invalid_token');
     await ai.putIntegrationSecret(owner, provider, token);
     const status = provider === 'github'
       ? await deploy.githubStatus(owner)
-      : await deploy.vercelStatus(owner);
+      : provider === 'google'
+        ? await google.driveAccount(owner)
+        : await deploy.vercelStatus(owner);
     if (!status.connected) {
       await ai.removeIntegrationSecret(owner, provider);
       throw new StudioError(400, 'integration_rejected', status.error || 'the token was rejected');
