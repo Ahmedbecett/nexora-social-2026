@@ -1,0 +1,171 @@
+GAMEVERSE — FULL SUBMISSION DOCUMENT (A–Z)
+==============================================================
+
+Applicant:   Ahmed Becetti — GameVerse Studio
+Location:    Chlef, Algeria
+Contact:     ahmedbecetti41@gmail.com · +213 784 302 071
+Application: GameVerse 2.8.0 (versionCode 2800)
+Package:     com.gameverse.app
+Website:     https://gameverse-henna.vercel.app
+Amazon case: ___________
+Date:        12 November 2026
+
+==============================================================
+
+A. APPLICANT
+------------
+The applicant is Ahmed Becetti, an individual developer resident in Chlef, Algeria. All correspondence should go to ahmedbecetti41@gmail.com or +213 784 302 071.
+
+B. LEGAL CAPACITY AND STATUS
+----------------------------
+I operate as a sole proprietor under the trade name GameVerse Studio. This is a trading name, not a separate legal entity: there is no company, no shareholders and no co-owners. Contracts, accounts and intellectual property are held by me personally, which is why every account referenced here is registered to the same natural person.
+
+C. CONTACT DETAILS PUBLISHED IN THE APPLICATION
+-----------------------------------------------
+The address ahmedbecetti41@gmail.com is the single support and legal contact published on the application's support, privacy and partners pages. It is the same address used for this correspondence.
+
+D. APPLICATION IDENTITY
+-----------------------
+Name: GameVerse
+Package: com.gameverse.app
+Version: 2.8.0 (versionCode 2800)
+Category: Games — catalogue and instant-play platform
+Primary website: https://gameverse-henna.vercel.app
+Alternate host: https://gameverse-ahmed-d33b.vercel.app
+AdMob publisher: pub-6858364141205978
+Minimum Android: 7.0 (API 24)
+
+E. VERSION AND BUILD
+--------------------
+The build submitted is version 2.8.0, versionCode 2800. It is an owner-signed release: the private signing key is held by the applicant and is never committed to the repository.
+
+F. WHAT GAMEVERSE IS
+--------------------
+GameVerse is an independent international gaming platform combining instant browser games that run without installation, download listings that point to the official release pages of open-source and commercial titles, and a community layer of accounts, scores, reviews, leaderboards and daily challenges. The Android application is a native shell around the same live platform.
+
+G. FEATURE INVENTORY
+--------------------
+Catalogue: 45 published games, 17 of them GameVerse originals built in-house
+Instant play: HTML5 games in a sandboxed player
+Downloads: verified pointers to official release pages
+Accounts: e-mail sign-in with verification code
+Community: reviews, favourites, play history, public profiles
+Competition: leaderboards, daily challenges, achievements
+Store: memberships and digital goods, server-verified pricing
+Developer portal: studio registration, submission and review workflow
+Languages: Arabic, French, English
+Platforms: Android phones and tablets, Amazon Fire OS tablets, Fire TV
+
+H. TECHNOLOGY
+-------------
+Next.js (React) server-rendered, TypeScript. Managed PostgreSQL encrypted at rest. Hosted on Vercel with serverless functions and edge delivery. Transactional e-mail provider for verification codes. Automated bot challenge on registration and login. Weekly digest job. Google AdSense on the web with Consent Mode v2, Google AdMob in the app (publisher pub-6858364141205978).
+
+I. HOSTING, ACCOUNTS AND CONTROL
+--------------------------------
+Vercel project: prj_7fJN5wSFW3IZmVy8FOK75hS0GuWb
+Vercel team: ahmed-d33b
+Production deployment: dpl_451ViE6CPqmc12hixYFDV9RhiUQc
+Source repository: Ahmedbecett/gameverse (private)
+Repository owner: GitHub account Ahmedbecett. No third party has administrative access to any of these.
+
+J. OWNERSHIP OF THE WORK
+------------------------
+I, Ahmed Becetti, am the sole author and sole owner of the GameVerse application, the website and backend behind it, the seventeen original games, and the GameVerse name and logo. This ownership arose from authorship: the work was created by me, not bought, assigned, inherited or licensed.
+
+K. AUTHORSHIP AND CREATION HISTORY
+----------------------------------
+The application and platform were built by me over successive documented releases. The hosting platform retains a continuous deployment history for the project, each production deployment recording the commit, the author and the build. That history is the primary record of authorship and can be inspected by Amazon on request.
+
+L. ABSENCE OF A THIRD-PARTY RIGHTS HOLDER
+-----------------------------------------
+Amazon's request contemplates a rights holder separate from the developer, whose relationship with the developer would be defined by a licence agreement or a confirmation letter. No such separation exists here: the developer is the rights holder. A licence agreement between a person and himself would have no legal meaning, which is why the confirmation letter supplied with this submission is issued by the rights holder directly, signed in ink, on the rights holder's letterhead.
+
+M. THIRD-PARTY GAMES — OPEN SOURCE
+----------------------------------
+Some titles are open-source games, included only where the licence permits commercial use and redistribution. Asset licences are verified separately and attribution is preserved where required. Each game page displays the licence and the upstream source. These games remain the property of their authors and no exclusive right over them is claimed.
+
+N. THIRD-PARTY GAMES — DOWNLOAD POINTERS
+----------------------------------------
+Download entries are links to each developer's own official release page or store. GameVerse does not host third-party installers and claims no distribution right over them. The partners page states this policy publicly and provides a rights-issue contact.
+
+O. TRADEMARKS AND PUBLISHER NAMES
+---------------------------------
+Where a trademarked title is referenced it appears only as a pointer to its official store. GameVerse states publicly that it is not affiliated with, endorsed by or partnered with any publisher unless a signed agreement exists.
+
+P. ADVERTISING DISCLOSURE
+-------------------------
+In the app: Google AdMob, publisher pub-6858364141205978, authorised by app-ads.txt.
+Banner: one small banner below the content area; disappears when no ad is available.
+Interstitial: only at real transitions, at most one per 3 minutes and 5 per session.
+Rewarded: granted only after Google confirms the ad was completed.
+Excluded screens: gameplay, sign-in, profile, admin and developer screens carry no ads.
+Fire OS: devices without Google Play services make no ad request at all.
+EEA/UK: ads stay non-personalised until consent is given through Google's UMP.
+
+Q. PRIVACY AND DATA PROTECTION
+------------------------------
+The privacy policy is dated and public at https://gameverse-henna.vercel.app/privacy. No data is sold, no third-party analytics run, and no cross-site tracking takes place. Traffic statistics are first-party pageview counts. Consent for advertising cookies is requested in the EEA and UK and stored for 180 days. A complete JSON export and self-service account deletion are available to every user.
+
+R. ACCOUNTS AND AUTHENTICATION
+------------------------------
+Accounts exist to keep scores, reviews and downloads genuine: one person, one profile. Sign-in uses an e-mail verification code; sessions are hashed server-side and secrets never reach the browser. Login and registration are protected by an automated challenge. Users can review and revoke active sessions.
+
+S. CONTENT MODERATION AND REPORTING
+-----------------------------------
+Every game page carries a report action reaching studio moderation, and the help centre exposes a contact form at https://gameverse-henna.vercel.app/support. The developer portal enforces a written rights declaration from every submitter, automated security scanning of every upload, and admin review before publication.
+
+T. SECURITY MEASURES
+--------------------
+Games run in a sandboxed player served from an isolated origin that cannot reach player sessions. Non-first-party advertising tags load only inside a dedicated frame with an opaque origin and no top navigation, so such a tag cannot read a session or redirect the tab. Uploads are scanned before publication and rejected if they attempt to touch platform credentials.
+
+U. TECHNICAL PROOF OF AUTHORSHIP
+--------------------------------
+APK SHA-256: 6083DE941F114E89E06B10AED4569C8F45EE67FCD4DCFC8716898DA46901C82B
+Signing certificate SHA-256: C14535373C95B51A188E4F885FDC755CAD3212FB9AC1487DE2D6EEC5D48E0668
+Download: https://gameverse-henna.vercel.app/dl/gameverse-2.8.0-release.apk
+Published checksum: https://gameverse-henna.vercel.app/dl/gameverse-2.8.0-release.apk.sha256
+Production commit: 30dc8fa40fc32df84bb40fd7d3539509718f48d2
+Deployment creator: ahmedbecetti35@gmail.com (account owner)
+
+V. PUBLIC EVIDENCE INDEX
+------------------------
+About: https://gameverse-henna.vercel.app/about
+App page: https://gameverse-henna.vercel.app/app
+Privacy: https://gameverse-henna.vercel.app/privacy
+app-ads.txt: https://gameverse-henna.vercel.app/app-ads.txt
+Partners: https://gameverse-henna.vercel.app/partners
+Developers: https://gameverse-henna.vercel.app/developers
+Support: https://gameverse-henna.vercel.app/support
+Catalogue: https://gameverse-henna.vercel.app/games
+Originals: https://gameverse-henna.vercel.app/original-games
+
+W. VERIFICATION COMMANDS
+------------------------
+1. curl -LO https://gameverse-henna.vercel.app/dl/gameverse-2.8.0-release.apk
+2. sha256sum gameverse-2.8.0-release.apk
+3. curl https://gameverse-henna.vercel.app/dl/gameverse-2.8.0-release.apk.sha256
+4. curl https://gameverse-henna.vercel.app/app-ads.txt
+
+X. RIGHTS CLAIMED, AND RIGHTS NOT CLAIMED
+-----------------------------------------
+Claimed exclusively: the source code of the application and platform, the user interface, the catalogue structure, the 17 original games, and the GameVerse name and logo.
+Not claimed: ownership of third-party games listed in the catalogue, of open-source libraries used to build the platform, of the Android operating system, or of Google's advertising services.
+Why the boundary matters: no third party holds rights overlapping the claimed work, so no third-party agreement could evidence ownership of it.
+
+Y. UNDERTAKING
+--------------
+I undertake to notify Amazon Developer Support immediately of any change in the ownership of this application, and to indemnify Amazon against any claim arising from a breach of these statements. I confirm these statements are true and correct, and I will provide a notarised or officially attested copy of this document, a copy of my identity document, or any further supporting document Amazon requires.
+
+Z. SIGNATURE AND ATTESTATION
+----------------------------
+This document is issued and signed by the rights holder. It is valid once signed in ink; an electronically signed file or a scan of the signed page is acceptable for submission.
+
+==============================================================
+SIGNED BY THE RIGHTS HOLDER
+
+_______________________________________
+Ahmed Becetti
+Sole proprietor, GameVerse Studio — GameVerse
+Chlef, Algeria
+ahmedbecetti41@gmail.com · +213 784 302 071
+Date: 12 November 2026

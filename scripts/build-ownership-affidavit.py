@@ -3,7 +3,7 @@
 يبني وثيقة إثبات ملكية NEXORA AI — للمراسلة مع Amazon Developer Support.
 المخرجات: docs/ownership/*.pdf
 """
-import os, hashlib
+import os, sys, hashlib, argparse
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
@@ -206,8 +206,17 @@ def build_declaration(path):
         ("Published APK — SHA-256",
          f"<font face='Courier' size='6.6'>{F['apk_sha']}</font>"),
         ("Published APK — size", F["apk_size"]),
+        ("Digest published by GitHub",
+         f"<font face='Courier' size='6.6'>The release asset named Nexora.apk on the public repository "
+         f"carries digest sha256:{F['apk_sha'].lower()} — the same value as the file on the website.</font>"),
     ]))
     S.append(Spacer(1, 5))
+    S.append(notice(
+        "<b>Independently checkable.</b> GitHub publishes the SHA-256 digest of every release asset it stores. "
+        "The digest of the Nexora.apk asset on the public release page equals the value above, so the binary "
+        "distributed from the website and the binary attached to the release are byte-identical, and both are "
+        "recorded by a third party that has no interest in this dispute.", bg=colors.HexColor("#F0FBF7"), border=colors.HexColor("#0E9F6E")))
+    S.append(Spacer(1, 6))
     S.append(notice(
         "<b>Why this matters.</b> The APK submitted to Amazon is signed with a private key whose certificate "
         "carries the legal name and place of residence of the signatory. Only the holder of that private key "
@@ -461,6 +470,14 @@ def build_evidence(path):
     d = Doc(path); d.doc_title = "ANNEX — EVIDENCE INDEX"; d.build(S)
 
 if __name__ == "__main__":
+    ap = argparse.ArgumentParser(description="Generate the NEXORA AI ownership package.")
+    ap.add_argument("--case", default=None,
+                    help="Amazon case number, e.g. --case 23265129241 (printed in every header)")
+    args = ap.parse_args()
+    if args.case:
+        F["case_id"] = args.case.strip()
+        print(f"رقم القضية: {F['case_id']}")
+
     p1 = os.path.join(OUT, "1-declaration-of-ownership.pdf")
     p2 = os.path.join(OUT, "2-confirmation-letter.pdf")
     p3 = os.path.join(OUT, "3-annex-evidence-index.pdf")

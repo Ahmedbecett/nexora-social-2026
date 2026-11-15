@@ -130,14 +130,44 @@ Amazon يرفض «informal claims of ownership» — أي كلام غير موث
 
 ---
 
-## 6. توليد الوثائق من جديد
+## 6. التحقق من بصمة الـAPK (مهم قبل الإرسال)
+
+الوثيقة تذكر بصمة الـAPK. تأكد أنها تطابق الملف الذي ترفعه لـAmazon:
+
+```bash
+sha256sum public/download/Nexora.apk
+gh api repos/Ahmedbecett/nexora-social-2026/releases/tags/latest \
+  --jq '.assets[] | "\(.name) \(.size) digest=\(.digest)"'
+```
+
+**الحالة المؤكَّدة (تحقّقت منها):**
+```
+الملف المحلي       0bb69798a7d99ce84ea940ef8c18b2403a6a8b37975dd1c815f5bba32e85b662
+أصل GitHub Release نفس البصمة تمامًا، ونفس الحجم 13,814,604 بايت
+```
+
+هذا مطابق للقيمة المطبوعة في الوثائق. إن أعاد البناء تغيير الملف، أعِد التوليد مع البصمة الجديدة:
+
+```bash
+python3 scripts/build-ownership-affidavit.py --case <رقم-القضية>
+```
+
+---
+
+## 7. توليد الوثائق من جديد
 
 ```bash
 python3 scripts/build-ownership-affidavit.py
 ```
 
-سكربت `scripts/build-ownership-affidavit.py` يقرأ الحقائق من مستودعك مباشرة. إن تغيّر الإصدار أو
-الشهادة أو رقم القضية، عدّل قاموس `F` في أعلى السكربت ثم أعد التشغيل.
+سكربت `scripts/build-ownership-affidavit.py` يقرأ الحقائق من مستودعك مباشرة.
+
+```bash
+# مع رقم القضية (يُطبع في ترويسة كل صفحة)
+python3 scripts/build-ownership-affidavit.py --case 23265129241
+
+# أو عدّل قاموس F في أعلى السكربت
+```
 
 **للتحديث عند إعادة التوقيع:** بصمة الشهادة في `docs/ci/SIGNING.md` هي المرجع، وبصمة الـAPK تُحسب بـ
 `sha256sum public/download/Nexora.apk`. حدّثهما في `F` قبل التوليد.

@@ -11,7 +11,7 @@
 
 المخرجات: docs/gameverse/*.pdf
 """
-import os
+import os, sys, argparse
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
@@ -56,7 +56,7 @@ F = dict(
     dep_id   = "dpl_451ViE6CPqmc12hixYFDV9RhiUQc",
     dep_sha  = "30dc8fa40fc32df84bb40fd7d3539509718f48d2",
     date     = "12 November 2026",
-    case     = "___________",   # يُملأ برقم قضية Amazon
+    case     = "___________",   # يُملأ بـ --case أو بتحرير هذا السطر
 )
 
 def st(name, **kw):
@@ -777,11 +777,196 @@ def build_submission(path):
     d = Doc(path); d.doc_title = "FULL SUBMISSION — A TO Z"; d.build(S)
 
 
+# =====================================================================
+#  نص عادي للّصق المباشر في نموذج القضية
+# =====================================================================
+def write_plain_text(path):
+    L = []
+    A = L.append
+    A("GAMEVERSE — FULL SUBMISSION DOCUMENT (A–Z)")
+    A("=" * 62)
+    A("")
+    A(f"Applicant:   {F['owner']} — {F['studio']}")
+    A(f"Location:    {F['city']}, {F['country']}")
+    A(f"Contact:     {F['email']} · {F['phone']}")
+    A(f"Application: {F['app']} {F['version']} (versionCode {F['vcode']})")
+    A(f"Package:     {F['package']}")
+    A(f"Website:     {F['site']}")
+    A(f"Amazon case: {F['case']}")
+    A(f"Date:        {F['date']}")
+    A("")
+    A("=" * 62)
+    A("")
+
+    secs = [
+      ("A. APPLICANT",
+       f"The applicant is {F['owner']}, an individual developer resident in {F['city']}, {F['country']}. "
+       f"All correspondence should go to {F['email']} or {F['phone']}."),
+      ("B. LEGAL CAPACITY AND STATUS",
+       f"I operate as a sole proprietor under the trade name {F['studio']}. This is a trading name, not a "
+       "separate legal entity: there is no company, no shareholders and no co-owners. Contracts, accounts "
+       "and intellectual property are held by me personally, which is why every account referenced here is "
+       "registered to the same natural person."),
+      ("C. CONTACT DETAILS PUBLISHED IN THE APPLICATION",
+       f"The address {F['email']} is the single support and legal contact published on the application's "
+       "support, privacy and partners pages. It is the same address used for this correspondence."),
+      ("D. APPLICATION IDENTITY",
+       f"Name: {F['app']}\nPackage: {F['package']}\nVersion: {F['version']} (versionCode {F['vcode']})\n"
+       f"Category: Games — catalogue and instant-play platform\nPrimary website: {F['site']}\n"
+       f"Alternate host: {F['site2']}\nAdMob publisher: {F['admob']}\nMinimum Android: 7.0 (API 24)"),
+      ("E. VERSION AND BUILD",
+       f"The build submitted is version {F['version']}, versionCode {F['vcode']}. It is an owner-signed "
+       "release: the private signing key is held by the applicant and is never committed to the repository."),
+      ("F. WHAT GAMEVERSE IS",
+       "GameVerse is an independent international gaming platform combining instant browser games that run "
+       "without installation, download listings that point to the official release pages of open-source and "
+       "commercial titles, and a community layer of accounts, scores, reviews, leaderboards and daily "
+       "challenges. The Android application is a native shell around the same live platform."),
+      ("G. FEATURE INVENTORY",
+       "Catalogue: 45 published games, 17 of them GameVerse originals built in-house\n"
+       "Instant play: HTML5 games in a sandboxed player\n"
+       "Downloads: verified pointers to official release pages\n"
+       "Accounts: e-mail sign-in with verification code\n"
+       "Community: reviews, favourites, play history, public profiles\n"
+       "Competition: leaderboards, daily challenges, achievements\n"
+       "Store: memberships and digital goods, server-verified pricing\n"
+       "Developer portal: studio registration, submission and review workflow\n"
+       "Languages: Arabic, French, English\n"
+       "Platforms: Android phones and tablets, Amazon Fire OS tablets, Fire TV"),
+      ("H. TECHNOLOGY",
+       "Next.js (React) server-rendered, TypeScript. Managed PostgreSQL encrypted at rest. Hosted on Vercel "
+       "with serverless functions and edge delivery. Transactional e-mail provider for verification codes. "
+       "Automated bot challenge on registration and login. Weekly digest job. Google AdSense on the web with "
+       f"Consent Mode v2, Google AdMob in the app (publisher {F['admob']})."),
+      ("I. HOSTING, ACCOUNTS AND CONTROL",
+       f"Vercel project: {F['proj_id']}\nVercel team: ahmed-d33b\n"
+       f"Production deployment: {F['dep_id']}\nSource repository: {F['repo']}\n"
+       "Repository owner: GitHub account Ahmedbecett. No third party has administrative access to any of "
+       "these."),
+      ("J. OWNERSHIP OF THE WORK",
+       f"I, {F['owner']}, am the sole author and sole owner of the GameVerse application, the website and "
+       "backend behind it, the seventeen original games, and the GameVerse name and logo. This ownership "
+       "arose from authorship: the work was created by me, not bought, assigned, inherited or licensed."),
+      ("K. AUTHORSHIP AND CREATION HISTORY",
+       "The application and platform were built by me over successive documented releases. The hosting "
+       "platform retains a continuous deployment history for the project, each production deployment "
+       "recording the commit, the author and the build. That history is the primary record of authorship and "
+       "can be inspected by Amazon on request."),
+      ("L. ABSENCE OF A THIRD-PARTY RIGHTS HOLDER",
+       "Amazon's request contemplates a rights holder separate from the developer, whose relationship with "
+       "the developer would be defined by a licence agreement or a confirmation letter. No such separation "
+       "exists here: the developer is the rights holder. A licence agreement between a person and himself "
+       "would have no legal meaning, which is why the confirmation letter supplied with this submission is "
+       "issued by the rights holder directly, signed in ink, on the rights holder's letterhead."),
+      ("M. THIRD-PARTY GAMES — OPEN SOURCE",
+       "Some titles are open-source games, included only where the licence permits commercial use and "
+       "redistribution. Asset licences are verified separately and attribution is preserved where required. "
+       "Each game page displays the licence and the upstream source. These games remain the property of "
+       "their authors and no exclusive right over them is claimed."),
+      ("N. THIRD-PARTY GAMES — DOWNLOAD POINTERS",
+       "Download entries are links to each developer's own official release page or store. GameVerse does not "
+       "host third-party installers and claims no distribution right over them. The partners page states "
+       "this policy publicly and provides a rights-issue contact."),
+      ("O. TRADEMARKS AND PUBLISHER NAMES",
+       "Where a trademarked title is referenced it appears only as a pointer to its official store. GameVerse "
+       "states publicly that it is not affiliated with, endorsed by or partnered with any publisher unless a "
+       "signed agreement exists."),
+      ("P. ADVERTISING DISCLOSURE",
+       f"In the app: Google AdMob, publisher {F['admob']}, authorised by app-ads.txt.\n"
+       "Banner: one small banner below the content area; disappears when no ad is available.\n"
+       "Interstitial: only at real transitions, at most one per 3 minutes and 5 per session.\n"
+       "Rewarded: granted only after Google confirms the ad was completed.\n"
+       "Excluded screens: gameplay, sign-in, profile, admin and developer screens carry no ads.\n"
+       "Fire OS: devices without Google Play services make no ad request at all.\n"
+       "EEA/UK: ads stay non-personalised until consent is given through Google's UMP."),
+      ("Q. PRIVACY AND DATA PROTECTION",
+       f"The privacy policy is dated and public at {F['site']}/privacy. No data is sold, no third-party "
+       "analytics run, and no cross-site tracking takes place. Traffic statistics are first-party pageview "
+       "counts. Consent for advertising cookies is requested in the EEA and UK and stored for 180 days. A "
+       "complete JSON export and self-service account deletion are available to every user."),
+      ("R. ACCOUNTS AND AUTHENTICATION",
+       "Accounts exist to keep scores, reviews and downloads genuine: one person, one profile. Sign-in uses "
+       "an e-mail verification code; sessions are hashed server-side and secrets never reach the browser. "
+       "Login and registration are protected by an automated challenge. Users can review and revoke active "
+       "sessions."),
+      ("S. CONTENT MODERATION AND REPORTING",
+       f"Every game page carries a report action reaching studio moderation, and the help centre exposes a "
+       f"contact form at {F['site']}/support. The developer portal enforces a written rights declaration "
+       "from every submitter, automated security scanning of every upload, and admin review before "
+       "publication."),
+      ("T. SECURITY MEASURES",
+       "Games run in a sandboxed player served from an isolated origin that cannot reach player sessions. "
+       "Non-first-party advertising tags load only inside a dedicated frame with an opaque origin and no top "
+       "navigation, so such a tag cannot read a session or redirect the tab. Uploads are scanned before "
+       "publication and rejected if they attempt to touch platform credentials."),
+      ("U. TECHNICAL PROOF OF AUTHORSHIP",
+       f"APK SHA-256: {F['apk_sha']}\nSigning certificate SHA-256: {F['cert_sha']}\n"
+       f"Download: {F['apk_url']}\nPublished checksum: {F['apk_url']}.sha256\n"
+       f"Production commit: {F['dep_sha']}\nDeployment creator: ahmedbecetti35@gmail.com (account owner)"),
+      ("V. PUBLIC EVIDENCE INDEX",
+       f"About: {F['site']}/about\nApp page: {F['site']}/app\nPrivacy: {F['site']}/privacy\n"
+       f"app-ads.txt: {F['ads_url']}\nPartners: {F['site']}/partners\nDevelopers: {F['site']}/developers\n"
+       f"Support: {F['site']}/support\nCatalogue: {F['site']}/games\nOriginals: {F['site']}/original-games"),
+      ("W. VERIFICATION COMMANDS",
+       f"1. curl -LO {F['apk_url']}\n2. sha256sum gameverse-{F['version']}-release.apk\n"
+       f"3. curl {F['apk_url']}.sha256\n4. curl {F['ads_url']}"),
+      ("X. RIGHTS CLAIMED, AND RIGHTS NOT CLAIMED",
+       "Claimed exclusively: the source code of the application and platform, the user interface, the "
+       "catalogue structure, the 17 original games, and the GameVerse name and logo.\n"
+       "Not claimed: ownership of third-party games listed in the catalogue, of open-source libraries used "
+       "to build the platform, of the Android operating system, or of Google's advertising services.\n"
+       "Why the boundary matters: no third party holds rights overlapping the claimed work, so no "
+       "third-party agreement could evidence ownership of it."),
+      ("Y. UNDERTAKING",
+       "I undertake to notify Amazon Developer Support immediately of any change in the ownership of this "
+       "application, and to indemnify Amazon against any claim arising from a breach of these statements. I "
+       "confirm these statements are true and correct, and I will provide a notarised or officially attested "
+       "copy of this document, a copy of my identity document, or any further supporting document Amazon "
+       "requires."),
+      ("Z. SIGNATURE AND ATTESTATION",
+       "This document is issued and signed by the rights holder. It is valid once signed in ink; an "
+       "electronically signed file or a scan of the signed page is acceptable for submission."),
+    ]
+    for title, body in secs:
+        A(title)
+        A("-" * len(title))
+        for line in body.split("\n"):
+            A(line)
+        A("")
+
+    A("=" * 62)
+    A("SIGNED BY THE RIGHTS HOLDER")
+    A("")
+    A("_______________________________________")
+    A(F["owner"])
+    A(f"Sole proprietor, {F['studio']} — {F['app']}")
+    A(f"{F['city']}, {F['country']}")
+    A(f"{F['email']} · {F['phone']}")
+    A(f"Date: {F['date']}")
+    A("")
+
+    open(path, "w", encoding="utf-8").write("\n".join(L))
+    return path
+
+
 if __name__ == "__main__":
+    ap = argparse.ArgumentParser(description="Generate the GameVerse ownership package.")
+    ap.add_argument("--case", default=None,
+                    help="Amazon case number, e.g. --case 23265129241 (printed in every header)")
+    ap.add_argument("--plain", action="store_true", default=True,
+                    help="also write the A-Z document as plain text for pasting into the case form")
+    args = ap.parse_args()
+    if args.case:
+        F["case"] = args.case.strip()
+        print(f"رقم القضية: {F['case']}")
+
     p1 = os.path.join(OUT, "1-declaration-of-ownership.pdf")
     p2 = os.path.join(OUT, "2-confirmation-letter.pdf")
     p3 = os.path.join(OUT, "3-annex-evidence-index.pdf")
     p4 = os.path.join(OUT, "4-amazon-submission-a-to-z.pdf")
     build_declaration(p1); build_letter(p2); build_annex(p3); build_submission(p4)
-    for p in (p1, p2, p3, p4):
+    outs = [p1, p2, p3, p4]
+    if args.plain:
+        outs.append(write_plain_text(os.path.join(OUT, "5-submission-plain-text.txt")))
+    for p in outs:
         print(f"{os.path.basename(p):38s} {os.path.getsize(p):>8,} bytes")
