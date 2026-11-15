@@ -213,3 +213,56 @@ export async function vercelDeploymentState(ownerId, deploymentId) {
   const d = res.data || {};
   return { state: d.readyState || d.status, url: d.url ? `https://${d.url}` : null, alias: (d.alias || [])[0] || null };
 }
+
+/* ------------------------- connection verification ------------------------ */
+/**
+ * What the connection panel shows: the real account behind the token, and the
+ * repositories/projects it can actually reach. No guessing, no fake rows.
+ */
+export async function githubAccount(ownerId) {
+  const auth = await githubToken(ownerId).catch(() => null);
+  if (!auth) return { connected: false, source: null };
+  const me = await gh(auth.token, '/user');
+  if (!me.ok) return { connected: false, source: auth.source, error: `GitHub rejected the token (${me.status})` };
+  const repos = await gh(auth.token, '/user/repos?per_page=30&sort=updated&affiliation=owner,collaborator');
+  const scope = /scopes?:\s*([^\n]*)/i.exec(me.headers || '')?.[1] || '';
+  return {
+    connected: true,
+    source: auth.source,
+    login: me.data.login,
+    name: me.data.name || me.data.login,
+    avatar: me.data.avatar_url || null,
+    privateRepos: Number(me.data.total_private_repos || 0),
+    canCreateRepo: me.ok,
+    scopes: scope,
+    repos: (Array.isArray(repos.data) ? repos.data : []).slice(0, 20).map((r) => ({
+      name: r.full_name,
+      private: Boolean(r.private),
+      url: r.html_url,
+      updatedAt: r.updated_at,
+      defaultBranch: r.default_branch,
+    })),
+  };
+}
+
+export async function vercelAccount(ownerId) {
+  const auth = await vercelToken(ownerId).catch(() => null);
+  if (!auth) return { connected: false, source: null };
+  const me = await vc(auth.token, '/v2/user');
+  if (!me.ok) return { connected: false, source: auth.source, error: `Vercel rejected the token (${me.status})` };
+  const projects = await vc(auth.token, '/v9/projects?limit=20');
+  const list = projects.ok && Array.isArray(projects.data?.projects) ? projects.data.projects : [];
+  return {
+    connected: true,
+    source: auth.source,
+    username: me.data?.user?.username || me.data?.user?.name || '',
+    email: me.data?.user?.email || null,
+    team: process.env.VERCEL_TEAM_ID || null,
+    projects: list.slice(0, 20).map((p) => ({
+      id: p.id,
+      name: p.name,
+      url: p.latestDeployments?.[0]?.url ? `https://${p.latestDeployments[0].url}` : null,
+      updatedAt: p.updatedAt ? new Date(p.updatedAt).toISOString() : null,
+    })),
+  };
+}

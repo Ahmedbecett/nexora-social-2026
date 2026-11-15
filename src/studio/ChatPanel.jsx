@@ -28,7 +28,7 @@ function FileChip({ path, op, onOpen }) {
 
 export default function ChatPanel() {
   const {
-    project, messages, agent, send, stopAgent, createProject, setActiveFile, setTab,
+    project, messages, agent, send, stopAgent, resumeBuild, createProject, setActiveFile, setTab,
     session, setSettingsOpen, booting,
   } = useStudio();
   const [text, setText] = useState('');
@@ -69,7 +69,9 @@ export default function ChatPanel() {
   const hasMessages = messages.length > 0 || agent.running || agent.error;
   const primary = session?.ai?.primary;
   const aiConfigured = session?.ai?.configured;
-  const activeSteps = agent.running ? (agent.step === 'create' ? ['plan', 'create'] : [agent.step || 'plan']) : [];
+  const activeSteps = agent.running
+    ? (agent.step === 'create' || agent.step === 'continue' ? ['plan', 'create', 'continue'] : [agent.step || 'plan'])
+    : [];
 
   return (
     <section className="nxs-pane nxs-chat" aria-label="Chat">
@@ -137,7 +139,12 @@ export default function ChatPanel() {
                 <div className="nxs-live">
                   <div className="nxs-live-head">
                     <span className="spin" />
-                    <span>{agent.step === 'plan' ? 'Planning the build…' : agent.step === 'create' ? `Writing files${agent.round ? ` · round ${agent.round}` : ''}…` : agent.step === 'edit' ? 'Editing your project…' : 'Investigating the failure…'}</span>
+                    <span>{
+                      agent.step === 'plan' ? 'Planning the build…'
+                        : agent.step === 'create' || agent.step === 'continue'
+                          ? `${agent.step === 'continue' ? 'Continuing the build' : 'Writing files'}${agent.round ? ` · round ${agent.round}` : ''}…`
+                          : agent.step === 'edit' ? 'Editing your project…' : 'Investigating the failure…'
+                    }</span>
                   </div>
                   <div className="nxs-live-steps">
                     {STEPS.map((s) => (
@@ -154,6 +161,28 @@ export default function ChatPanel() {
                     </div>
                   )}
                   {agent.prose && <div className="nxs-live-prose">{agent.prose.slice(-600)}</div>}
+                </div>
+              </div>
+            </article>
+          )}
+
+          {!agent.running && (agent.interrupted || agent.pending > 0) && (
+            <article className="nxs-msg agent">
+              <span className="who">N</span>
+              <div className="bubble">
+                <div className="role">
+                  <span>{agent.interrupted ? 'Build interrupted' : 'Build not finished'}</span>
+                  <span className="nxs-chip warn">{agent.pending || 0} pending</span>
+                </div>
+                <div className="text">
+                  {agent.interrupted
+                    ? 'The connection was cut before the last files arrived. Everything written so far is saved — continue from exactly here.'
+                    : 'Some planned files were not written yet. Continue to finish them.'}
+                </div>
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button className="nxs-btn sm primary" onClick={() => resumeBuild()}>
+                    <IconSpark size={12} /> Continue build
+                  </button>
                 </div>
               </div>
             </article>
@@ -204,6 +233,11 @@ export default function ChatPanel() {
             )}
             {project && (
               <span className="nxs-chip"><IconLayers size={11} /> {Object.keys(project.files || {}).length} files</span>
+            )}
+            {!agent.running && agent.pending > 0 && (
+              <button className="nxs-chip warn" onClick={() => resumeBuild()} title="Continue the interrupted build">
+                <IconWarn size={11} /> {agent.pending} pending · continue
+              </button>
             )}
             <span className="hint">Enter to send · Shift+Enter newline</span>
             {agent.running ? (

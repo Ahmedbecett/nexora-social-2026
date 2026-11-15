@@ -92,6 +92,7 @@ function installDom() {
 
 const requests = [];
 let mode = 'existing';
+let createAttempts = 0;
 
 function sse(frames) {
   const text = frames.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join('');
@@ -126,12 +127,29 @@ function installFetch() {
       if (method === 'POST') {
         return jsonResponse({ project: { ...PROJECT, id: 9, name: 'Untitled project', stack: 'static', files: {}, fileCount: 0 } });
       }
-      if (mode === 'empty') return jsonResponse({ projects: [] });
+      if (mode === 'empty' || mode === 'interrupted') return jsonResponse({ projects: [] });
       return jsonResponse({ projects: [{ ...PROJECT }] });
     }
     if (url.includes('/api/studio/agent')) {
       const body = JSON.parse(init.body || '{}');
-      const project = { ...PROJECT, id: 9, name: 'Counter demo', files: mode === 'empty' ? BUILT_FILES : PROJECT.files };
+      if (mode === 'interrupted' && body.mode !== 'plan') {
+        createAttempts += 1;
+        if (createAttempts === 1) {
+          /* the function is cut off after the first file: no `done` frame */
+          return sse([['status', { mode: body.mode }], ['file', { path: 'index.html', content: BUILT_FILES['index.html'], saved: true }]]);
+        }
+        return sse([
+          ['status', { mode: body.mode }],
+          ['file', { path: 'app.js', content: BUILT_FILES['app.js'], saved: true }],
+          ['done', {
+            project: { ...PROJECT, id: 9, name: 'Counter demo', files: BUILT_FILES, status: 'ready', entry: 'index.html', fileCount: 2 },
+            plan: { title: 'Counter demo', files: [{ path: 'index.html' }, { path: 'app.js' }] },
+            missing: [], pending: 0, changed: ['app.js'],
+            provider: 'openai', notes: [],
+          }],
+        ]);
+      }
+      const project = { ...PROJECT, id: 9, name: 'Counter demo', files: mode === 'existing' ? PROJECT.files : BUILT_FILES };
       if (body.mode === 'plan') {
         return sse([
           ['status', { mode: 'plan' }],
@@ -287,6 +305,46 @@ test('a prompt drives plan → create → files → live preview inside the UI',
     assert.ok(await until(() => /Built by the agent/.test(document.querySelector('.cm-content')?.textContent || '')), 'the editor opens the generated file');
 
     assert.deepEqual(errors, [], 'no React or runtime errors during the build loop');
+  } finally {
+    console.error = origError;
+    root.unmount();
+  }
+});
+
+test('an interrupted build resumes automatically and keeps the streamed files', async () => {
+  mode = 'interrupted';
+  errors.length = 0;
+  requests.length = 0;
+  createAttempts = 0;
+  const window = installDom();
+  installFetch();
+  const { StudioApp } = await bundleApp();
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+
+  const root = createRoot(document.getElementById('root'));
+  const origError = console.error;
+  console.error = (...args) => { errors.push(args.map(String).join(' ')); origError(...args); };
+  try {
+    root.render(React.createElement(StudioApp));
+    assert.ok(await until(() => document.querySelector('textarea[aria-label="Message NEXORA Studio"]')), 'composer ready');
+
+    const area = document.querySelector('textarea[aria-label="Message NEXORA Studio"]');
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+    setValue.call(area, 'build a counter page');
+    area.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await until(() => document.querySelector('button.nxs-send:not(.stop)'));
+    document.querySelector('button.nxs-send:not(.stop)').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    const agentCalls = () => requests.filter((r) => r.includes('/api/studio/agent'));
+    const retried = await until(() => agentCalls().length >= 3, 8000);
+    assert.ok(retried, 'the cut-off round was retried without the user doing anything');
+    assert.equal(createAttempts, 2, 'exactly one retry was needed');
+
+    assert.ok(await until(() => /Built by the agent/.test(document.querySelector('iframe.nxs-frame')?.getAttribute('srcdoc') || ''), 8000),
+      'the resumed build reaches the live preview');
+    assert.ok(await until(() => !/pending/.test(document.body.textContent) || !/Continue build/.test(document.body.textContent)), 'no stuck pending banner');
+    assert.deepEqual(errors, [], 'resuming raised no React errors');
   } finally {
     console.error = origError;
     root.unmount();

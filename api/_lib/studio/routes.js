@@ -134,11 +134,18 @@ export async function studioAgentStream(req, res, body = {}) {
     } else if (mode === 'create' || mode === 'continue') {
       const plan = body.plan || project.plan || null;
       const missing = (plan?.files || []).map((f) => ({ path: f.path, purpose: f.purpose })).filter((f) => !(f.path in project.files));
-      if (missing.length === 0 && Object.keys(project.files).length > 0) {
-        sse.send('done', { project: projectPayload(project), changed: [], missing: [], note: 'nothing_missing' });
+      const hasFiles = Object.keys(project.files).length > 0;
+      if (missing.length === 0 && hasFiles && plan) {
+        sse.send('done', { project: projectPayload(project), changed: [], missing: [], pending: 0, note: 'nothing_missing' });
         return;
       }
-      prompt = buildCreatePrompt({ project, plan, userMessage: message || plan?.summary || project.description, missing });
+      prompt = buildCreatePrompt({
+        project,
+        plan,
+        userMessage: message || plan?.summary || project.description || 'Finish this project so it runs.',
+        missing,
+        batch: Math.max(1, Math.min(5, Number(body.batch) || 3)),
+      });
       maxTokens = 8000;
     } else if (mode === 'edit') {
       prompt = buildEditPrompt({ project, userMessage: message, selectedPath: String(body.selectedFile || ''), history });
@@ -153,10 +160,34 @@ export async function studioAgentStream(req, res, body = {}) {
     let prose = '';
     let livePlan = null;
     let liveMessage = '';
+    /* Write-through: a finished file is stored before the request ends, so a
+       timeout, a closed tab or a killed function never loses work that already
+       streamed to the editor. */
+    const liveFiles = { ...(project.files || {}) };
+    let persistChain = Promise.resolve();
+    let persisted = 0;
+    const persistNow = () => {
+      const snapshot = { ...liveFiles };
+      persistChain = persistChain
+        .then(() => updateProject(ownerId, projectId, { files: snapshot }))
+        .then(() => { persisted += 1; })
+        .catch(() => { /* the final write below retries the whole set */ });
+    };
+
     const streamer = createProtocolStreamer({
       onProse: (chunk) => { prose = (prose + chunk).replace(/\n{3,}/g, '\n\n'); sse.send('prose', { text: prose }); },
-      onFile: ({ path, content }) => { seen.push({ op: 'write', path, content }); sse.send('file', { path, content }); },
-      onDelete: (path) => { seen.push({ op: 'delete', path }); sse.send('delete', { path }); },
+      onFile: ({ path, content }) => {
+        seen.push({ op: 'write', path, content });
+        liveFiles[path] = content;
+        sse.send('file', { path, content, saved: true });
+        persistNow();
+      },
+      onDelete: (path) => {
+        seen.push({ op: 'delete', path });
+        delete liveFiles[path];
+        sse.send('delete', { path });
+        persistNow();
+      },
       onPlan: (plan) => { livePlan = plan; sse.send('plan', { plan }); },
       onMessage: (text) => { liveMessage = text; sse.send('message', { text }); },
     });
@@ -172,11 +203,12 @@ export async function studioAgentStream(req, res, body = {}) {
         signal: abort.signal,
         preferProvider: body.provider || null,
         model: body.model || null,
-        timeoutMs: 110_000,
-        budgetMs: 125_000,
+        timeoutMs: 230_000,
+        budgetMs: 250_000,
         onDelta: (full) => { if (!aborted) streamer.push(full); },
       });
     } catch (e) {
+      await persistChain;
       const detail = e.detail || e.message || 'model call failed';
       sse.send('error', { code: e.code || 'ai_failed', detail, status: e.status || 502 });
       if (message && !body.retry) {
@@ -187,6 +219,7 @@ export async function studioAgentStream(req, res, body = {}) {
     }
 
     const parsed = streamer.flush();
+    await persistChain;
     /* prefer the incremental parse; fall back to a full re-parse of the answer */
     const final = parseAgentOutput(result.text);
     const ops = mergeOps(parsed.ops, final.ops, seen);
@@ -221,7 +254,10 @@ export async function studioAgentStream(req, res, body = {}) {
       })
       : null;
 
-    const plannedPaths = (plan?.files || []).map((f) => f.path);
+    /* the plan may come from this answer or from the stored project — either
+       way the "what is still missing" list must be complete */
+    const thePlan = plan || project.plan || null;
+    const plannedPaths = (thePlan?.files || []).map((f) => f.path);
     const missing = plannedPaths.filter((p) => !(p in nextFiles));
 
     const notes = [];
@@ -233,8 +269,10 @@ export async function studioAgentStream(req, res, body = {}) {
       ok: true,
       project: projectPayload(project),
       changed,
-      plan,
+      plan: thePlan,
       missing,
+      pending: missing.length,
+      savedDuringRun: persisted,
       provider: result.provider,
       providerLabel: result.providerLabel,
       model: result.model,
@@ -418,6 +456,10 @@ export function registerStudioRoutes({ route, authUser }) {
   route('DELETE', 'studio/ai/keys/:provider', async ({ req, params }) => ai.deleteUserKey(await auth(req), params.provider));
 
   /* ----------------------------- integrations ---------------------------- */
+  /* live connection checks used by the publish and settings panels */
+  route('GET', 'studio/integrations/github', async ({ req }) => deploy.githubAccount(await auth(req)));
+  route('GET', 'studio/integrations/vercel', async ({ req }) => deploy.vercelAccount(await auth(req)));
+
   route('POST', 'studio/integrations/:provider', async ({ req, params, body }) => {
     const owner = await auth(req);
     const provider = params.provider;

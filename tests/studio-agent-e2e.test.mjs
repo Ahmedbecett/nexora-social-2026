@@ -52,13 +52,17 @@ const server = http.createServer((req, res) => {
     const last = body.messages?.at(-1)?.content || '';
     if (/produce a build plan/.test(last)) {
       sse(res, [`Here is the plan.\n<plan>${JSON.stringify(PLAN)}</plan>\n<message>خطة جاهزة: تطبيق عدّاد صغير.</message>`]);
-    } else if (/FILES STILL MISSING/.test(last)) {
+    } else if (/FILES TO WRITE IN THIS REQUEST/.test(last)) {
       // only hand back the files the prompt says are missing (the real contract)
       if (/- index\.html/.test(last)) {
         sse(res, [`<file path="index.html"><!doctype html><html><body><div id="n">0</div><button id="b">+1</button><script src="app.js"></script><link rel="stylesheet" href="style.css"></body></html></file>`]);
       } else {
         sse(res, ['<file path="app.js">let n=0;document.getElementById("b").onclick=()=>{n+=1;document.getElementById("n").textContent=n};</file>\n<file path="style.css">body{font-family:sans-serif}</file>\n<message>اكتمل المشروع.</message>']);
       }
+    } else if (/CUT MID STREAM/.test(last)) {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: '<file path="half.html"><h1>kept</h1></file>\n<file path="never.html">' } }] })}\n\n`);
+      setTimeout(() => { try { res.destroy(); } catch { /* gone */ } }, 40);
     } else if (/modify the existing project/.test(last)) {
       sse(res, ['<file path="style.css">body{font-family:system-ui;background:#0b0d12;color:#fff}</file>\n<message>تم تغيير الخلفية.</message>']);
     } else {
@@ -130,6 +134,10 @@ test('the agent plans, streams files, persists them and versions the result', as
   const ev1 = events(res1.text);
   const fileFrames = ev1.filter((e) => e.event === 'file');
   assert.equal(fileFrames[0].data.path, 'index.html');
+  assert.equal(fileFrames[0].data.saved, true, 'a finished file is reported as stored immediately');
+  const done1 = ev1.find((e) => e.event === 'done');
+  assert.ok(done1.data.savedDuringRun >= 1, 'write-through persisted during the stream');
+  assert.equal(done1.data.pending, 2, 'the remaining files are queued for the next round');
   assert.match(fileFrames[0].data.content, /<button id="b">/, 'file content arrives complete');
 
   const res2 = fakeRes();
@@ -161,6 +169,19 @@ test('the agent plans, streams files, persists them and versions the result', as
   assert.match(edited.files['style.css'], /background:#0b0d12/);
   assert.match(edited.files['index.html'], /<button id="b">/, 'unchanged files are preserved');
   assert.match(events(resEdit.text).find((e) => e.event === 'done').data.message, /تم/);
+});
+
+test('a connection cut mid-answer keeps the files that already streamed', async () => {
+  const project = await createProject('dev', { name: 'Cut test' });
+  const res = fakeRes();
+  await studioAgentStream(fakeReq(), res, { projectId: project.id, mode: 'create', message: 'CUT MID STREAM please' });
+  const list = events(res.text);
+  assert.ok(list.some((e) => e.event === 'file' && e.data.path === 'half.html'), 'the finished file streamed');
+  assert.ok(list.some((e) => e.event === 'error'), 'the failure is reported, not hidden');
+
+  const stored = await getProject('dev', project.id);
+  assert.equal(stored.files['half.html'], '<h1>kept</h1>', 'the finished file survived the cut');
+  assert.ok(!('never.html' in stored.files), 'an incomplete file is never stored as if it were complete');
 });
 
 test('a failing provider surfaces a typed error and writes no files', async () => {
