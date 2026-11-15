@@ -12,6 +12,8 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
 from reportlab.platypus import (BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer,
                                 Table, TableStyle, PageBreak, KeepTogether, HRFlowable, Preformatted)
+from reportlab.platypus import Image as RLImage, NextPageTemplate
+from reportlab.lib.pagesizes import landscape
 
 CASE_NX = "___________"
 CASE_GV = "___________"
@@ -209,7 +211,24 @@ class Doc(BaseDocTemplate):
         self.case_nx = CASE_NX
         self.case_gv = CASE_GV
         fr = Frame(self.leftMargin, self.bottomMargin, self.width, self.height, id="f")
-        self.addPageTemplates([PageTemplate(id="p", frames=[fr], onPage=self.deco)])
+        LW, LH = landscape(A4)
+        fr_land = Frame(MARGIN, 14 * mm, LW - 2 * MARGIN, LH - 34 * mm, id="fl")
+        self.addPageTemplates([
+            PageTemplate(id="p", frames=[fr], onPage=self.deco, pagesize=A4),
+            PageTemplate(id="landscape", frames=[fr_land], onPage=self.deco_land, pagesize=landscape(A4)),
+        ])
+
+    def deco_land(self, c, doc):
+        LW, LH = landscape(A4)
+        c.setFillColor(ACCENT); c.rect(0, LH - 3 * mm, LW * 0.52, 3 * mm, stroke=0, fill=1)
+        c.setFillColor(ACC2);   c.rect(LW * 0.52, LH - 3 * mm, LW * 0.48, 3 * mm, stroke=0, fill=1)
+        c.setFillColor(INK); c.setFont("Helvetica-Bold", 8)
+        c.drawString(MARGIN, LH - 11 * mm, "AHMED BECETTI  ·  NEXORA AI & GameVerse  ·  Consolidated Ownership Dossier")
+        c.setFillColor(MUTED); c.setFont("Helvetica", 7)
+        label = self.case_nx if set(self.case_nx) - {"_"} else "___________"
+        c.drawRightString(LW - MARGIN, LH - 11 * mm, f"Amazon case: {label}   ·   visual evidence annex")
+        c.setStrokeColor(LINE); c.setLineWidth(0.5)
+        c.line(MARGIN, 11 * mm, LW - MARGIN, 11 * mm)
 
     def deco(self, c, doc):
         w, h = A4
@@ -346,6 +365,7 @@ def build(path):
         ("11", "Evidence index — claim by claim", "Every exhibit, and what it proves"),
         ("12", "What to send to Amazon", "Two ready replies and an attachment checklist"),
         ("13", "Undertaking and signature", "Signed by the rights holder"),
+        ("A", "Annex A — visual evidence", "Five boards rendered from GitHub and Vercel records"),
     ]
     ct = Table([[Paragraph(f"<b>{n}</b>", st("cn", fontSize=8.6, alignment=TA_CENTER)),
                  Paragraph(t, st("ct", fontSize=8.6, alignment=TA_LEFT)),
@@ -829,6 +849,69 @@ def build(path):
     ]))
     S.append(et)
 
+    # ---------- Annex A: الأدلة المصوّرة ----------
+    S.append(PageBreak())
+    S.append(Paragraph("Annex A — visual evidence", H2))
+    S.append(Paragraph(
+        "The five boards that follow are rendered directly from the data returned by the two platforms, at the "
+        "moment shown in each footer. Every number, hostname, commit and digest on them is the value the API "
+        "returned — nothing is typed by hand and nothing is illustrative.", BODY))
+    S.append(Spacer(1, 4))
+    S.append(note(
+        "<b>What these boards are, and what they are not.</b> They are <i>not</i> screenshots of the Vercel or "
+        "GitHub dashboards: the dashboards require a signed-in session, and a screenshot of them would be easy to "
+        "forge in any case. They are records drawn from the same API calls that those dashboards make, with the "
+        "raw response quoted on the board itself so a reviewer can compare it against the live endpoint. Every "
+        "value can be recomputed with the commands in §10.", fs=8.4))
+    S.append(Spacer(1, 6))
+
+    boards = [
+        ("A1", "GitHub repository — NEXORA AI",
+         "Public repository, 34 commits, 5 releases, language breakdown, and the SHA-256 digest GitHub itself "
+         "publishes for every release asset.", "boards/B1-github-repository-nexora.png"),
+        ("A2", "GitHub commit history — NEXORA AI",
+         "All 34 commits, unabridged, newest first. This is the authorship record: what was built, and when.",
+         "boards/B2-github-commit-history-nexora.png"),
+        ("A3", "GameVerse — repository state and production record",
+         "The private repository's identity, and the 35 commits recovered from production deployment metadata.",
+         "boards/B3-github-and-vercel-gameverse.png"),
+        ("A4", "Domains — both applications",
+         "Every hostname assigned to either project, with its project ID, verification state and assignment "
+         "date, plus the ownership chain from account to domain.", "boards/B4-vercel-domains.png"),
+        ("A5", "Production deployments — both applications",
+         "Real builds that served each live site, each matched to the commit that shipped in it.",
+         "boards/B5-vercel-deployments.png"),
+    ]
+    for i, (tag, title, desc, board_path) in enumerate(boards):
+        full = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "docs", "master", board_path))
+        if not os.path.exists(full):
+            continue
+        from io import BytesIO
+        # صفحة أفقية: الصورة بعرض الصفحة كاملة
+        LW, LH = landscape(A4)
+        frame_w = LW - 2 * MARGIN          # عرض الإطار الفعلي
+        frame_h = LH - 34 * mm             # ارتفاع الإطار الفعلي
+        avail_w = frame_w
+        avail_h = frame_h - 46             # ناقص الترويسة والتذييل
+        ratio = 595 / 842
+        iw = min(avail_w, avail_h / ratio)
+        ih = iw * ratio
+        with open(full, "rb") as fh:
+            im = RLImage(BytesIO(fh.read()), width=iw, height=ih)
+        S.append(NextPageTemplate("landscape"))
+        S.append(PageBreak())
+        S.append(Paragraph(
+            f"<font color='#5A6172'>{tag}</font>&nbsp;&nbsp;<b>{title}</b>&nbsp;&nbsp;"
+            f"<font size='7.6' color='#6B7280'>{desc}</font>",
+            st("atch", fontSize=9.4, leading=12, spaceAfter=6)))
+        S.append(im)
+        S.append(Spacer(1, 2))
+        S.append(Paragraph(
+            f"<font size='6.8' color='#5A6172'>{tag} · rendered from the API response on the date printed in the "
+            f"board's footer · full-resolution file: docs/master/{board_path}</font>",
+            st("cap", fontSize=6.8, leading=8.6)))
+
+    S.append(NextPageTemplate("p"))
     # ---------- 13 ----------
     S.append(PageBreak())
     S.append(Paragraph("12. What to send to Amazon", H2))
@@ -850,7 +933,7 @@ def build(path):
         "(O=Ahmed Becetti, L=Chlef, C=DZ); the SHA-256 digest of the submitted binary, which GitHub publishes "
         "independently; the complete 34-commit history of the source repository; and the domains assigned to the "
         "project in my hosting account.\n\n"
-        "Section 10 lists commands that reproduce every value without credentials. Section 11 carries my "
+        "Section 10 lists commands that reproduce every value without credentials. Section 13 carries my "
         "signature and an attestation block for notarisation if you require it.\n\n"
         "Please tell me if you need the APK itself, a copy of my identity document, or access to the private "
         "repository for the second application.\n\n"
@@ -886,10 +969,10 @@ def build(path):
 
     S.append(Paragraph("Attachment checklist", H3))
     S.append(kv([
-        ("Always", "This dossier (NEXORA-and-GAMEVERSE-ownership-dossier.pdf) — it covers both cases."),
+        ("Always", "This dossier (NEXORA-and-GAMEVERSE-ownership-dossier.pdf) — 19 pages, both cases, with the visual evidence annex."),
         ("If asked", "The signed APK you actually submitted, so the digest can be compared in front of you."),
-        ("If asked", "A screenshot of the Vercel project's Domains panel, showing the hostnames in §5."),
-        ("If asked", "A screenshot of the GitHub repository page, showing the commit count in §6."),
+        ("If asked", "Annex A4 — the domain records from the Vercel API, with the raw response quoted."),
+        ("If asked", "Annex A2 — all 34 commits, or the live repository link in §3."),
         ("If asked", "A copy of your identity document, or a notarised copy of §13."),
         ("Never", "A licence agreement between you and yourself — it does not exist and inventing one would "
                   "damage the case."),
