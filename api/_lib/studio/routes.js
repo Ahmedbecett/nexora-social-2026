@@ -336,6 +336,22 @@ export function registerStudioRoutes({ route, authUser }) {
     };
   });
 
+  /* a deployment-level self check: public, but it only answers whether the
+     tokens are configured and accepted — never their value, and the account
+     identity only for a caller that knows STUDIO_HEALTH_KEY */
+  route('GET', 'studio/status', async ({ query }) => {
+    const key = process.env.STUDIO_HEALTH_KEY || '';
+    const given = (query && query.key) || '';
+    if (!key || given !== key) return { ok: true, service: 'studio' };
+    const probe = await deploy.connectionProbe();
+    return {
+      ok: probe.github.valid && probe.vercel.valid,
+      service: 'studio',
+      team: process.env.VERCEL_TEAM_ID || null,
+      ...probe,
+    };
+  });
+
   route('GET', 'studio/config', async ({ req }) => {
     const user = await studioAuth(req);
     const owner = ownerOf(user);

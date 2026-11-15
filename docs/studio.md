@@ -103,6 +103,7 @@
 | POST/DELETE | `/integrations/:provider` | ربط/فصل GitHub وVercel |
 | GET | `/workspace/:id/files` | ملفات مساحة العمل |
 | GET | `/integrations/github` · `/integrations/vercel` | الحساب الحقيقي + المستودعات/المشاريع |
+| GET | `/status?key=STUDIO_HEALTH_KEY` | فحص تشغيلي: هل التوكنات مضبوطة ومقبولة (بدون كشفها) |
 
 > بثّ الوكيل والطرفية يمرّ عبر `api/index.js` مباشرة (`studio/agent` و`studio/exec`)،
 > وبقية المسارات عبر `registerStudioRoutes` في `api/_lib/studio/routes.js`.

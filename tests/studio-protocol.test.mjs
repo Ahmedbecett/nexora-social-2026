@@ -107,3 +107,34 @@ test('edit prompt carries the file tree and the selected file, within the contex
   assert.match(ctx.text, /index\.html/);
   assert.equal(ctx.skipped >= 1, true);
 });
+
+test('the status probe never throws and reports missing tokens plainly', async () => {
+  const { connectionProbe } = await import('../api/_lib/studio/deploy.js');
+  const saved = {};
+  const names = ['GITHUB_STUDIO_TOKEN', 'GITHUB_TOKEN', 'GH_TOKEN', 'VERCEL_STUDIO_TOKEN', 'VERCEL_TOKEN', 'VERCEL_API_TOKEN'];
+  for (const n of names) { saved[n] = process.env[n]; delete process.env[n]; }
+  try {
+    const probe = await connectionProbe();
+    assert.deepEqual(Object.keys(probe).sort(), ['github', 'vercel']);
+    assert.equal(probe.github.configured, false);
+    assert.equal(probe.github.valid, false);
+    assert.match(probe.github.error, /no token configured/);
+    assert.equal(probe.vercel.configured, false);
+    assert.match(probe.vercel.error, /no token configured/);
+
+    /* with a token but no network/permission it degrades to a message, never a throw */
+    process.env.GITHUB_STUDIO_TOKEN = 'ghp_invalid_probe';
+    process.env.VERCEL_STUDIO_TOKEN = 'invalid-probe';
+    const probe2 = await connectionProbe();
+    assert.equal(probe2.github.configured, true);
+    assert.equal(probe2.github.valid, false);
+    assert.ok(probe2.github.error);
+    assert.equal(probe2.vercel.configured, true);
+    assert.equal(probe2.vercel.valid, false);
+  } finally {
+    for (const n of names) {
+      if (saved[n] === undefined) delete process.env[n];
+      else process.env[n] = saved[n];
+    }
+  }
+});
