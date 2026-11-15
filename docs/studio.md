@@ -153,6 +153,10 @@
 
 - **مشروع ثابت / React / TS**: يُبنى داخل المتصفح عبر `esbuild-wasm` مع استيراد React من
   `/studio/vendor/*` (لا شبكة، لا CDN). الناتج `srcDoc` يُحدَّث بعد كل حفظ.
+  ملفات `vendor` يولّدها `scripts/studio-vendor.mjs` من نسخة React المثبّتة، وتُصدِّر **نفس
+  الأسماء** التي يستوردها التطبيق (`useState`, `createRoot`, `jsx`…) لأن React يُشحن CommonJS
+  فقط. المولّد يفشل البناء إن نقص اسم، و`tests/studio-vendor.test.mjs` يركّب نفس رسم الوحدات
+  الذي يراه المتصفح (import map) ويرسم مكوّنًا حقيقيًا ويضغط زرًّا.
 - **مشروع خادم (Next.js/Express)**: يُشغَّل بخادم تطوير حقيقي ويُعرض `iframe` على رابطه؛
   وبدون بيئة تنفيذ تظهر التعليمات بدل شاشة بيضاء.
 - الملفات التي يستوردها المشروع ولا وجود لها تُعرض كتحذير، لا تختفي بصمت.
@@ -211,6 +215,7 @@ node --test tests/studio-agent-e2e.test.mjs  # وكيل SSE حقيقي + SQLite 
 node --test tests/studio-exec.test.mjs       # أوامر وخادم تطوير حقيقيان (8)
 node --test tests/studio-preview.test.mjs    # بناء المعاينة + ZIP (8)
 node --test tests/studio-ui.test.mjs         # الواجهة في DOM حقيقي (2)
+node --test tests/studio-vendor.test.mjs     # رسم React عبر import map (2)
 npm run smoke                                # المنتج كاملًا عبر HTTP حقيقي
 ```
 
