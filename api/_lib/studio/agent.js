@@ -64,12 +64,20 @@ Pick the smallest stack that satisfies the request. The "files" list must be the
   };
 }
 
-export function buildCreatePrompt({ project, plan, userMessage, missing = [], existingContext = true }) {
+export function buildCreatePrompt({ project, plan, userMessage, missing = [], existingContext = true, batch = 3 }) {
   const files = project.files || {};
   const ctx = existingContext && Object.keys(files).length
     ? pickContext(files, { maxChars: 24_000, prefer: [project.entry] }).text
     : '';
-  const missingList = missing.length ? missing.map((m) => `- ${m.path}${m.purpose ? ' — ' + m.purpose : ''}`).join('\n') : '';
+  /* One request never asks for the whole app: a serverless function has a hard
+     time limit, and a cut-off response used to lose every file. The next round
+     is requested by the client until nothing is missing. */
+  const thisTurn = missing.slice(0, batch);
+  const rest = missing.length - thisTurn.length;
+  const missingList = thisTurn.length
+    ? thisTurn.map((m) => `- ${m.path}${m.purpose ? ' — ' + m.purpose : ''}`).join('\n')
+      + (rest ? `\n(${rest} more file(s) are queued for the next request — do NOT write them now)` : '')
+    : '';
   return {
     instructions: STUDIO_SYSTEM,
     messages: [
@@ -86,9 +94,9 @@ Plan:
 ${JSON.stringify(plan || {}, null, 2)}
 
 ${ctx ? `Existing files (replace only when you output them again):\n${ctx}\n` : ''}
-${missingList ? `FILES STILL MISSING — output these now, and only these:\n${missingList}\n` : 'Write every file the project needs.'}
+${missingList ? `FILES TO WRITE IN THIS REQUEST — output these now, and only these:\n${missingList}\n` : 'Write the files the app still needs to run.'}
 
-Rules for this turn: 1–4 files maximum, each ONE complete file, smallest stack that works, no placeholder content. Stop after a complete file — the system will request the rest.`,
+Rules for this turn: at most ${Math.max(1, batch)} complete files, each ONE whole file, smallest stack that works, no placeholder content. Start with the entry point (index.html) so the preview can render immediately. Stop after these files — the system asks for the rest.`,
       },
     ],
   };

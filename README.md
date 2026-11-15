@@ -28,10 +28,10 @@
 - **الخادم:** `api/_lib/studio/` — تخزين (Neon Postgres أو SQLite) · بوابة نماذج (OpenAI,
   Gemini, Anthropic, OpenRouter, Groq, Cerebras, Mistral, DeepSeek, xAI, GitHub Models,
   وبوابة متوافقة) · وكيل يبثّ SSE · تنفيذ حقيقي (E2B أو محلي) · نشر GitHub/Vercel.
-- **الحلقة:** خطة ← إنشاء (جولات محدودة) ← تعديل، ببروتوكول وسوم مُختبَر، ومعاينة تُبنى من نفس
-  الملفات (esbuild-wasm داخل المتصفح أو خادم تطوير حقيقي).
+- **الحلقة:** خطة ← إنشاء بدفعات صغيرة مع **كتابة فورية** للملفات و**استئناف تلقائي** إن انقطع
+  الاتصال ← تعديل، ببروتوكول وسوم مُختبَر، ومعاينة تُبنى من نفس الملفات (esbuild-wasm أو خادم تطوير).
 - **التشغيل:** `npm run studio` · **فحص شامل حقيقي:** `npm run smoke` · **الدليل الكامل:** [`docs/studio.md`](docs/studio.md)
-- **الاختبارات:** 30 اختبارًا جديدًا لـ Studio (`protocol`, `agent-e2e`, `exec`, `preview`, `ui`, `vendor`)
+- **الاختبارات:** 32 اختبارًا جديدًا لـ Studio (`protocol`, `agent-e2e`, `exec`, `preview`, `ui`, `vendor`)
   ضمن `npm test`.
 
 ---

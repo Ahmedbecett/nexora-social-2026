@@ -21,7 +21,9 @@ const deriveName = (text) => {
   return t.slice(0, 52);
 };
 
-const MAX_AGENT_ROUNDS = 6;
+const MAX_AGENT_ROUNDS = 12;
+const INTERRUPT_RETRIES = 3;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function StudioProvider({ children }) {
   /* ------------------------------- session ------------------------------- */
@@ -53,7 +55,8 @@ export function StudioProvider({ children }) {
   const [toast, setToast] = useState(null);
 
   /* -------------------------------- agent -------------------------------- */
-  const [agent, setAgent] = useState({ running: false, step: null, round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false });
+  const [agent, setAgent] = useState({ running: false, step: null, round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false, interrupted: false, pending: 0, lastNotes: [] });
+  const [accounts, setAccounts] = useState({ github: null, vercel: null });
 
   /* ------------------------------- terminal ------------------------------ */
   const [terminal, setTerminal] = useState({ running: false, logs: '', kind: null, command: '', runId: null, exitCode: null, durationMs: null, engine: null, error: null });
@@ -98,7 +101,7 @@ export function StudioProvider({ children }) {
       setDirty({});
       setActiveFile(p.entry && p.files?.[p.entry] !== undefined ? p.entry : (Object.keys(p.files || {})[0] || null));
       setOpenFiles(p.entry && p.files?.[p.entry] !== undefined ? [p.entry] : Object.keys(p.files || {}).slice(0, 1));
-      setAgent({ running: false, step: null, round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false });
+      setAgent({ running: false, step: null, round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false, interrupted: false, pending: 0, lastNotes: [] });
       setTerminal({ running: false, logs: '', kind: null, command: '', runId: null, exitCode: null, durationMs: null, engine: null, error: null });
       setDevServer({ running: false, url: null, ready: false, starting: false, engine: null, logs: '', error: null });
       setConsoleEntries([]);
@@ -111,6 +114,15 @@ export function StudioProvider({ children }) {
     }
   }, [notify]);
 
+  const loadAccounts = useCallback(async () => {
+    const [github, vercel] = await Promise.all([
+      request('studio/integrations/github', { timeout: 30_000 }).catch(() => null),
+      request('studio/integrations/vercel', { timeout: 30_000 }).catch(() => null),
+    ]);
+    setAccounts({ github, vercel });
+    return { github, vercel };
+  }, []);
+
   const boot = useCallback(async () => {
     setBooting(true);
     setBootError(null);
@@ -119,6 +131,7 @@ export function StudioProvider({ children }) {
       setSession(s);
       if (!s.authenticated) { setBootError({ code: 'unauthorized' }); return; }
       if (s.error === 'storage_unavailable') { setBootError({ code: 'storage_unavailable', detail: s.storage?.error }); return; }
+      loadAccounts().catch(() => {});
       const list = await loadProjects();
       const last = Number(localStorage.getItem(LAST_PROJECT)) || 0;
       const target = list.find((p) => p.id === last) || list[0];
@@ -128,7 +141,7 @@ export function StudioProvider({ children }) {
     } finally {
       setBooting(false);
     }
-  }, [loadProjects, openProject]);
+  }, [loadAccounts, loadProjects, openProject]);
 
   useEffect(() => { boot(); }, [boot]);
 
@@ -154,7 +167,7 @@ export function StudioProvider({ children }) {
     setActiveFile(null);
     setDirty({});
     if (!keepAgent) {
-      setAgent({ running: false, step: null, round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false });
+      setAgent({ running: false, step: null, round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false, interrupted: false, pending: 0, lastNotes: [] });
     }
     localStorage.setItem(LAST_PROJECT, String(p.id));
     return p;
@@ -376,8 +389,48 @@ export function StudioProvider({ children }) {
       );
       throw err;
     }
-    return done;
+    /* The stream ended without a `done` frame: the function was cut off (host
+       time limit, proxy, dropped network). The files that already streamed were
+       saved server-side, so this is resumable — not a success and not a crash. */
+    return { done, interrupted: !done };
   }, [applyAgentEvent]);
+
+  /**
+   * Runs create/continue rounds until the plan is complete. Each round is one
+   * request, so nothing depends on a single long-lived connection; an
+   * interrupted round is retried from the files that already exist.
+   */
+  const buildUntilComplete = useCallback(async ({ projectId, message, planFiles = [], onRound }) => {
+    let missing = Array.isArray(planFiles) && planFiles.length
+      ? planFiles.filter((path) => !(path in stateRef.current.files))
+      : [];
+    let interrupted = 0;
+    let round = 0;
+    let lastInterrupted = false;
+    while (round < MAX_AGENT_ROUNDS && (missing.length || round === 0)) {
+      round += 1;
+      const mode = round === 1 ? 'create' : 'continue';
+      if (onRound) onRound({ round, missing: missing.length, mode });
+      const res = await runAgent({ mode, message, projectId });
+      if (res.interrupted) {
+        lastInterrupted = true;
+        interrupted += 1;
+        setAgent((a) => ({ ...a, interrupted: true, pending: missing.length, running: true }));
+        if (interrupted >= INTERRUPT_RETRIES) break;
+        await wait(700);
+        round -= 1;                       // the same batch is retried
+        continue;
+      }
+      const done = res.done || {};
+      const remaining = Array.isArray(done.missing) ? done.missing : missing;
+      const progress = (done.changed || []).length;
+      missing = remaining;
+      if (progress === 0 && remaining.length >= missing.length) break;
+      if (!missing.length) break;
+    }
+    setAgent((a) => ({ ...a, interrupted: lastInterrupted && missing.length > 0, pending: missing.length }));
+    return { missing, interrupted: lastInterrupted };
+  }, [runAgent]);
 
   const stopAgent = useCallback(() => {
     try { abortRef.current?.abort(); } catch { /* already */ }
@@ -416,16 +469,25 @@ export function StudioProvider({ children }) {
       }
       if (empty) {
         const planRes = await runAgent({ mode: 'plan', message: text, projectId: p.id });
-        let missing = planRes?.missing?.length
-          ? planRes.missing
-          : (planRes?.plan?.files || []).map((f) => f.path);
-        for (let round = 0; round < MAX_AGENT_ROUNDS && missing.length; round += 1) {
-          setAgent((a) => ({ ...a, running: true, step: 'create', round: round + 1 }));
-          const res = await runAgent({ mode: 'create', message: text, projectId: p.id });
-          missing = res?.missing || [];
-          if (!res?.changed?.length) break;
+        const planFiles = (planRes.done?.missing?.length
+          ? planRes.done.missing
+          : (planRes.done?.plan?.files || planRes.done?.project?.plan?.files || []).map((f) => f.path));
+        if (planRes.interrupted && !planFiles.length) {
+          throw new StudioApiError('run_interrupted', 0, 'the plan was cut off — press Continue build to resume');
         }
-        if (missing.length) pushActivity({ kind: 'note', text: `${missing.length} file(s) still missing` });
+        const built = await buildUntilComplete({
+          projectId: p.id,
+          message: text,
+          planFiles,
+          onRound: ({ round, missing }) => {
+            setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round }));
+            if (missing) pushActivity({ kind: 'note', text: `round ${round} · ${missing} file(s) queued` });
+          },
+        });
+        if (built.missing.length) {
+          pushActivity({ kind: 'note', text: `${built.missing.length} file(s) still missing` });
+          if (built.interrupted) notify('The connection was cut — work is saved, press Continue build', 'warn');
+        }
       } else {
         setAgent((a) => ({ ...a, running: true, step: 'edit' }));
         await runAgent({ mode: 'edit', message: text, selectedFile: stateRef.current.activeFile || '', projectId: p.id });
@@ -450,7 +512,7 @@ export function StudioProvider({ children }) {
       setAgent((a) => ({ ...a, running: false }));
       loadProjects().catch(() => {});
     }
-  }, [appendLocalError, appendLocalUser, createProject, loadProjects, pushActivity, runAgent]);
+  }, [appendLocalError, appendLocalUser, buildUntilComplete, createProject, loadProjects, notify, pushActivity, runAgent]);
 
   const fixWithAI = useCallback(async (logs) => {
     const p = stateRef.current.project;
@@ -458,7 +520,8 @@ export function StudioProvider({ children }) {
     abortRef.current = new AbortController();
     setAgent((a) => ({ ...a, running: true, step: 'fix', activity: [], error: null }));
     try {
-      await runAgent({ mode: 'fix', logs, message: 'Fix the failure shown in the terminal output.', projectId: p.id });
+      const fix = await runAgent({ mode: 'fix', logs, message: 'Fix the failure shown in the terminal output.', projectId: p.id });
+      if (fix.interrupted) notify('The fix was cut off — check the terminal and try again', 'warn');
       setPreviewNonce((n) => n + 1);
       setTab('preview');
     } catch (e) {
@@ -531,6 +594,40 @@ export function StudioProvider({ children }) {
     setConsoleEntries((prev) => [...prev.slice(-120), entry]);
   }, []);
 
+  /**
+   * Continue a build that was cut off (serverless time limit, closed tab,
+   * dropped connection). Everything already streamed is on the server, so this
+   * simply asks for the remaining files again.
+   */
+  const resumeBuild = useCallback(async () => {
+    const p = stateRef.current.project;
+    if (!p || stateRef.current.agent.running) return null;
+    const planFiles = (p.plan?.files || []).map((f) => f.path);
+    abortRef.current = new AbortController();
+    setAgent((a) => ({ ...a, running: true, step: 'continue', error: null, interrupted: false }));
+    try {
+      const built = await buildUntilComplete({
+        projectId: p.id,
+        message: p.description || 'Continue building the project until every planned file exists.',
+        planFiles,
+        onRound: ({ round, missing }) => {
+          setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round }));
+          if (missing) pushActivity({ kind: 'note', text: `round ${round} · ${missing} file(s) queued` });
+        },
+      });
+      setPreviewNonce((n) => n + 1);
+      if (!built.missing.length) notify('Build complete', 'ok');
+      else if (!built.interrupted) notify(`${built.missing.length} file(s) still missing`, 'warn');
+      await loadProjects().catch(() => {});
+      return built;
+    } catch (e) {
+      if (e.code !== 'aborted') setAgent((a) => ({ ...a, error: e.detail || e.code }));
+      return null;
+    } finally {
+      setAgent((a) => ({ ...a, running: false }));
+    }
+  }, [buildUntilComplete, loadProjects, notify, pushActivity]);
+
   /* ================================ deploy ================================ */
   const deployVercel = useCallback(async () => {
     const p = stateRef.current.project;
@@ -539,6 +636,18 @@ export function StudioProvider({ children }) {
       const data = await request(`studio/projects/${p.id}/deploy/vercel`, { method: 'POST', body: { name: p.name }, timeout: 90_000 });
       setDeployments((prev) => [data.deployment, ...prev]);
       notify('Deployment queued on Vercel');
+      const id = data.deployment?.id;
+      if (id) {
+        for (let i = 0; i < 20; i += 1) {
+          await wait(3000);
+          let state = null;
+          try { state = await request(`studio/deploy/vercel/${encodeURIComponent(id)}`, { timeout: 25_000 }); }
+          catch { break; }
+          setDeployments((prev) => prev.map((d) => (d.id === id ? { ...d, state: state.state, url: state.url || d.url } : d)));
+          if (state.state === 'READY') { notify(`Live: ${state.url || data.deployment.url}`, 'ok'); break; }
+          if (state.state === 'ERROR' || state.state === 'CANCELED') { notify(`Vercel build ${state.state.toLowerCase()}`, 'error'); break; }
+        }
+      }
       return data.deployment;
     } catch (e) {
       if (e.code === 'vercel_not_connected') { setSettingsOpen(true); notify('Connect Vercel first', 'warn'); }
@@ -580,12 +689,14 @@ export function StudioProvider({ children }) {
   const connectIntegration = useCallback(async (provider, token) => {
     const data = await request(`studio/integrations/${provider}`, { method: 'POST', body: { token }, timeout: 40_000 });
     await refreshSession();
+    loadAccounts().catch(() => {});
     return data;
   }, [refreshSession]);
 
   const disconnectIntegration = useCallback(async (provider) => {
     await request(`studio/integrations/${provider}`, { method: 'DELETE', timeout: 20_000 });
     await refreshSession();
+    setAccounts((a) => ({ ...a, [provider]: { connected: false } }));
   }, [refreshSession]);
 
   /* ------------------------------- shortcuts ------------------------------ */
@@ -617,7 +728,8 @@ export function StudioProvider({ children }) {
     consoleEntries, logConsole,
     createProject, openProject, deleteProject, renameProject, loadProjects,
     writeFile, addFile, removeFile, renameFile, saveNow, restoreRevision, persistFiles,
-    send, stopAgent, fixWithAI, runTerminal, clearTerminal,
+    send, stopAgent, fixWithAI, resumeBuild, runTerminal, clearTerminal,
+    accounts, loadAccounts,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   }), [
     session, booting, bootError, boot, refreshSession, projects, project, messages, revisions, deployments, files,

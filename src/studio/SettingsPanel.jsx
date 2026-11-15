@@ -62,7 +62,7 @@ function ProviderRow({ p, onSave, onRemove, onTest }) {
 export default function SettingsPanel() {
   const {
     settingsOpen, setSettingsOpen, session, saveKey, removeKey, testModel,
-    connectIntegration, disconnectIntegration, notify,
+    connectIntegration, disconnectIntegration, notify, accounts, loadAccounts,
   } = useStudio();
   const [tab, setTab] = useState('models');
   const [tokens, setTokens] = useState({ github: '', vercel: '' });
@@ -125,13 +125,15 @@ export default function SettingsPanel() {
           {tab === 'integrations' && (
             <>
               {['github', 'vercel'].map((provider) => {
-                const st = session?.integrations?.[provider] || { connected: false };
+                const st = accounts[provider] || session?.integrations?.[provider] || { connected: false };
                 return (
                   <div className="nxs-card" key={provider}>
                     <h4>
                       <IconPlug size={13} /> {provider === 'github' ? 'GitHub' : 'Vercel'}
                       <span className={`nxs-chip ${st.connected ? 'ok' : 'warn'}`} style={{ marginInlineStart: 'auto' }}>
-                        {st.connected ? `connected${st.login ? ` · ${st.login}` : st.username ? ` · ${st.username}` : ''}` : 'not connected'}
+                        {st.connected
+                          ? `connected · ${st.login || st.username || 'account'}${st.source === 'server' ? ' (deployment key)' : ''}`
+                          : (st.error || 'not connected')}
                       </span>
                     </h4>
                     <p>
@@ -140,7 +142,18 @@ export default function SettingsPanel() {
                         : 'Used to deploy the project and return a live URL.'}
                     </p>
                     {st.connected ? (
-                      <button className="nxs-btn sm" onClick={() => disconnectIntegration(provider)}>Disconnect</button>
+                      <div className="row">
+                        <button className="nxs-btn sm" onClick={() => loadAccounts().then(() => notify('Connection verified', 'ok')).catch((e) => notify(e.detail || e.code, 'error'))}>
+                          Verify now
+                        </button>
+                        <button className="nxs-btn ghost sm" onClick={() => disconnectIntegration(provider)}>Disconnect</button>
+                        {provider === 'github' && Array.isArray(st.repos) && (
+                          <span className="nxs-faint" style={{ fontSize: 11 }}>{st.repos.length} recent repos reachable</span>
+                        )}
+                        {provider === 'vercel' && Array.isArray(st.projects) && (
+                          <span className="nxs-faint" style={{ fontSize: 11 }}>{st.projects.length} projects reachable</span>
+                        )}
+                      </div>
                     ) : (
                       <div className="nxs-key-form">
                         <input

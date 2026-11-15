@@ -42,7 +42,9 @@ export default function DeployPanel() {
   const {
     project, files, deployments, revisions, session, deployVercel, pushGithub,
     connectIntegration, disconnectIntegration, restoreRevision, notify,
+    accounts, loadAccounts,
   } = useStudio();
+  const [verifying, setVerifying] = useState(null);
   const [repo, setRepo] = useState('');
   const [isPrivate, setIsPrivate] = useState(true);
   const [deploying, setDeploying] = useState(false);
@@ -50,8 +52,14 @@ export default function DeployPanel() {
   const [lastVercel, setLastVercel] = useState(null);
   const [lastGit, setLastGit] = useState(null);
 
-  const github = session?.integrations?.github || { connected: false };
-  const vercel = session?.integrations?.vercel || { connected: false };
+  const github = accounts.github || session?.integrations?.github || { connected: false };
+  const vercel = accounts.vercel || session?.integrations?.vercel || { connected: false };
+  const verify = async (provider) => {
+    setVerifying(provider);
+    try { await loadAccounts(); notify(`${provider} connection checked`, 'ok'); }
+    catch (e) { notify(`${provider}: ${e.detail || e.code}`, 'error'); }
+    finally { setVerifying(null); }
+  };
   const fileCount = Object.keys(files || {}).length;
 
   const exportZip = () => {
@@ -84,10 +92,28 @@ export default function DeployPanel() {
       <div className="nxs-card">
         <h4><IconRocket size={14} style={{ color: 'var(--violet-2)' }} /> Vercel
           <span className={`nxs-chip ${vercel.connected ? 'ok' : 'warn'}`} style={{ marginInlineStart: 'auto' }}>
-            {vercel.connected ? `connected${vercel.username ? ` · ${vercel.username}` : ''}` : 'not connected'}
+            {vercel.connected ? `connected${vercel.username ? ` · ${vercel.username}` : ''}` : (vercel.error || 'not connected')}
           </span>
         </h4>
         <p>Ship the project to a real URL. Static files are served directly; React/Vite projects are built by Vercel.</p>
+        {vercel.connected && (
+          <div className="nxs-result" style={{ marginTop: 0 }}>
+            <div>
+              account: <b>{vercel.username || 'vercel'}</b>{vercel.source ? ` · key from ${vercel.source === 'server' ? 'this deployment' : 'your account'}` : ''}
+              {vercel.team ? ` · team ${vercel.team}` : ''}
+              <button className="nxs-btn ghost sm" style={{ marginInlineStart: 8 }} onClick={() => verify('vercel')} disabled={verifying === 'vercel'}>
+                <IconRefresh size={10} /> {verifying === 'vercel' ? 'checking…' : 're-check'}
+              </button>
+            </div>
+            {Array.isArray(vercel.projects) && vercel.projects.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                projects: {vercel.projects.slice(0, 4).map((p) => (
+                  <a key={p.id} href={p.url || '#'} target="_blank" rel="noreferrer" className="nxs-chip" style={{ marginInlineEnd: 4 }}>{p.name}</a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {vercel.connected ? (
           <>
             <div className="row">
@@ -113,10 +139,35 @@ export default function DeployPanel() {
       <div className="nxs-card">
         <h4><IconGit size={14} style={{ color: 'var(--violet-2)' }} /> GitHub
           <span className={`nxs-chip ${github.connected ? 'ok' : 'warn'}`} style={{ marginInlineStart: 'auto' }}>
-            {github.connected ? `connected · ${github.login}` : 'not connected'}
+            {github.connected ? `connected · ${github.login}` : (github.error || 'not connected')}
           </span>
         </h4>
         <p>Create a repository and push every file as one commit, so the project lives in version control.</p>
+        {github.connected && (
+          <div className="nxs-result" style={{ marginTop: 0 }}>
+            <div>
+              account: <b>{github.login}</b>{github.source ? ` · key from ${github.source === 'server' ? 'this deployment' : 'your account'}` : ''}
+              <button className="nxs-btn ghost sm" style={{ marginInlineStart: 8 }} onClick={() => verify('github')} disabled={verifying === 'github'}>
+                <IconRefresh size={10} /> {verifying === 'github' ? 'checking…' : 're-check'}
+              </button>
+            </div>
+            {Array.isArray(github.repos) && github.repos.length > 0 && (
+              <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                <span className="nxs-faint" style={{ fontSize: 11 }}>push into an existing repo:</span>
+                {github.repos.slice(0, 6).map((r) => (
+                  <button
+                    key={r.name}
+                    className="nxs-chip"
+                    title={`${r.private ? 'private' : 'public'} · ${r.defaultBranch}`}
+                    onClick={() => { setRepo(r.name.split('/')[1]); }}
+                  >
+                    {r.name.split('/')[1]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {github.connected ? (
           <>
             <div className="row">
