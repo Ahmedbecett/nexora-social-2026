@@ -741,6 +741,52 @@ export function StudioProvider({ children }) {
   }, [buildUntilComplete, loadProjects, notify, pushActivity]);
 
   /* ================================ deploy ================================ */
+  /* --------------------------- git repositories --------------------------- */
+  /** Opens a real GitHub repository as a Studio project (files, stack, entry). */
+  const importRepo = useCallback(async ({ repo, ref, name } = {}) => {
+    const data = await request('studio/repos/import', {
+      method: 'POST',
+      body: { repo, ref: ref || '', name: name || '' },
+      timeout: 180_000,
+    });
+    setProject(data.project);
+    setFiles(data.project.files || {});
+    setMessages([]);
+    setRevisions([]);
+    setDeployments([]);
+    setDirty({});
+    setProjects((prev) => [data.project, ...prev.filter((p) => p.id !== data.project.id)]);
+    try { localStorage.setItem(LAST_PROJECT, String(data.project.id)); } catch { /* private mode */ }
+    setActiveFile(data.project.entry || Object.keys(data.project.files || {})[0] || null);
+    setTab('preview');
+    notify(`Imported ${data.repo.imported} files from ${data.repo.full}`, 'ok');
+    loadProjects().catch(() => {});
+    return data;
+  }, [loadProjects, notify]);
+
+  /** Commits the project to a branch of an existing repository, optionally as a PR. */
+  const pushBranch = useCallback(async ({ repo, branch = '', base = '', message = '', pr = true } = {}) => {
+    const p = stateRef.current.project;
+    if (!p) return null;
+    const data = await request('studio/repos/push', {
+      method: 'POST',
+      body: { projectId: p.id, repo, branch, base, message, pr },
+      timeout: 180_000,
+    });
+    setDeployments((prev) => [{
+      id: data.deployment?.id || Date.now(),
+      provider: 'github',
+      status: data.pull ? 'pr_open' : 'ready',
+      url: data.pull?.url || data.url,
+      createdAt: new Date().toISOString(),
+    }, ...prev]);
+    notify(
+      data.pull ? `Pull request #${data.pull.number} opened on ${data.repo}` : `Pushed ${data.files} files to ${data.repo}@${data.branch}`,
+      'ok',
+    );
+    return data;
+  }, [notify]);
+
   const deployVercel = useCallback(async () => {
     const p = stateRef.current.project;
     if (!p) return null;
@@ -843,6 +889,7 @@ export function StudioProvider({ children }) {
     send, stopAgent, fixWithAI, resumeBuild, runTerminal, clearTerminal,
     accounts, loadAccounts,
     buildMode, setBuildMode, BUILD_MODES,
+    importRepo, pushBranch,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   }), [
     session, booting, bootError, boot, refreshSession, projects, project, messages, revisions, deployments, files,
@@ -850,7 +897,7 @@ export function StudioProvider({ children }) {
     previewMode, switchPreview, devServer, startDev, stopDev, previewNonce, consoleEntries, logConsole,
     createProject, openProject, deleteProject, renameProject, loadProjects, writeFile, addFile, removeFile, renameFile,
     saveNow, restoreRevision, persistFiles, send, stopAgent, fixWithAI, runTerminal, clearTerminal,
-    buildMode, setBuildMode,
+    buildMode, setBuildMode, importRepo, pushBranch,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   ]);
 

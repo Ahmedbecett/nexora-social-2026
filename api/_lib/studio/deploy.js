@@ -358,3 +358,159 @@ export async function connectionProbe() {
 
   return out;
 }
+
+
+/* ----------------------- read and write real repositories ----------------- */
+/** Files worth importing: source, not build output or binaries. */
+const SKIP_DIRS = /(^|\/)(node_modules|dist|build|\.next|\.git|\.venv|vendor|coverage|out)(\/|$)/i;
+const SKIP_FILES = /(\.(png|jpe?g|gif|webp|ico|bmp|tiff|psd|ai|sketch|fig|woff2?|ttf|otf|eot|mp[34]|wav|ogg|webm|mov|zip|gz|tar|rar|7z|pdf|exe|dll|so|dylib|class|jar|wasm|map|lock)|(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb))$/i;
+
+/**
+ * The repository tree, filtered down to what the editor can actually work on.
+ * Returns the kept paths plus honest counts of what was left out.
+ */
+export function filterRepoTree(entries = [], { maxFiles = 120, maxBytes = 400_000, totalBytes = 2_400_000 } = {}) {
+  const kept = [];
+  const skipped = { directories: 0, binary: 0, tooBig: 0, overLimit: 0 };
+  let total = 0;
+  for (const entry of entries) {
+    if (!entry || entry.type !== 'blob' || typeof entry.path !== 'string') { skipped.directories += 1; continue; }
+    if (SKIP_DIRS.test(entry.path) || SKIP_FILES.test(entry.path)) { skipped.binary += 1; continue; }
+    if (Number(entry.size || 0) > maxBytes) { skipped.tooBig += 1; continue; }
+    if (kept.length >= maxFiles || total + Number(entry.size || 0) > totalBytes) { skipped.overLimit += 1; continue; }
+    total += Number(entry.size || 0);
+    kept.push({ path: entry.path, sha: entry.sha, size: Number(entry.size || 0) });
+  }
+  return { kept, skipped, bytes: total };
+}
+
+/**
+ * Open an existing repository as a Studio project: the tree is read from the
+ * GitHub API and each kept file is downloaded, so editing really continues the
+ * repository instead of copying a screenshot of it.
+ */
+export async function githubImport(ownerId, { repo, ref } = {}) {
+  const auth = await githubToken(ownerId);
+  if (!auth) throw new StudioError(400, 'github_not_connected', 'connect a GitHub token in Studio settings');
+  const full = String(repo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '');
+  if (!/^[\w.-]+\/[\w.-]+$/.test(full)) throw new StudioError(400, 'github_repo_invalid', 'pick a repository as owner/name');
+
+  const info = await gh(auth.token, `/repos/${full}`);
+  if (!info.ok) throw new StudioError(info.status === 404 ? 404 : 502, 'github_repo_failed', info.data?.message || `repository ${full} is not reachable (${info.status})`);
+  const branch = ref || info.data.default_branch || 'main';
+
+  const treeRes = await gh(auth.token, `/repos/${full}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
+  if (!treeRes.ok) throw new StudioError(502, 'github_tree_failed', treeRes.data?.message || String(treeRes.status));
+  if (treeRes.data?.truncated) { /* GitHub caps very large trees; we read what it returned */ }
+  const { kept, skipped, bytes } = filterRepoTree(treeRes.data?.tree || []);
+  if (!kept.length) throw new StudioError(400, 'github_repo_empty', 'no editable files were found on that branch');
+
+  const files = {};
+  const failed = [];
+  for (const entry of kept) {
+    const blob = await gh(auth.token, `/repos/${full}/git/blobs/${entry.sha}`);
+    if (!blob.ok) { failed.push(entry.path); continue; }
+    const content = blob.data?.content || '';
+    files[entry.path] = blob.data?.encoding === 'base64'
+      ? Buffer.from(content, 'base64').toString('utf8')
+      : String(content);
+  }
+  if (!Object.keys(files).length) throw new StudioError(502, 'github_import_failed', 'the repository content could not be downloaded');
+
+  return {
+    provider: 'github',
+    repo: full,
+    ref: branch,
+    private: Boolean(info.data.private),
+    defaultBranch: info.data.default_branch || 'main',
+    files,
+    imported: Object.keys(files).length,
+    skipped,
+    failed,
+    bytes,
+    account: auth.source,
+  };
+}
+
+/**
+ * Commit the project to a repository and, when asked, open a pull request —
+ * the same flow a person uses: branch from base, one commit, one PR.
+ */
+export async function githubPushBranch(ownerId, { repo, files, branch = '', base = '', message = 'NEXORA Studio: update project', pr = true } = {}) {
+  const auth = await githubToken(ownerId);
+  if (!auth) throw new StudioError(400, 'github_not_connected', 'connect a GitHub token in Studio settings');
+  const full = String(repo || '').trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(full)) throw new StudioError(400, 'github_repo_invalid', 'choose a repository as owner/name');
+
+  const safeFiles = sanitizeFiles(files, { maxFiles: 120, maxFileBytes: 400_000, maxTotalBytes: 2_000_000 });
+  const paths = Object.keys(safeFiles);
+  if (!paths.length) throw new StudioError(400, 'files_required');
+
+  const info = await gh(auth.token, `/repos/${full}`);
+  if (!info.ok) throw new StudioError(404, 'github_repo_failed', info.data?.message || `repository ${full} is not reachable`);
+  const baseBranch = base || info.data.default_branch || 'main';
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  const head = branch || `nexora/${stamp}`;
+
+  /* base commit */
+  const baseRef = await gh(auth.token, `/repos/${full}/git/ref/heads/${baseBranch}`);
+  if (!baseRef.ok) throw new StudioError(502, 'github_ref_failed', `cannot read ${baseBranch}`);
+  const baseSha = baseRef.data?.object?.sha;
+
+  /* an existing branch continues from its own head */
+  let parentSha = baseSha;
+  const existing = await gh(auth.token, `/repos/${full}/git/ref/heads/${head}`);
+  if (existing.ok) parentSha = existing.data?.object?.sha;
+
+  const tree = [];
+  for (const path of paths.slice(0, 120)) {
+    const blob = await gh(auth.token, `/repos/${full}/git/blobs`, {
+      method: 'POST',
+      body: { content: safeFiles[path], encoding: 'utf-8' },
+    });
+    if (!blob.ok) throw new StudioError(502, 'github_blob_failed', `${path}: ${blob.data?.message || blob.status}`);
+    tree.push({ path, mode: '100644', type: 'blob', sha: blob.data.sha });
+  }
+
+  const newTree = await gh(auth.token, `/repos/${full}/git/trees`, { method: 'POST', body: { tree, ...(parentSha ? { base_tree: parentSha } : {}) } });
+  if (!newTree.ok) throw new StudioError(502, 'github_tree_failed', newTree.data?.message || String(newTree.status));
+
+  const commit = await gh(auth.token, `/repos/${full}/git/commits`, {
+    method: 'POST',
+    body: { message, tree: newTree.data.sha, parents: parentSha ? [parentSha] : [] },
+  });
+  if (!commit.ok) throw new StudioError(502, 'github_commit_failed', commit.data?.message || String(commit.status));
+
+  const moved = existing.ok
+    ? await gh(auth.token, `/repos/${full}/git/refs/heads/${head}`, { method: 'PATCH', body: { sha: commit.data.sha, force: true } })
+    : await gh(auth.token, `/repos/${full}/git/refs`, { method: 'POST', body: { ref: `refs/heads/${head}`, sha: commit.data.sha } });
+  if (!moved.ok) throw new StudioError(502, 'github_ref_failed', moved.data?.message || String(moved.status));
+
+  let pull = null;
+  if (pr && head !== baseBranch) {
+    const open = await gh(auth.token, `/repos/${full}/pulls`, {
+      method: 'POST',
+      body: {
+        title: message.slice(0, 120),
+        head,
+        base: baseBranch,
+        body: 'Generated from NEXORA Studio.',
+      },
+    });
+    if (open.ok) pull = { number: open.data.number, url: open.data.html_url };
+    else if (open.status !== 422) pull = { error: open.data?.message || `HTTP ${open.status}` };
+    /* 422 means "a pull request already exists" — not a failure of the push */
+  }
+
+  return {
+    provider: 'github',
+    repo: full,
+    branch: head,
+    base: baseBranch,
+    commitSha: commit.data.sha,
+    commitUrl: commit.data.html_url,
+    url: `https://github.com/${full}`,
+    pull,
+    files: tree.length,
+  };
+}

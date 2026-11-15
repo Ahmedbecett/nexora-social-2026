@@ -520,6 +520,68 @@ export function registerStudioRoutes({ route, authUser }) {
   route('GET', 'studio/integrations/github', async ({ req }) => deploy.githubAccount(await auth(req)));
   route('GET', 'studio/integrations/vercel', async ({ req }) => deploy.vercelAccount(await auth(req)));
 
+  /* --------------------------- real repositories -------------------------- */
+  /* open an existing GitHub repository as a project, and commit back to it */
+  route('POST', 'studio/repos/import', async ({ req, body }) => {
+    const owner = await auth(req);
+    const imported = await deploy.githubImport(owner, { repo: body.repo, ref: body.ref });
+    const name = String(body.name || imported.repo.split('/')[1] || 'imported repo').slice(0, 60);
+    const created = await createProject(owner, { name });
+    const stack = detectStack(imported.files);
+    const entry = guessEntry(imported.files, stack);
+    const project = await updateProject(owner, created.id, {
+      files: imported.files,
+      stack,
+      entry,
+      status: 'ready',
+      description: `Imported from ${imported.repo}@${imported.ref}`.slice(0, 200),
+    });
+    await addDeployment(owner, project.id, {
+      provider: 'github',
+      status: 'imported',
+      url: `https://github.com/${imported.repo}`,
+      meta: { repo: imported.repo, ref: imported.ref, imported: imported.imported, skipped: imported.skipped },
+    });
+    try { await addRevision(owner, project.id, project.files, `imported ${imported.repo}`); } catch { /* a restore point is nice, not required */ }
+    return {
+      project: projectPayload(project),
+      repo: {
+        full: imported.repo,
+        ref: imported.ref,
+        private: imported.private,
+        imported: imported.imported,
+        skipped: imported.skipped,
+        failed: imported.failed,
+      },
+    };
+  });
+
+  route('POST', 'studio/repos/push', async ({ req, body }) => {
+    const owner = await auth(req);
+    const project = await getProject(owner, Number(body.projectId));
+    const record = await addDeployment(owner, project.id, { provider: 'github', status: 'pushing' });
+    try {
+      const result = await deploy.githubPushBranch(owner, {
+        repo: body.repo,
+        files: project.files,
+        branch: body.branch || '',
+        base: body.base || '',
+        message: String(body.message || `NEXORA Studio: ${project.name}`).slice(0, 200),
+        pr: body.pr !== false,
+      });
+      await updateDeployment(owner, record.id, {
+        status: result.pull ? 'pr_open' : 'ready',
+        url: result.pull?.url || result.url,
+        externalId: result.commitSha,
+        meta: result,
+      });
+      return { ...result, deployment: { ...record, url: result.pull?.url || result.url, status: result.pull ? 'pr_open' : 'ready' } };
+    } catch (e) {
+      await updateDeployment(owner, record.id, { status: 'failed', meta: { error: e.detail || e.message } });
+      throw e;
+    }
+  });
+
   route('POST', 'studio/integrations/:provider', async ({ req, params, body }) => {
     const owner = await auth(req);
     const provider = params.provider;

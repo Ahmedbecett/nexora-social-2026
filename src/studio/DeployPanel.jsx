@@ -42,9 +42,43 @@ export default function DeployPanel() {
   const {
     project, files, deployments, revisions, session, deployVercel, pushGithub,
     connectIntegration, disconnectIntegration, restoreRevision, notify,
-    accounts, loadAccounts,
+    accounts, loadAccounts, importRepo, pushBranch, openProject,
   } = useStudio();
   const [verifying, setVerifying] = useState(null);
+  const [branch, setBranch] = useState('');
+  const [base, setBase] = useState('');
+  const [asPr, setAsPr] = useState(true);
+  const [busyRepo, setBusyRepo] = useState(null);
+
+  const openRepository = async (fullName) => {
+    if (!fullName || busyRepo) return;
+    setBusyRepo(fullName);
+    try {
+      const data = await importRepo({ repo: fullName });
+      notify(`Opened ${data.repo.full} — ${data.repo.imported} files`, 'ok');
+    } catch (e) {
+      notify(`Import failed: ${e.detail || e.code}`, 'error');
+    } finally {
+      setBusyRepo(null);
+    }
+  };
+
+  const commitAndPr = async () => {
+    const target = (repo || '').trim() || (project?.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    if (!/^[\w.-]+\/[\w.-]+$/.test(target) && !github.repos?.length) {
+      notify('Type the repository as owner/name', 'warn');
+      return;
+    }
+    setBusyRepo('push');
+    try {
+      await pushBranch({ repo: target, branch: branch.trim(), base: base.trim(), pr: asPr });
+      setBranch('');
+    } catch (e) {
+      notify(`Push failed: ${e.detail || e.code}`, 'error');
+    } finally {
+      setBusyRepo(null);
+    }
+  };
   const [repo, setRepo] = useState('');
   const [isPrivate, setIsPrivate] = useState(true);
   const [deploying, setDeploying] = useState(false);
@@ -152,17 +186,29 @@ export default function DeployPanel() {
               </button>
             </div>
             {Array.isArray(github.repos) && github.repos.length > 0 && (
-              <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                <span className="nxs-faint" style={{ fontSize: 11 }}>push into an existing repo:</span>
-                {github.repos.slice(0, 6).map((r) => (
-                  <button
-                    key={r.name}
-                    className="nxs-chip"
-                    title={`${r.private ? 'private' : 'public'} · ${r.defaultBranch}`}
-                    onClick={() => { setRepo(r.name.split('/')[1]); }}
-                  >
-                    {r.name.split('/')[1]}
-                  </button>
+              <div className="nxs-repo-list">
+                <span className="nxs-faint" style={{ fontSize: 11 }}>
+                  repositories you can really open, edit and commit to:
+                </span>
+                {github.repos.slice(0, 8).map((r) => (
+                  <div key={r.name} className="nxs-repo-row">
+                    <button
+                      className="nxs-repo-pick"
+                      title="Use this repository for the next push"
+                      onClick={() => { setRepo(r.name); if (r.defaultBranch) setBase(r.defaultBranch); }}
+                    >
+                      <b>{r.name.split('/')[1]}</b>
+                      <span className="nxs-chip">{r.private ? 'private' : 'public'}</span>
+                    </button>
+                    <button
+                      className="nxs-btn sm"
+                      onClick={() => openRepository(r.name)}
+                      disabled={busyRepo === r.name}
+                      title="Download its files into a new Studio project"
+                    >
+                      {busyRepo === r.name ? 'opening…' : 'Open'}
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -185,6 +231,17 @@ export default function DeployPanel() {
                 <IconGit size={12} /> {pushing ? 'Pushing…' : 'Push'}
               </button>
               <button className="nxs-btn ghost sm" onClick={() => disconnectIntegration('github')}>Disconnect</button>
+            </div>
+            <div className="nxs-git-branch">
+              <input className="nxs-input" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="branch (blank = nexora/<time>)" />
+              <input className="nxs-input" value={base} onChange={(e) => setBase(e.target.value)} placeholder="base branch (default branch)" />
+              <label className="nxs-chip" style={{ height: 34, gap: 6, cursor: 'pointer' }}>
+                <input type="checkbox" checked={asPr} onChange={(e) => setAsPr(e.target.checked)} />
+                pull request
+              </label>
+              <button className="nxs-btn primary" onClick={commitAndPr} disabled={busyRepo === 'push' || !fileCount}>
+                <IconGit size={12} /> {busyRepo === 'push' ? 'committing…' : 'Commit'}
+              </button>
             </div>
             {lastGit && (
               <div className="nxs-result">

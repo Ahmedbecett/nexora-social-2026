@@ -141,6 +141,42 @@ function installFetch() {
         integrations: { github: { connected: false }, vercel: { connected: false } },
       });
     }
+    if (url.includes('/api/studio/integrations/github')) {
+      return jsonResponse({
+        connected: true,
+        source: 'server',
+        login: 'me',
+        name: 'me',
+        avatar: null,
+        canCreateRepo: true,
+        repos: [
+          { name: 'me/repo', private: true, defaultBranch: 'main', url: 'https://github.com/me/repo' },
+          { name: 'me/other', private: false, defaultBranch: 'trunk', url: 'https://github.com/me/other' },
+        ],
+      });
+    }
+    if (url.includes('/api/studio/repos/import')) {
+      return jsonResponse({
+        project: {
+          ...PROJECT,
+          id: 11,
+          name: 'repo',
+          description: 'Imported from me/repo@main',
+          files: { 'index.html': '<h1>imported hero</h1>', 'app.js': 'console.log(1)' },
+          entry: 'index.html',
+          fileCount: 2,
+        },
+        repo: { full: 'me/repo', ref: 'main', private: true, imported: 2, skipped: { binary: 1 }, failed: [] },
+      });
+    }
+    if (url.includes('/api/studio/repos/push')) {
+      return jsonResponse({
+        repo: 'me/repo', branch: 'nexora/2026', base: 'main', files: 2,
+        commitSha: 'abc', url: 'https://github.com/me/repo',
+        pull: { number: 12, url: 'https://github.com/me/repo/pull/12' },
+        deployment: { id: 900, provider: 'github', status: 'pr_open', url: 'https://github.com/me/repo/pull/12' },
+      });
+    }
     if (url.match(/\/api\/studio\/projects\/7$/)) {
       return jsonResponse({ project: PROJECT, messages: [{ id: 1, role: 'assistant', kind: 'files', text: 'Built the counter.', meta: {}, createdAt: new Date().toISOString() }], revisions: [], deployments: [] });
     }
@@ -514,6 +550,50 @@ test('a screenshot can be attached and travels with the message', async () => {
     assert.deepEqual(errors, []);
   } finally {
     console.error = origError;
+    root.unmount();
+  }
+});
+
+test('a repository can be opened from the list and committed back as a pull request', async () => {
+  mode = 'existing';
+  errors.length = 0;
+  requests.length = 0;
+  const window = installDom();
+  installFetch();
+  const { StudioApp } = await bundleApp();
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(document.getElementById('root'));
+  try {
+    root.render(React.createElement(StudioApp));
+    assert.ok(await until(() => document.body.textContent.includes('NEXORA')));
+
+    const publish = [...document.querySelectorAll('.nxs-tab, button')].find((b) => /publish/i.test(b.textContent || ''));
+    assert.ok(publish, 'the publish surface is reachable');
+    publish.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(await until(() => document.querySelector('.nxs-repo-row')), 'the account lists its repositories');
+    const open = [...document.querySelectorAll('.nxs-repo-row')][0].querySelector('button.nxs-btn');
+    open.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(await until(() => requests.some((r) => r.includes('/api/studio/repos/import'))), 'opening calls the import endpoint');
+    const sent = bodies.filter((b) => b.url.includes('/api/studio/repos/import')).pop();
+    assert.equal(sent.body.repo, 'me/repo');
+    assert.ok(await until(() => /imported hero/.test(document.querySelector('iframe.nxs-frame')?.getAttribute('srcdoc') || ''), 6000),
+      'the imported repository becomes the live project');
+
+    /* commit and open a pull request */
+    const publishAgain = [...document.querySelectorAll('.nxs-tab')].find((b) => /publish/i.test(b.textContent || ''));
+    publishAgain.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    assert.ok(await until(() => document.querySelector('.nxs-git-branch')), 'branch controls appear');
+    const commit = [...document.querySelectorAll('.nxs-git-branch button')].find((b) => /commit/i.test(b.textContent || ''));
+    commit.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    assert.ok(await until(() => requests.some((r) => r.includes('/api/studio/repos/push'))), 'commit calls the push endpoint');
+    const pushed = bodies.filter((b) => b.url.includes('/api/studio/repos/push')).pop();
+    assert.equal(pushed.body.pr, true);
+    assert.ok(await until(() => /pull request|Pushed/i.test(document.body.textContent)), 'the result is reported');
+    assert.deepEqual(errors, [], 'no React or runtime errors were reported');
+  } finally {
     root.unmount();
   }
 });

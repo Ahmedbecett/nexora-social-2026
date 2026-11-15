@@ -311,6 +311,19 @@
 .nxs-composer-bar { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
 .nxs-composer-bar .hint { font-size: 10.5px; color: var(--text-3); margin-inline-start: auto; }
 
+/* repository list & git branch row */
+.nxs-repo-list { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; }
+.nxs-repo-row { display: flex; align-items: center; gap: 6px; }
+.nxs-repo-pick {
+  flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0;
+  padding: 6px 8px; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--bg-2); font-size: 11.5px; color: var(--text-2); text-align: start;
+}
+.nxs-repo-pick b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nxs-repo-pick:hover { border-color: var(--violet); color: var(--text); }
+.nxs-git-branch { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.nxs-git-branch .nxs-input { flex: 1 1 150px; min-width: 120px; }
+
 /* attachments in the composer */
 .nxs-attach-row {
   display: flex; gap: 6px; padding: 2px 2px 8px; flex-wrap: wrap;
