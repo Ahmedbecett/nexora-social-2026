@@ -1,6 +1,6 @@
 # Blank in-page ad slot — 15 November 2026
 
-A user reported a white rectangle **inside the signed-in AI home/chat UI**. In this repository, the inline rectangle is the existing AdSense `AdSlot` (unit `1971049956`); Monetag zone `310646` is an OnClick/Popunder tag and does not render that React slot. Without a browser screenshot or the actual ad response, an unfilled/blocked AdSense request is the leading explanation, not a confirmed provider diagnosis.
+A user reported a white rectangle **inside the signed-in AI home/chat UI**. At the time of the report, the inline rectangle was the existing AdSense `AdSlot` (unit `1971049956`); Monetag zone `310646` is an OnClick/Popunder tag and does not render that React slot. The later Adsterra Native Banner has its own separate container and does not replace AdSense. Without a browser screenshot or the actual ad response, an unfilled/blocked AdSense request is the leading explanation, not a confirmed provider diagnosis.
 
 The web-only slot now stays measurable while the request is pending. It collapses its entire wrapper when AdSense reports `data-ad-status="unfilled"`, or after 10 seconds with neither a status nor an iframe (for blocked/silent requests). It remains visible for `filled`, for AdSense's `unfill-optimized` content and for iframe creatives without a status. A late valid response can reveal a previously collapsed slot. No ad IDs, provider scripts, click handlers, authentication, API, database or native AdMob behavior were changed.
 

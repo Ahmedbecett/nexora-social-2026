@@ -5,6 +5,7 @@ import PublicInfo from './PublicInfo.jsx';
 import { api, API_BASE, WEB_URL, getToken, setToken, onUnauthorized, upsertAccount, getAccounts, forgetAccount, dropAccountToken } from '../api.js';
 import { getLang, setLang as saveLang } from '../i18n.js';
 import AdSlot from './AdSlot.jsx';
+import AdsterraBanner from './AdsterraBanner.jsx';
 import { Capacitor } from '@capacitor/core';
 import { openUrl } from '../native.js';
 import { setAdSlot, maybeShowInterstitial, showRewardedAd, interstitialFreeUntil } from '../ads.js';
@@ -455,13 +456,13 @@ export default function AIPlatform() {
       <small>NEXORA AI · نسخة Ahmed Becetti</small></div>
     {toastMsg&&<div className="nx-ai-toast">{toastMsg}</div>}
   </div>;
-  if(addingAccount)return <AppCtx.Provider value={ctx}><div className="nx-ai-auth"><div className="nx-ai-auth-brand"><Glyph size={45}/><strong>إضافة حساب</strong><p>سجّل الدخول بحساب آخر — تبقى حساباتك محفوظة للتبديل السريع</p></div><AuthFlow onCancel={()=>setAddingAccount(false)}/><button className="nx-ai-wide" onClick={()=>setAddingAccount(false)}>رجوع</button></div></AppCtx.Provider>;
+  if(addingAccount)return <AppCtx.Provider value={ctx}><div className="nx-ai-auth"><div className="nx-ai-auth-brand"><Glyph size={45}/><strong>إضافة حساب</strong><p>سجّل الدخول بحساب آخر — تبقى حساباتك محفوظة للتبديل السريع</p></div><AuthFlow onCancel={()=>setAddingAccount(false)}/>{!Capacitor.isNativePlatform()&&<AdsterraBanner/>}<button className="nx-ai-wide" onClick={()=>setAddingAccount(false)}>رجوع</button></div></AppCtx.Provider>;
   if(!token||!me){
     const showPublic = !Capacitor.isNativePlatform() && !/NexoraAI/i.test(navigator.userAgent || '');
     return <AppCtx.Provider value={ctx}><>
       <div className="nx-ai-auth"><div className="nx-ai-auth-brand"><Glyph size={45}/><strong>NEXORA <b>AI</b></strong><p>مساحتك للإبداع والمعرفة</p><em className="nx-ai-credit auth">AI BECETTI</em>
         {showPublic && <a className="nx-ai-discover-link" href="#discover">اكتشف NEXORA AI ↓</a>}
-      </div><AuthFlow/></div>
+      </div><AuthFlow/>{showPublic&&<AdsterraBanner/>}</div>
       {showPublic && <PublicInfo/>}
     </></AppCtx.Provider>;
   }
@@ -518,6 +519,7 @@ export default function AIPlatform() {
             </select></label>
             <label className="nx-ai-model"><Icon name="spark" size={16}/><select value={model} onChange={e=>setModel(e.target.value)} aria-label="النموذج"><option value="gpt-5-mini">تلقائي · أفضل مزوّد متاح</option><option value="gpt-5.1">GPT-5.1 (OpenAI)</option><option value="gpt-5-nano">GPT-5 nano (OpenAI)</option></select></label><button type="button" className="nx-ai-icon-button" onClick={()=>{const cur=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=cur;localStorage.setItem('nx_theme',cur);setThemeTick(t=>t+1)}} title="الوضع الفاتح/الداكن" aria-label="تبديل السمة">{document.documentElement.dataset.theme==='light'?'☾':'☀'}</button><span className="nx-ai-avatar top-avatar">{(me.fullName||me.username||'N').slice(0,1).toUpperCase()}</span></div></header>
         <section className={'nx-ai-content '+(messages.length?'has-messages':'')}>
+          {!Capacitor.isNativePlatform()&&<AdsterraBanner/>}
           {!messages.length?<div className="nx-ai-welcome">
             <div className="nx-ai-hero-art"><img src="/mascot-ui.webp" alt="NEXORA AI" width={176} height={176} fetchPriority="high" decoding="async"/><i className="orb-star one">✦</i><i className="orb-star two">✧</i><i className="orb-star three">✳</i></div>
             <div className="nx-ai-eyebrow"><Icon name="spark" size={14}/> الجيل الجديد من الذكاء الاصطناعي</div>
