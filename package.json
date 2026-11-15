@@ -7,12 +7,13 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
+    "generate:seo": "node scripts/generate-seo-pages.mjs",
+    "dev": "npm run generate:seo && vite --host 0.0.0.0",
+    "build": "npm run generate:seo && vite build",
     "api:local": "node scripts/local-api.mjs",
     "db:migrate": "node scripts/migrate.mjs",
-    "android:sync": "vite build && rm -rf dist/download && npx cap sync android",
-    "build:webapp": "VITE_API_BASE=https://nexora-social-2026.vercel.app vite build",
+    "android:sync": "npm run build && rm -rf dist/download && npx cap sync android",
+    "build:webapp": "npm run generate:seo && VITE_API_BASE=https://nexora-social-2026.vercel.app vite build",
     "deploy:webapp": "npm run build:webapp && npx firebase-tools@latest deploy --only hosting",
     "cap:sync": "npm run build && rm -rf dist/download && npx cap sync android",
     "apk:build": "cd android && chmod +x gradlew && ./gradlew assembleRelease",

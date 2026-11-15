@@ -9,7 +9,8 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 // نسخة الإصدار الواحدة التي تُحقن في الويب وindex.html (v4.4.0 ⟹ 4.4.0)
 const APP_VERSION = pkg.version || '0.0.0';
 const APP_VERSION_SHORT = APP_VERSION.split('.').slice(0, 2).join('.');
-const APP_TITLE = `NEXORA AI — منصة الذكاء الاصطناعي | نسخة ${APP_VERSION_SHORT}`;
+// An evergreen search title; version belongs on the download page and in app UI.
+const APP_TITLE = 'NEXORA AI | محادثة وكتابة وبرمجة بالذكاء الاصطناعي';
 
 export default defineConfig({
   plugins: [

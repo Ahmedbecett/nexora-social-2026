@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /api$
 Disallow: /api/
 
 Sitemap: https://nexora-social-2026.vercel.app/sitemap.xml

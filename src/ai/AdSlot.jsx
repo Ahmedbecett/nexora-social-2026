@@ -35,8 +35,17 @@ export default function AdSlot({ name, className = '' }) {
     if (!live || !wrap.current) return;
     const ins = wrap.current.querySelector('ins.adsbygoogle');
     if (!ins) return;
+    // The auth/SEO page has no ad slot. Fetch AdSense only when a real in-app
+    // slot mounts (never inside the Android WebView), not on every page load.
+    if (!document.querySelector('script[src*="pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"]')) {
+      const script = document.createElement('script');
+      script.async = true;
+      script.crossOrigin = 'anonymous';
+      script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${AD_CLIENT}`;
+      document.head.appendChild(script);
+    }
     if (ins.getAttribute('data-adsbygoogle-status') || ins.dataset.adsbygoogleStatus === 'done') return;
-    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) { /* السكربت لم يحمّل بعد */ }
+    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) { /* best effort */ }
   }, [live, slot]);
 
   if (!live) return null;

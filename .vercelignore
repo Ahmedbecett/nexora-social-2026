@@ -1,6 +1,6 @@
 android
 resources
-scripts
+# The SEO generator in scripts/ is required by `npm run build` on Vercel.
 node_modules
 dist
 native
