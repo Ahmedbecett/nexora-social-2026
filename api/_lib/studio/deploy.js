@@ -323,7 +323,7 @@ export async function connectionProbe() {
           const list = await gh(gt.token, '/user/repos?per_page=1&sort=updated&affiliation=owner');
           const first = Array.isArray(list.data) ? list.data[0] : null;
           if (first?.full_name) {
-            const repo = await gh(gt.token, '/' + first.full_name);
+            const repo = await gh(gt.token, '/repos/' + first.full_name);
             out.github.canPush = Boolean(repo.data?.permissions?.push);
             out.github.repoChecked = first.full_name;
           }
