@@ -3076,7 +3076,7 @@ route('POST', 'workspace/execute', async ({ req, body }) => {
   }
   const result = await runExecution({ files: effectiveFiles, command: cmd, action, timeoutMs: body.timeoutMs });
   // persist execution
-  const saved = await saveExecution({ userId: me.id, projectId, action, command: cmd, logs: result.logs, exitCode: result.exitCode, duration: result.duration, status: result.exitCode === 0 ? 'success' : 'failed' });
+  const saved = await saveExecution({ userId: me.id, projectId, action, command: cmd, logs: result.logs, exitCode: result.exitCode, duration: result.duration, status: result.exitCode === 0 ? (result.real ? 'success' : 'validated') : 'failed' });
   // if files were passed and project exists, update project files timestamp
   if (projectId && files) {
     try { await wsUpdate(me.id, projectId, { files }); } catch {}
@@ -3098,7 +3098,7 @@ route('POST', 'workspace/projects/:id/execute', async ({ req, params, body }) =>
   };
   const cmd = body.command ? cleanText(body.command, 2000) : (map[action] || 'echo "exec"');
   const result = await runExecution({ files: body.files || project.files, command: cmd, action, timeoutMs: body.timeoutMs });
-  const saved = await saveExecution({ userId: me.id, projectId: project.id, action, command: cmd, logs: result.logs, exitCode: result.exitCode, duration: result.duration, status: result.exitCode === 0 ? 'success' : 'failed' });
+  const saved = await saveExecution({ userId: me.id, projectId: project.id, action, command: cmd, logs: result.logs, exitCode: result.exitCode, duration: result.duration, status: result.exitCode === 0 ? (result.real ? 'success' : 'validated') : 'failed' });
   return { execution: saved, ...result };
 });
 

@@ -225,10 +225,15 @@ export async function wsDeploy(userId, { projectId, files, name }) {
     await q('insert into workspace_deployments(project_id, provider, url, deployment_id, status) values ($1,$2,$3,$4,$5)', [projectId || null, 'vercel', real.url, real.id, 'ready']);
     return { ok: true, url: real.url, id: real.id, inspector: real.inspector, real: true };
   }
-  // fallback: store and return fake preview (still useful for local testing)
-  const previewUrl = 'https://nexora-social-2026.vercel.app/preview/' + Date.now();
-  if (projectId) await q('update workspace_projects set vercel_url=$2, updated_at=now() where id=$1', [projectId, previewUrl]);
-  return { ok: true, url: previewUrl, real: false, note: 'Vercel token not configured — preview saved locally. Add VERCEL_TOKEN in Vercel env to enable real deploys.' };
+  // No VERCEL_TOKEN: report honestly. We must NOT invent a deployment URL —
+  // a fake "preview" link made the Studio look like it deployed when nothing happened.
+  return {
+    ok: true,
+    real: false,
+    deployed: false,
+    url: null,
+    note: 'VERCEL_TOKEN is not configured — nothing was deployed. Add the token, or push to GitHub and deploy manually.',
+  };
 }
 
 export async function wsGithubPush(userId, { projectId, files, repo, message, branch }) {

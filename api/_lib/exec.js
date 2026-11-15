@@ -58,10 +58,10 @@ async function fallbackExec({ files, command, action }) {
   let logs = '';
   let exitCode = 0;
   const fileNames = Object.keys(files || {});
-  logs += `> [NEXORA Fallback] Mode: Vercel isolated runtime (no E2B_API_KEY)\n`;
+  logs += `> [NEXORA Fallback] VALIDATION ONLY — no container is created and the command is NOT executed.\n`;
   logs += `> Project files: ${fileNames.length} files\n`;
   logs += `> Command: ${command}\n`;
-  logs += `> Note: Add E2B_API_KEY for real containers with npm install/build/test isolation.\n\n`;
+  logs += `> Add E2B_API_KEY to run real install/build/test/dev commands.\n\n`;
 
   try {
     if (action === 'install' || command.includes('npm install')) {
@@ -76,7 +76,7 @@ async function fallbackExec({ files, command, action }) {
         logs += `→ Dependencies: ${Object.keys(deps).slice(0, 10).join(', ') || 'none'}\n`;
         // simulate install time
         await new Promise(r => setTimeout(r, 300));
-        logs += `✓ Install validated (fallback)\n`;
+        logs += `✓ package.json validated — install NOT executed (fallback)\n`;
       }
     }
     if (action === 'build' || command.includes('npm run build') || command.includes('vite build') || command.includes('next build')) {
@@ -99,7 +99,7 @@ async function fallbackExec({ files, command, action }) {
         // check for common errors
         const allContent = Object.values(files).join('\n');
         if (allContent.includes('undefined is not')) logs += `⚠ Found 'undefined' patterns — check code\n`;
-        logs += `✓ Build validation complete (fallback — real E2B would run actual vite/next build)\n`;
+        logs += `✓ File validation complete — no vite/next build was executed (fallback)\n`;
       }
     }
     if (action === 'test' || command.includes('npm test') || command.includes('npm run test')) {
@@ -118,12 +118,12 @@ async function fallbackExec({ files, command, action }) {
       } else {
         logs += hasTests ? `✓ Test files present\n` : `ℹ No test configuration\n`;
       }
-      logs += `✓ Test validation complete (fallback)\n`;
+      logs += `✓ Test files inspected — tests NOT executed (fallback)\n`;
     }
     if (action === 'dev' || command.includes('vite') || command.includes('next dev') || command.includes('npm run dev')) {
       logs += `→ Dev server would start on port 5173/3000 in E2B sandbox\n`;
       logs += `→ Preview URL would be available via sandbox.getHost(5173)\n`;
-      logs += `✓ Dev command validated\n`;
+      logs += `✓ Dev command inspected — server NOT started (fallback)\n`;
     }
     if (action === 'exec' || (!['install','build','test','dev'].includes(action))) {
       // generic command - just validate
@@ -131,14 +131,13 @@ async function fallbackExec({ files, command, action }) {
       if (command.startsWith('node ') || command.includes('node -e')) {
         logs += `ℹ Node execution requires E2B for full isolation\n`;
       }
-      logs += `✓ Command accepted (fallback interpretation)\n`;
+      logs += `✓ Command accepted for validation only — nothing was executed (fallback)\n`;
     }
     logs += `\n── Summary ──\n`;
+    logs += `Validation: ${exitCode === 0 ? 'passed' : 'failed'}\n`;
     logs += `Duration: ${Date.now() - start}ms\n`;
-    logs += `Exit code: ${exitCode}\n`;
-    if (!process.env.E2B_API_KEY) {
-      logs += `⚠ Fallback mode: add E2B_API_KEY to enable real isolated execution\n`;
-    }
+    logs += `Executed: NO (fallback validation only)\n`;
+    logs += `⚠ Add E2B_API_KEY to enable real isolated execution with actual command output\n`;
   } catch (e) {
     logs += `\n✗ Fallback error: ${e.message}\n`;
     exitCode = 1;
@@ -149,6 +148,8 @@ async function fallbackExec({ files, command, action }) {
     exitCode,
     duration: Date.now() - start,
     real: false,
+    executed: false, // never claim a command ran in fallback mode
+    validatedOnly: true,
     mode: 'vercel-fallback',
     previewUrl: null,
   };
@@ -269,6 +270,7 @@ async function e2bExec({ files, command, timeoutMs = 25000, action }) {
     exitCode,
     duration: Date.now() - start,
     real: true,
+    executed: true,
     mode: 'e2b',
     previewUrl,
   };
@@ -300,6 +302,7 @@ export async function runExecution({ files, command, action, timeoutMs }) {
       result = await fallbackExec({ files: safeFiles, command: cmd, action });
       result.logs = `⚠ E2B attempted but failed: ${e.message}\n` + result.logs;
       result.real = false;
+      result.executed = false;
       result.e2bError = e.message.slice(0, 200);
     }
   } else {
