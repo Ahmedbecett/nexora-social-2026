@@ -12,13 +12,17 @@ import {
   addDeployment, updateDeployment, listDeployments,
 } from './projects.js';
 import {
-  buildPlanPrompt, buildCreatePrompt, buildEditPrompt, buildFixPrompt,
+  attachDocs, attachImages, buildPlanPrompt, buildCreatePrompt, buildEditPrompt, buildFixPrompt, buildTextPrompt,
   createProtocolStreamer, parseAgentOutput,
 } from './agent.js';
 import * as ai from './ai.js';
-import { applyOps, detectStack, guessEntry, sanitizeFiles, summarizeFiles } from './files.js';
+import {
+  appendPart, applyOps, detectStack, guessEntry, normalizePath, sanitizeFiles, sanitizeImages, sanitizeDocs, summarizeFiles,
+} from './files.js';
+import { buildModeConfig, textTargetPath } from './modes.js';
 import * as exec from './exec.js';
 import * as deploy from './deploy.js';
+import * as google from './google.js';
 import { startSSE } from './stream.js';
 
 let deps = {};
@@ -114,11 +118,26 @@ export async function studioAgentStream(req, res, body = {}) {
     /* persist the user's own words once — retries must not duplicate them */
     let userMessage = null;
     if (message && !body.retry) {
-      userMessage = await addMessage(ownerId, projectId, { role: 'user', text: message, kind: 'text' });
+      const attached = sanitizeImages(body.images);
+      const docList = sanitizeDocs(body.docs);
+      userMessage = await addMessage(ownerId, projectId, {
+        role: 'user',
+        text: message,
+        kind: 'text',
+        meta: {
+          ...(attached.length ? { attached: attached.map((im) => ({ mime: im.mime, bytes: im.data.length })) } : {}),
+          ...(docList.length ? { docs: docList.map((d) => ({ name: d.name, url: d.url })) } : {}),
+        },
+      });
       sse.send('user_message', { message: userMessage });
     }
 
-    sse.send('status', { step: mode, label: MODE_LABEL[mode], provider: null, at: nowIso() });
+    sse.send('status', { step: mode, label: MODE_LABEL[mode], provider: null, docs: sanitizeDocs(body.docs).length, at: nowIso() });
+
+    /* the build mode is what the composer selected; it decides the batch size,
+       the temperature and whether long-form text is appended section by section */
+    const buildMode = buildModeConfig(body.buildMode);
+    const batch = Math.max(1, Math.min(5, Number(body.batch) || buildMode.batch));
 
     const history = mode === 'edit'
       ? (await listMessages(ownerId, projectId, 40))
@@ -139,20 +158,54 @@ export async function studioAgentStream(req, res, body = {}) {
         sse.send('done', { project: projectPayload(project), changed: [], missing: [], pending: 0, note: 'nothing_missing' });
         return;
       }
-      prompt = buildCreatePrompt({
-        project,
-        plan,
-        userMessage: message || plan?.summary || project.description || 'Finish this project so it runs.',
-        missing,
-        batch: Math.max(1, Math.min(5, Number(body.batch) || 3)),
-      });
-      maxTokens = 8000;
+      if (buildMode.append) {
+        const target = normalizePath(String(body.textPath || '').trim())
+          || normalizePath(textTargetPath(message, project.entry || 'document.md'))
+          || 'document.md';
+        const part = Math.max(1, Number(body.part) || 1);
+        const parts = Math.max(1, Number(body.parts) || buildMode.parts || 4);
+        prompt = buildTextPrompt({
+          project,
+          userMessage: message || project.description || 'Write the requested document.',
+          targetPath: target,
+          part,
+          parts,
+          existing: project.files[target] || '',
+        });
+        maxTokens = 8000;
+      } else {
+        prompt = buildCreatePrompt({
+          project,
+          plan,
+          userMessage: message || plan?.summary || project.description || 'Finish this project so it runs.',
+          missing,
+          batch,
+          /* direct mode has no plan step, so the first answer carries the plan
+             it will be held to — that is what "still missing" is measured against */
+          askPlan: !plan && !buildMode.plan && mode === 'create',
+        });
+        maxTokens = 8000;
+      }
     } else if (mode === 'edit') {
       prompt = buildEditPrompt({ project, userMessage: message, selectedPath: String(body.selectedFile || ''), history });
       maxTokens = 8000;
     } else {
       prompt = buildFixPrompt({ project, logs: String(body.logs || '').slice(-14_000), userMessage: message });
       maxTokens = 8000;
+    }
+
+    /* attached screenshots ride on the prompt the user wrote them for */
+    const images = sanitizeImages(body.images);
+    if (images.length) {
+      prompt = attachImages(prompt, images);
+      sse.send('status', { step: mode, label: MODE_LABEL[mode], provider: null, images: images.length, at: nowIso() });
+    }
+
+    /* Drive documents are reference material for the same prompt */
+    const docs = sanitizeDocs(body.docs);
+    if (docs.length) {
+      prompt = attachDocs(prompt, docs);
+      sse.send('status', { step: mode, label: MODE_LABEL[mode], provider: null, docs: docs.length, at: nowIso() });
     }
 
     /* live protocol parsing: files land in the editor as they are written */
@@ -176,10 +229,10 @@ export async function studioAgentStream(req, res, body = {}) {
 
     const streamer = createProtocolStreamer({
       onProse: (chunk) => { prose = (prose + chunk).replace(/\n{3,}/g, '\n\n'); sse.send('prose', { text: prose }); },
-      onFile: ({ path, content }) => {
-        seen.push({ op: 'write', path, content });
-        liveFiles[path] = content;
-        sse.send('file', { path, content, saved: true });
+      onFile: ({ path, content, append }) => {
+        seen.push({ op: 'write', path, content, append: Boolean(append) });
+        liveFiles[path] = append ? appendPart(liveFiles[path], content) : content;
+        sse.send('file', { path, content, append: Boolean(append), saved: true });
         persistNow();
       },
       onDelete: (path) => {
@@ -187,6 +240,10 @@ export async function studioAgentStream(req, res, body = {}) {
         delete liveFiles[path];
         sse.send('delete', { path });
         persistNow();
+      },
+      onFilePartial: ({ path, partial }) => {
+        if (aborted) return;
+        sse.send('file_partial', { path, partial: partial.slice(-24_000) });
       },
       onPlan: (plan) => { livePlan = plan; sse.send('plan', { plan }); },
       onMessage: (text) => { liveMessage = text; sse.send('message', { text }); },
@@ -199,7 +256,7 @@ export async function studioAgentStream(req, res, body = {}) {
         instructions: prompt.instructions,
         messages: prompt.messages,
         maxTokens,
-        temperature: mode === 'plan' ? 0.35 : 0.25,
+        temperature: mode === 'plan' ? 0.35 : buildMode.temp,
         signal: abort.signal,
         preferProvider: body.provider || null,
         model: body.model || null,
@@ -273,6 +330,7 @@ export async function studioAgentStream(req, res, body = {}) {
       missing,
       pending: missing.length,
       savedDuringRun: persisted,
+      buildMode: buildMode.id,
       provider: result.provider,
       providerLabel: result.providerLabel,
       model: result.model,
@@ -475,17 +533,109 @@ export function registerStudioRoutes({ route, authUser }) {
   /* live connection checks used by the publish and settings panels */
   route('GET', 'studio/integrations/github', async ({ req }) => deploy.githubAccount(await auth(req)));
   route('GET', 'studio/integrations/vercel', async ({ req }) => deploy.vercelAccount(await auth(req)));
+  route('GET', 'studio/integrations/google', async ({ req }) => google.driveAccount(await auth(req)));
+
+  /* ------------------------------ Google Drive ---------------------------- */
+  route('POST', 'studio/drive/read', async ({ req, body }) => {
+    const owner = await auth(req);
+    return { document: await google.readDriveFile(owner, { id: body.id }) };
+  });
+
+  route('POST', 'studio/drive/export', async ({ req, body }) => {
+    const owner = await auth(req);
+    const project = body.projectId ? await getProject(owner, Number(body.projectId)) : null;
+    const result = await google.exportToDrive(owner, {
+      project,
+      files: project?.files || {},
+      name: body.name || '',
+      as: body.as === 'zip' ? 'zip' : 'doc',
+      zipBase64: body.zipBase64 || null,
+    });
+    if (project) {
+      await addDeployment(owner, project.id, { provider: 'google', status: 'exported', url: result.url, meta: result });
+    }
+    return { export: result };
+  });
+
+  /* --------------------------- real repositories -------------------------- */
+  /* open an existing GitHub repository as a project, and commit back to it */
+  route('POST', 'studio/vercel/state', async ({ req, body }) => {
+    const owner = await auth(req);
+    return await deploy.vercelProjectState(owner, { id: body.id || null, name: body.name || '' });
+  });
+
+  route('POST', 'studio/repos/import', async ({ req, body }) => {
+    const owner = await auth(req);
+    const imported = await deploy.githubImport(owner, { repo: body.repo, ref: body.ref });
+    const name = String(body.name || imported.repo.split('/')[1] || 'imported repo').slice(0, 60);
+    const created = await createProject(owner, { name });
+    const stack = detectStack(imported.files);
+    const entry = guessEntry(imported.files, stack);
+    const project = await updateProject(owner, created.id, {
+      files: imported.files,
+      stack,
+      entry,
+      status: 'ready',
+      description: `Imported from ${imported.repo}@${imported.ref}`.slice(0, 200),
+    });
+    await addDeployment(owner, project.id, {
+      provider: 'github',
+      status: 'imported',
+      url: `https://github.com/${imported.repo}`,
+      meta: { repo: imported.repo, ref: imported.ref, imported: imported.imported, skipped: imported.skipped },
+    });
+    try { await addRevision(owner, project.id, project.files, `imported ${imported.repo}`); } catch { /* a restore point is nice, not required */ }
+    return {
+      project: projectPayload(project),
+      repo: {
+        full: imported.repo,
+        ref: imported.ref,
+        private: imported.private,
+        imported: imported.imported,
+        skipped: imported.skipped,
+        failed: imported.failed,
+      },
+    };
+  });
+
+  route('POST', 'studio/repos/push', async ({ req, body }) => {
+    const owner = await auth(req);
+    const project = await getProject(owner, Number(body.projectId));
+    const record = await addDeployment(owner, project.id, { provider: 'github', status: 'pushing' });
+    try {
+      const result = await deploy.githubPushBranch(owner, {
+        repo: body.repo,
+        files: project.files,
+        branch: body.branch || '',
+        base: body.base || '',
+        message: String(body.message || `NEXORA Studio: ${project.name}`).slice(0, 200),
+        pr: body.pr !== false,
+      });
+      await updateDeployment(owner, record.id, {
+        status: result.pull ? 'pr_open' : 'ready',
+        url: result.pull?.url || result.url,
+        externalId: result.commitSha,
+        meta: result,
+      });
+      return { ...result, deployment: { ...record, url: result.pull?.url || result.url, status: result.pull ? 'pr_open' : 'ready' } };
+    } catch (e) {
+      await updateDeployment(owner, record.id, { status: 'failed', meta: { error: e.detail || e.message } });
+      throw e;
+    }
+  });
 
   route('POST', 'studio/integrations/:provider', async ({ req, params, body }) => {
     const owner = await auth(req);
     const provider = params.provider;
-    if (!['github', 'vercel'].includes(provider)) throw new StudioError(400, 'unknown_integration');
+    if (!['github', 'vercel', 'google'].includes(provider)) throw new StudioError(400, 'unknown_integration');
     const token = String(body.token || '').trim();
     if (token.length < 10) throw new StudioError(400, 'invalid_token');
     await ai.putIntegrationSecret(owner, provider, token);
     const status = provider === 'github'
       ? await deploy.githubStatus(owner)
-      : await deploy.vercelStatus(owner);
+      : provider === 'google'
+        ? await google.driveAccount(owner)
+        : await deploy.vercelStatus(owner);
     if (!status.connected) {
       await ai.removeIntegrationSecret(owner, provider);
       throw new StudioError(400, 'integration_rejected', status.error || 'the token was rejected');
@@ -510,6 +660,7 @@ export function registerStudioRoutes({ route, authUser }) {
         projectName: body.name || project.name,
         stack: project.stack,
         target: body.target === 'preview' ? null : 'production',
+        existingProjectId: body.existingProjectId || null,
       });
       await updateDeployment(owner, record.id, { status: result.state || 'queued', url: result.url, externalId: result.id, meta: result });
       await updateProject(owner, project.id, { status: 'deployed' });

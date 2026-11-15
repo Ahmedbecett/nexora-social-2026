@@ -310,6 +310,87 @@
 .nxs-composer textarea::placeholder { color: var(--text-3); }
 .nxs-composer-bar { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
 .nxs-composer-bar .hint { font-size: 10.5px; color: var(--text-3); margin-inline-start: auto; }
+
+/* repository list & git branch row */
+.nxs-repo-list { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; }
+.nxs-repo-row { display: flex; align-items: center; gap: 6px; }
+.nxs-repo-pick {
+  flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0;
+  padding: 6px 8px; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--bg-2); font-size: 11.5px; color: var(--text-2); text-align: start;
+}
+.nxs-repo-pick b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nxs-repo-pick:hover { border-color: var(--violet); color: var(--text); }
+.nxs-git-branch { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.nxs-git-branch .nxs-input { flex: 1 1 150px; min-width: 120px; }
+
+/* Google Drive picker */
+.nxs-drive-pop {
+  margin: 0 0 6px; padding: 8px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg-2);
+  display: flex; flex-direction: column; gap: 3px; max-height: 240px; overflow-y: auto;
+}
+.nxs-drive-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; margin-bottom: 2px; }
+.nxs-drive-head .nxs-btn { margin-inline-start: auto; }
+.nxs-drive-file {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 8px; border-radius: 7px; border: 1px solid transparent;
+  background: transparent; color: var(--text-2); font-size: 12px; text-align: start;
+}
+.nxs-drive-file:hover:not(:disabled) { background: var(--bg-3); border-color: var(--line); color: var(--text); }
+.nxs-drive-file:disabled { opacity: .55; }
+.nxs-drive-kind {
+  flex: 0 0 auto; font-size: 9.5px; font-weight: 600; letter-spacing: .04em;
+  padding: 2px 5px; border-radius: 4px; background: rgba(139,92,246,.16); color: var(--violet-2);
+}
+.nxs-drive-kind.sheet { background: rgba(52,211,153,.14); color: #6ee7b7; }
+.nxs-drive-kind.slides { background: rgba(251,191,36,.14); color: #fcd34d; }
+.nxs-drive-kind.file { background: var(--bg-3); color: var(--faint); }
+.nxs-drive-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nxs-drive-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.nxs-attach-doc { padding: 3px 6px; gap: 5px; max-width: 190px; }
+.nxs-attach-name { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nxs-bubble-docs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+
+/* attachments in the composer */
+.nxs-attach-row {
+  display: flex; gap: 6px; padding: 2px 2px 8px; flex-wrap: wrap;
+}
+.nxs-attach {
+  position: relative; width: 54px; height: 54px; border-radius: 9px;
+  overflow: hidden; border: 1px solid var(--line-2); background: var(--bg-3);
+}
+.nxs-attach img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.nxs-attach-x {
+  position: absolute; inset-block-start: 2px; inset-inline-end: 2px;
+  width: 17px; height: 17px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(8, 10, 16, .82); color: #fff; border: 1px solid rgba(255, 255, 255, .18);
+}
+html[dir='rtl'] .nxs-attach-x { inset-inline-end: auto; inset-inline-start: 2px; }
+.nxs-attach-x:hover { background: var(--red); }
+.nxs-bubble-imgs { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.nxs-bubble-imgs img {
+  width: 92px; height: 92px; object-fit: cover; border-radius: 8px;
+  border: 1px solid var(--line-2); display: block;
+}
+
+/* build mode selector — a native select so Android and Windows both use their
+   own picker, with no custom popover to break */
+.nxs-mode {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 6px;
+  border: 1px solid var(--line); border-radius: 7px; background: var(--bg-3);
+  color: var(--violet-2); font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.nxs-mode:hover, .nxs-mode:focus-within { border-color: var(--violet); background: var(--bg-4); }
+.nxs-mode select {
+  appearance: none; -webkit-appearance: none; border: 0; background: transparent;
+  color: var(--text); font: inherit; font-weight: 600; cursor: pointer; padding-inline-end: 2px;
+  max-width: 92px;
+}
+.nxs-mode select:focus { outline: none; }
+.nxs-mode select option { background: var(--bg-2); color: var(--text); }
 .nxs-send {
   width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center;
   background: linear-gradient(135deg, var(--violet), #5b3ddb); color: #fff;
@@ -545,6 +626,114 @@
   .nxs-explorer { display: none; }
   .nxs-frame.phone, .nxs-frame.tablet { width: 100%; height: 100%; border-radius: 0; border: 0; }
   .nxs-plan-grid { grid-template-columns: 1fr; }
+}
+
+/* ------------------------------ agent window ----------------------------- */
+.nxs-agentwin {
+  position: fixed; z-index: 60;
+  inset-block-end: 18px; inset-inline-end: 18px;
+  width: min(420px, calc(100vw - 36px));
+  max-height: min(62vh, 560px);
+  display: flex; flex-direction: column;
+  background: rgba(13, 16, 24, .94);
+  border: 1px solid #262c3b; border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  overflow: hidden;
+  animation: nxs-aw-in .18s ease-out;
+}
+@keyframes nxs-aw-in { from { opacity: 0; transform: translateY(10px); } }
+.nxs-agentwin.collapsed { max-height: 44px; }
+.nxs-aw-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border-bottom: 1px solid var(--line); flex: 0 0 auto;
+}
+.nxs-aw-head b { font-size: 12.5px; font-weight: 700; }
+.nxs-aw-head .nxs-btn.sm { padding: 0 6px; }
+.nxs-aw-progress { height: 3px; background: var(--bg-3); flex: 0 0 auto; }
+.nxs-aw-progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--violet), var(--cyan)); transition: width .28s ease; }
+.nxs-aw-body { overflow: auto; flex: 1 1 auto; min-height: 0; }
+.nxs-aw-code { border-bottom: 1px solid var(--line); }
+.nxs-aw-code-head {
+  display: flex; align-items: center; gap: 6px; padding: 7px 10px 0;
+  font-size: 10.5px; color: var(--text-2);
+}
+.nxs-aw-code-head code { font-family: var(--mono); font-size: 10.5px; color: var(--violet-2); }
+.nxs-aw-caret { width: 6px; height: 11px; background: var(--violet-2); border-radius: 1px; animation: nxs-blink 1s steps(2) infinite; }
+@keyframes nxs-blink { 50% { opacity: 0; } }
+.nxs-aw-code pre {
+  margin: 0; padding: 6px 10px 10px; max-height: 220px; overflow: auto;
+  font-family: var(--mono); font-size: 11px; line-height: 1.55; color: #cbd5e1;
+  white-space: pre-wrap; word-break: break-word;
+}
+.nxs-aw-files { display: flex; flex-direction: column; gap: 2px; padding: 8px 8px; }
+.nxs-aw-file {
+  display: flex; align-items: center; gap: 7px; width: 100%; text-align: start;
+  padding: 5px 7px; border-radius: 6px; font-size: 11px; color: var(--text-2);
+}
+.nxs-aw-file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nxs-aw-file:hover { background: var(--bg-3); color: var(--text); }
+.nxs-aw-idle { display: flex; align-items: center; gap: 8px; padding: 14px 12px; font-size: 11.5px; color: var(--text-3); }
+.nxs-aw-prose { margin: 0; padding: 4px 12px 12px; font-size: 11px; line-height: 1.6; color: var(--text-3); }
+.nxs-aw-note { margin: 0; padding: 8px 12px 12px; font-size: 11px; line-height: 1.6; display: flex; gap: 6px; align-items: flex-start; }
+.nxs-aw-note.err { color: var(--red); }
+.nxs-aw-note.warn { color: var(--amber); }
+.nxs-aw-foot {
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+  border-top: 1px solid var(--line); flex: 0 0 auto;
+}
+.nxs-aw-count { margin-inline-start: auto; font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
+
+/* phones and small tablets: a sheet under the top bar, never over the composer */
+@media (max-width: 980px) {
+  .nxs-agentwin {
+    inset-block-start: calc(54px + env(safe-area-inset-top));
+    inset-block-end: auto; inset-inline: 8px;
+    width: auto; max-height: 46vh; border-radius: 12px;
+  }
+  .nxs-aw-code pre { max-height: 150px; }
+  .nxs-aw-count { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nxs-agentwin { animation: none; }
+  .nxs-aw-caret { animation: none; }
+}
+
+/* ------------------------ device adaptation ------------------------------- */
+/* the layout follows the real visible height on Android/iOS, not the URL bar */
+@supports (height: 100dvh) {
+  .nxs { height: 100dvh; max-height: 100dvh; }
+}
+
+@media (max-width: 980px) {
+  .nxs-top {
+    height: calc(54px + env(safe-area-inset-top));
+    padding-block-start: env(safe-area-inset-top);
+  }
+  .nxs-composer-wrap {
+    padding-block-end: calc(14px + env(safe-area-inset-bottom) + var(--nxs-kb, 0px));
+    transition: padding-block-end .12s ease;
+    background: linear-gradient(180deg, rgba(11, 13, 19, .55), var(--bg-1) 40%);
+  }
+  .nxs-mobile-nav { padding-block-end: calc(6px + env(safe-area-inset-bottom)); }
+  .nxs-chat-scroll { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  /* under 16px Android and iOS zoom the page when the field is focused */
+  .nxs-composer textarea { font-size: 16px; }
+  .nxs-chat-inner { padding-inline: 12px; }
+}
+
+/* touch screens: no hover-only affordances and real 32px+ targets */
+@media (pointer: coarse) {
+  .nxs-btn.sm { height: 32px; min-width: 32px; padding-inline: 10px; }
+  .nxs-chip { height: 26px; }
+  .nxs-mode { height: 30px; }
+  .nxs-mode select { font-size: 13px; }
+  .nxs-aw-file { padding-block: 9px; }
+  .nxs-composer-bar { gap: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nxs * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
 }
 
 /* switch back to the Studio from the assistant chat */

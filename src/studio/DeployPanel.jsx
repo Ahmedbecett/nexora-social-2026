@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useStudio } from './state.jsx';
 import { zipFiles } from './preview/bundler.js';
 import {
-  IconRocket, IconGit, IconDownload, IconHistory, IconPlug, IconExternal, IconCheck, IconRefresh,
+  IconRocket, IconGit, IconDownload, IconHistory, IconPlug, IconExternal, IconCheck, IconRefresh, IconFile,
 } from './icons.jsx';
 
 function TokenForm({ provider, onConnect, label, placeholder }) {
@@ -42,9 +42,46 @@ export default function DeployPanel() {
   const {
     project, files, deployments, revisions, session, deployVercel, pushGithub,
     connectIntegration, disconnectIntegration, restoreRevision, notify,
-    accounts, loadAccounts,
+    accounts, loadAccounts, importRepo, pushBranch, followVercelProject, exportToDrive,
   } = useStudio();
   const [verifying, setVerifying] = useState(null);
+  const [branch, setBranch] = useState('');
+  const [base, setBase] = useState('');
+  const [asPr, setAsPr] = useState(true);
+  const [busyRepo, setBusyRepo] = useState(null);
+  const [vercelTarget, setVercelTarget] = useState('');      // '' = a new project
+  const [vercelProbe, setVercelProbe] = useState(null);
+  const [driveExporting, setDriveExporting] = useState(null);
+
+  const openRepository = async (fullName) => {
+    if (!fullName || busyRepo) return;
+    setBusyRepo(fullName);
+    try {
+      const data = await importRepo({ repo: fullName });
+      notify(`Opened ${data.repo.full} — ${data.repo.imported} files`, 'ok');
+    } catch (e) {
+      notify(`Import failed: ${e.detail || e.code}`, 'error');
+    } finally {
+      setBusyRepo(null);
+    }
+  };
+
+  const commitAndPr = async () => {
+    const target = (repo || '').trim() || (project?.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    if (!/^[\w.-]+\/[\w.-]+$/.test(target) && !github.repos?.length) {
+      notify('Type the repository as owner/name', 'warn');
+      return;
+    }
+    setBusyRepo('push');
+    try {
+      await pushBranch({ repo: target, branch: branch.trim(), base: base.trim(), pr: asPr });
+      setBranch('');
+    } catch (e) {
+      notify(`Push failed: ${e.detail || e.code}`, 'error');
+    } finally {
+      setBusyRepo(null);
+    }
+  };
   const [repo, setRepo] = useState('');
   const [isPrivate, setIsPrivate] = useState(true);
   const [deploying, setDeploying] = useState(false);
@@ -54,6 +91,7 @@ export default function DeployPanel() {
 
   const github = accounts.github || session?.integrations?.github || { connected: false };
   const vercel = accounts.vercel || session?.integrations?.vercel || { connected: false };
+  const drive = accounts.google || session?.integrations?.google || { connected: false };
   const verify = async (provider) => {
     setVerifying(provider);
     try { await loadAccounts(); notify(`${provider} connection checked`, 'ok'); }
@@ -75,9 +113,40 @@ export default function DeployPanel() {
 
   const deploy = async () => {
     setDeploying(true);
-    const result = await deployVercel();
+    const result = await deployVercel({ existingProjectId: vercelTarget || null });
     setDeploying(false);
     if (result) setLastVercel(result);
+  };
+
+  const saveToDrive = async (as) => {
+    if (!fileCount) { notify('Nothing to export yet', 'warn'); return; }
+    setDriveExporting(as);
+    try {
+      let zipBase64 = null;
+      if (as === 'zip') {
+        const blob = zipFiles(files);
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 8192) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+        }
+        zipBase64 = btoa(binary);
+      }
+      const out = await exportToDrive({ as, zipBase64 });
+      if (out?.url) window.open(out.url, '_blank', 'noopener');
+    } catch (e) {
+      notify(`Drive export failed: ${e.detail || e.code}`, 'error');
+    } finally {
+      setDriveExporting(null);
+    }
+  };
+
+  const followProject = async () => {
+    const chosen = (vercel.projects || []).find((p) => p.id === vercelTarget);
+    if (!chosen) { notify('Choose a Vercel project first', 'warn'); return; }
+    setVercelProbe({ busy: true, name: chosen.name });
+    const state = await followVercelProject({ id: chosen.id, name: chosen.name });
+    setVercelProbe(state ? { ...state, busy: false } : null);
   };
 
   const push = async () => {
@@ -106,10 +175,29 @@ export default function DeployPanel() {
               </button>
             </div>
             {Array.isArray(vercel.projects) && vercel.projects.length > 0 && (
-              <div style={{ marginTop: 6 }}>
-                projects: {vercel.projects.slice(0, 4).map((p) => (
-                  <a key={p.id} href={p.url || '#'} target="_blank" rel="noreferrer" className="nxs-chip" style={{ marginInlineEnd: 4 }}>{p.name}</a>
-                ))}
+              <div className="nxs-git-branch" style={{ marginTop: 8 }}>
+                <select
+                  className="nxs-input"
+                  aria-label="Vercel project"
+                  value={vercelTarget}
+                  onChange={(e) => { setVercelTarget(e.target.value); setVercelProbe(null); }}
+                  style={{ flex: '1 1 170px' }}
+                >
+                  <option value="">deploy as a new project</option>
+                  {vercel.projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button className="nxs-btn ghost sm" onClick={followProject} disabled={!vercelTarget || vercelProbe?.busy}>
+                  <IconRefresh size={10} /> {vercelProbe?.busy ? 'following…' : 'Follow to READY'}
+                </button>
+              </div>
+            )}
+            {vercelProbe && !vercelProbe.busy && (
+              <div className="nxs-result">
+                {vercelProbe.name}: <b>{vercelProbe.state || 'unknown'}</b>
+                {vercelProbe.url && <> · <a href={vercelProbe.url} target="_blank" rel="noreferrer">live <IconExternal size={10} /></a></>}
+                {vercelProbe.inspectorUrl && <> · <a href={vercelProbe.inspectorUrl} target="_blank" rel="noreferrer">inspect</a></>}
               </div>
             )}
           </div>
@@ -118,7 +206,7 @@ export default function DeployPanel() {
           <>
             <div className="row">
               <button className="nxs-btn primary" onClick={deploy} disabled={deploying || !fileCount}>
-                <IconRocket size={12} /> {deploying ? 'Deploying…' : 'Deploy to production'}
+                <IconRocket size={12} /> {deploying ? 'Deploying…' : (vercelTarget ? 'Deploy into that project' : 'Deploy to production')}
               </button>
               <button className="nxs-btn ghost sm" onClick={() => disconnectIntegration('vercel')}>Disconnect</button>
             </div>
@@ -133,6 +221,44 @@ export default function DeployPanel() {
           </>
         ) : (
           <TokenForm provider="vercel" onConnect={connectIntegration} label="Vercel" placeholder="Vercel access token (vercel.com/account/tokens)" />
+        )}
+      </div>
+
+      <div className="nxs-card">
+        <h4><IconFile size={14} style={{ color: 'var(--violet-2)' }} /> Google Drive
+          <span className={`nxs-chip ${drive.connected ? 'ok' : 'warn'}`} style={{ marginInlineStart: 'auto' }}>
+            {drive.connected ? `connected${drive.email ? ` · ${drive.email}` : ''}` : (drive.error || 'not connected')}
+          </span>
+        </h4>
+        <p>Read a Doc, Sheet or text file as context for a build, and save the finished project back to Drive.</p>
+        {drive.connected ? (
+          <>
+            {Array.isArray(drive.files) && drive.files.length > 0 && (
+              <div className="nxs-drive-list">
+                {drive.files.slice(0, 5).map((f) => (
+                  <a key={f.id} href={f.url} target="_blank" rel="noreferrer" className="nxs-chip">
+                    <IconFile size={10} /> {f.name}
+                  </a>
+                ))}
+              </div>
+            )}
+            <div className="row" style={{ marginTop: 8 }}>
+              <button className="nxs-btn primary" onClick={() => saveToDrive('doc')} disabled={!fileCount || Boolean(driveExporting)}>
+                <IconFile size={12} /> {driveExporting === 'doc' ? 'saving…' : 'Save as a Google Doc'}
+              </button>
+              <button className="nxs-btn ghost sm" onClick={() => saveToDrive('zip')} disabled={!fileCount || Boolean(driveExporting)}>
+                {driveExporting === 'zip' ? 'saving…' : 'Save .zip'}
+              </button>
+              <button className="nxs-btn ghost sm" onClick={() => disconnectIntegration('google')}>Disconnect</button>
+            </div>
+          </>
+        ) : (
+          <TokenForm
+            provider="google"
+            onConnect={connectIntegration}
+            label="Google Drive"
+            placeholder="Google OAuth access token with drive scope"
+          />
         )}
       </div>
 
@@ -152,17 +278,29 @@ export default function DeployPanel() {
               </button>
             </div>
             {Array.isArray(github.repos) && github.repos.length > 0 && (
-              <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                <span className="nxs-faint" style={{ fontSize: 11 }}>push into an existing repo:</span>
-                {github.repos.slice(0, 6).map((r) => (
-                  <button
-                    key={r.name}
-                    className="nxs-chip"
-                    title={`${r.private ? 'private' : 'public'} · ${r.defaultBranch}`}
-                    onClick={() => { setRepo(r.name.split('/')[1]); }}
-                  >
-                    {r.name.split('/')[1]}
-                  </button>
+              <div className="nxs-repo-list">
+                <span className="nxs-faint" style={{ fontSize: 11 }}>
+                  repositories you can really open, edit and commit to:
+                </span>
+                {github.repos.slice(0, 8).map((r) => (
+                  <div key={r.name} className="nxs-repo-row">
+                    <button
+                      className="nxs-repo-pick"
+                      title="Use this repository for the next push"
+                      onClick={() => { setRepo(r.name); if (r.defaultBranch) setBase(r.defaultBranch); }}
+                    >
+                      <b>{r.name.split('/')[1]}</b>
+                      <span className="nxs-chip">{r.private ? 'private' : 'public'}</span>
+                    </button>
+                    <button
+                      className="nxs-btn sm"
+                      onClick={() => openRepository(r.name)}
+                      disabled={busyRepo === r.name}
+                      title="Download its files into a new Studio project"
+                    >
+                      {busyRepo === r.name ? 'opening…' : 'Open'}
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -185,6 +323,17 @@ export default function DeployPanel() {
                 <IconGit size={12} /> {pushing ? 'Pushing…' : 'Push'}
               </button>
               <button className="nxs-btn ghost sm" onClick={() => disconnectIntegration('github')}>Disconnect</button>
+            </div>
+            <div className="nxs-git-branch">
+              <input className="nxs-input" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="branch (blank = nexora/<time>)" />
+              <input className="nxs-input" value={base} onChange={(e) => setBase(e.target.value)} placeholder="base branch (default branch)" />
+              <label className="nxs-chip" style={{ height: 34, gap: 6, cursor: 'pointer' }}>
+                <input type="checkbox" checked={asPr} onChange={(e) => setAsPr(e.target.checked)} />
+                pull request
+              </label>
+              <button className="nxs-btn primary" onClick={commitAndPr} disabled={busyRepo === 'push' || !fileCount}>
+                <IconGit size={12} /> {busyRepo === 'push' ? 'committing…' : 'Commit'}
+              </button>
             </div>
             {lastGit && (
               <div className="nxs-result">

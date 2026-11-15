@@ -138,3 +138,61 @@ test('the status probe never throws and reports missing tokens plainly', async (
     }
   }
 });
+
+test('an append block continues the same file instead of replacing it', async () => {
+  const { parseAgentOutput, createProtocolStreamer } = await import('../api/_lib/studio/agent.js');
+  const out = parseAgentOutput('<file path="a.md">one</file>\n<file path="a.md" append>two</file>');
+  assert.equal(out.ops.length, 2);
+  assert.equal(out.ops[0].append, false);
+  assert.equal(out.ops[1].append, true, 'the append attribute is part of the parsed op');
+
+  const { files, changed } = applyOps({ 'a.md': 'one' }, [out.ops[1]]);
+  assert.equal(files['a.md'], 'one\n\ntwo');
+  assert.deepEqual(changed, [{ path: 'a.md', op: 'append' }]);
+
+  const seen = [];
+  const streamer = createProtocolStreamer({ onFile: (f) => seen.push(f) });
+  streamer.push('<file path="a.md" append>two</file>');
+  streamer.push('<file path="a.md" append>two</file>');
+  assert.deepEqual(seen, [{ path: 'a.md', content: 'two', append: true }]);
+  assert.equal(applyOps({ 'a.md': 'one\n' }, [{ op: 'write', path: 'a.md', content: 'two', append: true }]).files['a.md'], 'one\ntwo');
+});
+
+test('build modes are a shared contract with real, bounded behaviour', async () => {
+  const { BUILD_MODES, DEFAULT_BUILD_MODE, buildModeConfig, textTargetPath } = await import('../api/_lib/studio/modes.js');
+  assert.deepEqual(BUILD_MODES.map((m) => m.id), ['direct', 'fast', 'precise', 'endless', 'text', 'review']);
+  assert.equal(buildModeConfig('nope').id, DEFAULT_BUILD_MODE);
+  for (const m of BUILD_MODES) {
+    assert.ok(m.batch >= 1 && m.batch <= 5, `${m.id}: batch is inside the server clamp`);
+    assert.ok(m.rounds >= 1 && m.rounds <= 40, `${m.id}: rounds are bounded`);
+    assert.equal(typeof m.hint, 'string');
+    assert.ok(m.hint.length > 20, `${m.id}: the hint explains the real behaviour`);
+  }
+  assert.equal(buildModeConfig('direct').plan, false);
+  assert.equal(buildModeConfig('text').append, true);
+  assert.equal(buildModeConfig('review').review, true);
+  assert.equal(textTargetPath('اكتب لي مقال عن الذكاء الاصطناعي'), 'article.md');
+  assert.equal(textTargetPath('write story.md for me'), 'story.md');
+});
+
+test('attachments are sanitised and only the valid ones are kept', async () => {
+  const { sanitizeImages, IMAGE_LIMITS } = await import('../api/_lib/studio/files.js');
+  const { attachImages } = await import('../api/_lib/studio/agent.js');
+  const good = 'iVBORw0KGgoAAAANSUhEUg==';
+
+  assert.equal(sanitizeImages([{ mime: 'image/png', data: good }]).length, 1);
+  assert.equal(sanitizeImages([{ mime: 'image/svg+xml', data: good }]).length, 0, 'svg is refused');
+  assert.equal(sanitizeImages([{ mime: 'image/png', data: 'not base64!!' }]).length, 0, 'only base64 is accepted');
+  assert.equal(sanitizeImages([{ mime: 'image/png', data: 'a'.repeat(IMAGE_LIMITS.maxBytes + 10) }]).length, 0, 'oversized is refused');
+  assert.equal(sanitizeImages(new Array(9).fill({ mime: 'image/jpeg', data: 'aGk=' })).length, IMAGE_LIMITS.maxCount, 'count is capped');
+  assert.equal(sanitizeImages('nope').length, 0, 'a non-array is ignored');
+  assert.equal(sanitizeImages([{ mime: 'image/png', data: `data:image/png;base64,${good}` }])[0].data, good, 'a data URL prefix is stripped');
+
+  const prompt = { instructions: 'i', messages: [{ role: 'user', content: 'TASK: build it' }] };
+  const withImages = attachImages(prompt, [{ mime: 'image/png', data: good }]);
+  assert.equal(withImages.messages.length, 1);
+  assert.equal(withImages.messages[0].images.length, 1);
+  assert.match(withImages.messages[0].content, /attached 1 image/);
+  assert.equal(prompt.messages[0].images, undefined, 'the original prompt is not mutated');
+  assert.equal(attachImages(prompt, []), prompt, 'no images means no change');
+});

@@ -71,8 +71,16 @@
   - **Code**: شجرة ملفات (إنشاء/إعادة تسمية/حذف) + محرر CodeMirror 6 بتمييز لغات وإكمال.
   - **Terminal**: أوامر حقيقية (`npm`, `node`, `git`)، زر تشغيل خادم تطوير، وسجل أوامر.
   - **Publish**: نشر Vercel، دفع GitHub، تصدير ZIP، قائمة النشرات ونقاط الاستعادة.
-- **الإعدادات**: مفاتيح المزوّدين (تُختبر وتُحفظ مشفّرة) · ربط GitHub/Vercel · معلومات
-  بيئة التشغيل والتخزين.
+- **نافذة النشاط الحيّة**: تُفتح مع كل تشغيل وتعرض الخطوة/الجولة، شريط تقدّم مقابل الخطة،
+  الكود وهو يُكتب حرفًا حرفًا، كل ملف لحظة وصوله، وأزرار Code/Preview/إيقاف. بطاقة عائمة على
+  سطح المكتب، ولوحة تحت الشريط العلوي على الهاتف.
+- **المرفقات**: صورة (تُصغَّر في المتصفح إلى JPEG ثم تُرسل للنموذج بصيغة الرؤية الخاصة به)،
+  ومستند Google Drive (Doc/Sheet/Slides/نص) يُقرأ كنص ويُضاف إلى الرسالة الأخيرة في الموجّه.
+  الرقاقة تظهر داخل الرسالة نفسها، وحدودها: 3 صور، 3 مستندات، 24000 حرف للمستند.
+- **أوضاع البناء**: direct، fast، precise (الافتراضي)، endless، text، review — تغيّر فعليًا حجم
+  الدفعة وعدد الجولات وظهور الخطة والتحقق.
+- **الإعدادات**: مفاتيح المزوّدين (تُختبر وتُحفظ مشفّرة) · ربط GitHub/Vercel/Google Drive ·
+  معلومات بيئة التشغيل والتخزين.
 - **Ctrl/Cmd + K**: لوحة أوامر حقيقية (فتح مشروع، تبديل التبويب، نشر، إعدادات…).
 
 ---
@@ -175,11 +183,18 @@
 - **لوحة الاتصال**: تعرض الحساب الحقيقي خلف التوكن (`GET /api/studio/integrations/github`
   و`/vercel`): اسم المستخدم، مصدر المفتاح (حسابك أو مفتاح النشر)، وأحدث المستودعات/المشاريع
   القابلة للوصول — مع زر «re-check» يتحقق الآن، لا شارة ثابتة.
-- **GitHub**: إنشاء المستودع إن لمس، ثم blobs → tree → commit → ref للفرع المطلوب. رمز
-  الدخول من `studio_integrations` أو `GITHUB_STUDIO_TOKEN` / `GH_TOKEN`.
-- **Vercel**: إنشاء مشروع، رفع الملفات، بدء النشر، ثم **متابعة الحالة تلقائيًا** حتى `READY`
-  وإظهار الرابط الحيّ. من `studio_integrations` أو `VERCEL_STUDIO_TOKEN` / `VERCEL_API_TOKEN`
-  (+ `VERCEL_TEAM_ID`).
+- **GitHub، الاتجاهان**: قائمة مستودعات الحساب مع زر «Open» يقرأ الشجرة عبر الـ API (مع ترك
+  `node_modules`/`dist`/الصور/قفل الحزم خارجًا وإحصاء ما تُرك) وينزّل كل ملف فيصبح المشروع
+  قابلًا للتحرير؛ والدفع يفرّع من فرع أساس، يرفع blobs → tree → commit → ref، ثم **يفتح Pull
+  Request** (وجود PR سابقًا — 422 — لا يُعدّ فشلًا). رمز الدخول من `studio_integrations` أو
+  `GITHUB_STUDIO_TOKEN` / `GH_TOKEN`.
+- **Vercel**: قائمة مشاريع الحساب، والنشر إمّا كمشروع جديد أو **داخل مشروع قائم** (يحتفظ باسمه
+  ونطاقاته)، ثم رفع الملفات وبدء النشر و**متابعة الحالة تلقائيًا** حتى `READY` وإظهار الرابط
+  الحيّ؛ وزر «Follow to READY» يقرأ أحدث نشرة لأي مشروع قائم. من `studio_integrations` أو
+  `VERCEL_STUDIO_TOKEN` / `VERCEL_API_TOKEN` (+ `VERCEL_TEAM_ID`).
+- **Google Drive**: قراءة مستند كنص (Docs/Slides → نص، Sheets → CSV، والملفات النصية كما هي،
+  والثنائيات تُرفض بسببه)، وتصدير المشروع مرة واحدة كـ Google Doc قابل للتحويل أو كـ `.zip`
+  عبر رفع multipart. الرمز من `studio_integrations` أو `GOOGLE_DRIVE_TOKEN` / `GOOGLE_STUDIO_TOKEN`.
 - **ZIP**: تصدير كامل يعمل بلا أي خدمة خارجية.
 
 ---
@@ -221,11 +236,14 @@ npm run dev             # vite فقط (يمرّر /api إلى 3001)
 
 ```bash
 npm test                                  # كل شيء
-node --test tests/studio-protocol.test.mjs   # بروتوكول الوسوم + تطبيق العمليات (8)
-node --test tests/studio-agent-e2e.test.mjs  # وكيل SSE حقيقي + SQLite (2)
+node --test tests/studio-protocol.test.mjs   # بروتوكول الوسوم + تطبيق العمليات (18)
+node --test tests/studio-agent-e2e.test.mjs  # وكيل SSE حقيقي + SQLite (7)
+node --test tests/studio-github.test.mjs     # استيراد مستودع + commit + PR (4)
+node --test tests/studio-vercel.test.mjs     # مشروع قائم + متابعة READY (2)
+node --test tests/studio-google.test.mjs     # قراءة Drive + تصدير Doc/ZIP (5)
 node --test tests/studio-exec.test.mjs       # أوامر وخادم تطوير حقيقيان (8)
 node --test tests/studio-preview.test.mjs    # بناء المعاينة + ZIP (8)
-node --test tests/studio-ui.test.mjs         # الواجهة في DOM حقيقي (2)
+node --test tests/studio-ui.test.mjs         # الواجهة في DOM حقيقي (9)
 node --test tests/studio-vendor.test.mjs     # رسم React عبر import map (2)
 npm run smoke                                # المنتج كاملًا عبر HTTP حقيقي
 ```
@@ -236,8 +254,10 @@ npm run smoke                                # المنتج كاملًا عبر 
 
 - `studio-agent-e2e` يشغّل خادمًا متوافقًا مع OpenAI على `127.0.0.1` ويقود المسار كاملًا:
   خطة ← جلبتا إنشاء ← تعديل ← حالة خطأ — مع قاعدة بيانات مؤقتة.
-- `studio-ui` يركّب الواجهة فعليًا في jsdom: تحميل مشروع، فتح المحرر، بناء المعاينة، ثم
-  كتابة رسالة تُقود خطة ← إنشاء ← ملفات ← معاينة، ويفشل عند أي خطأ React.
+- `studio-ui` يركّب الواجهة فعليًا في jsdom: تحميل مشروع، فتح المحرر، بناء المعاينة، رسالة
+  تُقود خطة ← إنشاء ← ملفات ← معاينة، استئناف بناء مقطوع، كل أوضاع البناء، النافذة الحيّة،
+  إرفاق صورة، فتح مستودع ثم commit + PR، اختيار مشروع Vercel ثم متابعة READY، وإرفاق مستند
+  Drive ثم إرساله وحفظ المشروع. يفشل عند أي خطأ React.
 - **حدود التحقق في هذه البيئة**: الشبكة إلى مزوّدي النماذج وVercel محجوبة، فلا يمكن إثبات
   توليد حقيقي أو نشر Vercel من هنا. الدفع إلى GitHub تم التحقق منه فعليًا
   (`scripts/studio-verify-github.mjs`) بإنشاء فرع ودفع ملفات وقراءتها وحذف الفرع.

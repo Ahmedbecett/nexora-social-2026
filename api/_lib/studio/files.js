@@ -90,11 +90,55 @@ export function applyOps(files, ops = []) {
       continue;
     }
     if (typeof op.content !== 'string') continue;
+    if (op.append) {
+      const joined = appendPart(next[path] || '', op.content);
+      if (joined === next[path]) continue;
+      next[path] = joined;
+      changedByPath.set(path, { path, op: 'append' });
+      continue;
+    }
     if (next[path] === op.content) continue;
     next[path] = op.content;
     changedByPath.set(path, { path, op: 'write' });
   }
   return { files: next, changed: [...changedByPath.values()] };
+}
+
+/* ------------------------------- images ---------------------------------- */
+export const IMAGE_LIMITS = { maxCount: 3, maxBytes: 1_400_000, mimes: ['image/jpeg', 'image/png', 'image/webp'] };
+
+/**
+ * Screenshots and photos the user attaches are sent to a vision model as base64
+ * data. Nothing else is accepted: no remote URLs (the server would fetch an
+ * unknown host) and no SVG (it can carry script).
+ */
+export function sanitizeImages(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const raw of list) {
+    if (!raw || typeof raw !== 'object') continue;
+    const mime = String(raw.mime || '').toLowerCase().trim();
+    const data = String(raw.data || '').replace(/^data:[^;]+;base64,/, '').replace(/\s+/g, '');
+    if (!IMAGE_LIMITS.mimes.includes(mime)) continue;
+    if (!data || data.length > IMAGE_LIMITS.maxBytes) continue;
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) continue;
+    out.push({ mime, data, name: String(raw.name || '').slice(0, 120) || null });
+    if (out.length >= IMAGE_LIMITS.maxCount) break;
+  }
+  return out;
+}
+
+/**
+ * Long-form text arrives in sections; sections must not be glued onto the last
+ * line of the previous one, so a blank line is inserted when needed.
+ */
+export function appendPart(previous, next) {
+  const prev = typeof previous === 'string' ? previous : '';
+  const add = typeof next === 'string' ? next : '';
+  if (!add) return prev;
+  if (!prev) return add;
+  if (/\n\s*$/.test(prev)) return prev + add;
+  return prev + '\n\n' + add;
 }
 
 /** A compact directory view for prompts (dirs first, indented). */
@@ -138,3 +182,28 @@ export function summarizeFiles(files) {
 }
 
 export const FILE_LIMITS = { MAX_FILES, MAX_FILE_BYTES, MAX_TOTAL_BYTES };
+
+/* ----------------------- documents attached as context -------------------- */
+export const DOC_LIMITS = { maxDocs: 3, maxChars: 24_000 };
+
+/**
+ * Documents picked from Google Drive, reduced to what the model needs: a name,
+ * a link for the transcript, and text. Anything else is dropped, not trusted.
+ */
+export function sanitizeDocs(docs) {
+  const list = Array.isArray(docs) ? docs : [];
+  const out = [];
+  for (const doc of list) {
+    if (!doc || typeof doc !== 'object') continue;
+    const text = typeof doc.text === 'string' ? doc.text : '';
+    if (!text.trim()) continue;
+    out.push({
+      name: String(doc.name || 'Drive document').slice(0, 160),
+      url: typeof doc.url === 'string' && /^https:\/\//.test(doc.url) ? doc.url.slice(0, 400) : '',
+      mime: typeof doc.mime === 'string' ? doc.mime.slice(0, 120) : '',
+      text: text.slice(0, DOC_LIMITS.maxChars),
+    });
+    if (out.length >= DOC_LIMITS.maxDocs) break;
+  }
+  return out;
+}

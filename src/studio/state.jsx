@@ -21,6 +21,10 @@ const deriveName = (text) => {
   return t.slice(0, 52);
 };
 
+import { BUILD_MODES, DEFAULT_BUILD_MODE, buildModeConfig, textTargetPath } from '../../api/_lib/studio/modes.js';
+import { appendPart } from '../../api/_lib/studio/files.js';
+
+const BUILD_MODE_KEY = 'nxs-build-mode';
 const MAX_AGENT_ROUNDS = 12;
 const INTERRUPT_RETRIES = 3;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -55,8 +59,13 @@ export function StudioProvider({ children }) {
   const [toast, setToast] = useState(null);
 
   /* -------------------------------- agent -------------------------------- */
-  const [agent, setAgent] = useState({ running: false, step: null, round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false, interrupted: false, pending: 0, lastNotes: [] });
+  const [agent, setAgent] = useState({ running: false, step: null, round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false, interrupted: false, pending: 0, lastNotes: [], typing: null });
   const [accounts, setAccounts] = useState({ github: null, vercel: null });
+
+  /* ----------------------------- build mode ------------------------------ */
+  const [buildMode, setBuildModeState] = useState(() => {
+    try { return buildModeConfig(localStorage.getItem(BUILD_MODE_KEY)).id; } catch { return DEFAULT_BUILD_MODE; }
+  });
 
   /* ------------------------------- terminal ------------------------------ */
   const [terminal, setTerminal] = useState({ running: false, logs: '', kind: null, command: '', runId: null, exitCode: null, durationMs: null, engine: null, error: null });
@@ -70,12 +79,20 @@ export function StudioProvider({ children }) {
   const abortRef = useRef(null);
   const saveTimer = useRef(null);
   const stateRef = useRef({});
-  stateRef.current = { session, projects, project, messages, files, activeFile, dirty, agent, terminal, tab, previewMode, devServer };
+  stateRef.current = { session, projects, project, messages, files, activeFile, dirty, agent, terminal, tab, previewMode, devServer, buildMode };
 
   const notify = useCallback((text, tone = 'info') => {
     setToast({ text, tone, id: Date.now() });
     setTimeout(() => setToast((t) => (t && Date.now() - t.id > 2200 ? null : t)), 3200);
   }, []);
+
+  /* build mode lives next to notify because it announces itself when changed */
+  const setBuildMode = useCallback((id) => {
+    const next = buildModeConfig(id);
+    setBuildModeState(next.id);
+    try { localStorage.setItem(BUILD_MODE_KEY, next.id); } catch { /* private mode */ }
+    notify(`${next.label} mode · ${next.hint}`, 'info');
+  }, [notify]);
 
   /* ================================= boot ================================= */
   const loadProjects = useCallback(async () => {
@@ -115,12 +132,13 @@ export function StudioProvider({ children }) {
   }, [notify]);
 
   const loadAccounts = useCallback(async () => {
-    const [github, vercel] = await Promise.all([
+    const [github, vercel, google] = await Promise.all([
       request('studio/integrations/github', { timeout: 30_000 }).catch(() => null),
       request('studio/integrations/vercel', { timeout: 30_000 }).catch(() => null),
+      request('studio/integrations/google', { timeout: 30_000 }).catch(() => null),
     ]);
-    setAccounts({ github, vercel });
-    return { github, vercel };
+    setAccounts({ github, vercel, google });
+    return { github, vercel, google };
   }, []);
 
   const boot = useCallback(async () => {
@@ -309,8 +327,21 @@ export function StudioProvider({ children }) {
       case 'user_message':
         setMessages((prev) => {
           if (prev.some((m) => m.id === data.message?.id)) return prev;
-          const withoutTemp = prev.filter((m) => !(m.local && m.role === 'user' && m.text === data.message?.text));
-          return [...withoutTemp, data.message];
+          const local = prev.find((m) => m.local && m.role === 'user' && m.text === data.message?.text);
+          const withoutTemp = prev.filter((m) => m !== local);
+          /* the server keeps a light record; the picture the user attached only
+             exists in this session, so it rides along with the echoed message */
+          const merged = local?.meta && (local.meta.images?.length || local.meta.docs?.length)
+            ? {
+              ...data.message,
+              meta: {
+                ...(data.message.meta || {}),
+                ...(local.meta.images?.length ? { images: local.meta.images } : {}),
+                ...(local.meta.docs?.length ? { docs: local.meta.docs } : {}),
+              },
+            }
+            : data.message;
+          return [...withoutTemp, merged];
         });
         break;
       case 'status':
@@ -319,8 +350,16 @@ export function StudioProvider({ children }) {
       case 'prose':
         setAgent((a) => ({ ...a, prose: data.text || '' }));
         break;
+      case 'file_partial':
+        /* the code being written right now — shown in the live window */
+        setAgent((a) => ({ ...a, typing: { path: data.path, text: String(data.partial || ''), at: Date.now() } }));
+        break;
       case 'file':
-        setFiles((prev) => ({ ...prev, [data.path]: data.content }));
+        setAgent((a) => (a.typing && a.typing.path === data.path ? { ...a, typing: null } : a));
+        setFiles((prev) => ({
+          ...prev,
+          [data.path]: data.append ? appendPart(prev[data.path], data.content) : data.content,
+        }));
         setOpenFiles((prev) => (prev.includes(data.path) ? prev : (prev.length < 6 ? [...prev, data.path] : prev)));
         setActiveFile((cur) => cur || data.path);
         pushActivity({ kind: 'file', path: data.path });
@@ -374,13 +413,15 @@ export function StudioProvider({ children }) {
     }
   }, [pushActivity]);
 
-  const runAgent = useCallback(async ({ mode, message = '', selectedFile = '', logs = '', projectId }) => {
+  const runAgent = useCallback(async ({ mode, message = '', selectedFile = '', logs = '', projectId, extra = {} }) => {
     const id = projectId || stateRef.current.project?.id;
     if (!id) throw new Error('no project');
     let done = null;
     let failure = null;
     await streamRequest('studio/agent', {
       projectId: id, mode, message, selectedFile, logs,
+      buildMode: stateRef.current.buildMode || DEFAULT_BUILD_MODE,
+      ...extra,
     }, {
       signal: abortRef.current?.signal,
       onEvent: (event, data) => {
@@ -408,34 +449,67 @@ export function StudioProvider({ children }) {
    * request, so nothing depends on a single long-lived connection; an
    * interrupted round is retried from the files that already exist.
    */
-  const buildUntilComplete = useCallback(async ({ projectId, message, planFiles = [], onRound }) => {
+  const buildUntilComplete = useCallback(async ({ projectId, message, planFiles = [], parts = 0, textPath = '', images = [], docs = [], onRound }) => {
+    const cfg = buildModeConfig(stateRef.current.buildMode);
+    const maxRounds = Math.max(1, Math.min(40, cfg.rounds || MAX_AGENT_ROUNDS));
+    const retries = Math.max(0, cfg.retries ?? INTERRUPT_RETRIES);
+    const isText = parts > 0;
+
     let missing = Array.isArray(planFiles) && planFiles.length
       ? planFiles.filter((path) => !(path in stateRef.current.files))
       : [];
     let interrupted = 0;
+    let stalls = 0;
     let round = 0;
     let lastInterrupted = false;
-    while (round < MAX_AGENT_ROUNDS && (missing.length || round === 0)) {
+
+    while (round < maxRounds) {
+      const more = isText ? round < parts : (missing.length > 0 || round === 0);
+      if (!more) break;
       round += 1;
       const mode = round === 1 ? 'create' : 'continue';
-      if (onRound) onRound({ round, missing: missing.length, mode });
-      const res = await runAgent({ mode, message, projectId });
+      if (onRound) onRound({ round, missing: missing.length, mode, maxRounds });
+      const res = await runAgent({
+        mode,
+        message,
+        projectId,
+        extra: {
+          batch: cfg.batch,
+          ...(isText ? { parts, part: round, textPath } : {}),
+          ...(round === 1 && images.length ? { images } : {}),
+          ...(round === 1 && docs.length ? { docs } : {}),
+        },
+      });
+
       if (res.interrupted) {
         lastInterrupted = true;
         interrupted += 1;
         setAgent((a) => ({ ...a, interrupted: true, pending: missing.length, running: true }));
-        if (interrupted >= INTERRUPT_RETRIES) break;
+        if (interrupted > retries) break;
         await wait(700);
-        round -= 1;                       // the same batch is retried
+        round -= 1;                       // the same round is retried from what exists
         continue;
       }
+
       const done = res.done || {};
-      const remaining = Array.isArray(done.missing) ? done.missing : missing;
       const progress = (done.changed || []).length;
-      missing = remaining;
-      if (progress === 0 && remaining.length >= missing.length) break;
+      if (!isText && Array.isArray(done.missing)) missing = done.missing;
+
+      if (isText) {
+        if (progress === 0) break;        // an empty section means the document is done
+        continue;
+      }
       if (!missing.length) break;
+      /* a round that wrote nothing while files are still missing would loop
+         forever — allow one retry, then stop and show the pending counter */
+      if (progress === 0) {
+        stalls += 1;
+        if (stalls >= 2) break;
+      } else {
+        stalls = 0;
+      }
     }
+
     setAgent((a) => ({ ...a, interrupted: lastInterrupted && missing.length > 0, pending: missing.length }));
     return { missing, interrupted: lastInterrupted };
   }, [runAgent]);
@@ -449,8 +523,19 @@ export function StudioProvider({ children }) {
     notify('Stopped — the files written so far are kept', 'warn');
   }, [notify, persistFiles]);
 
-  const appendLocalUser = useCallback((text) => {
-    setMessages((prev) => [...prev, { id: `local-${Date.now()}`, local: true, role: 'user', kind: 'text', text, createdAt: new Date().toISOString(), meta: {} }]);
+  const appendLocalUser = useCallback((text, images = [], docs = []) => {
+    setMessages((prev) => [...prev, {
+      id: `local-${Date.now()}`,
+      local: true,
+      role: 'user',
+      kind: 'text',
+      text,
+      createdAt: new Date().toISOString(),
+      meta: {
+        ...(images.length ? { images: images.map((im) => ({ url: `data:${im.mime};base64,${im.data}` })) } : {}),
+        ...(docs.length ? { docs: docs.map((d) => ({ name: d.name, url: d.url })) } : {}),
+      },
+    }]);
   }, []);
 
   const appendLocalError = useCallback((text) => {
@@ -461,34 +546,73 @@ export function StudioProvider({ children }) {
    * The main loop: plan (new projects) → create until the plan is complete →
    * preview rebuild. Edits skip the plan.
    */
-  const send = useCallback(async (rawText) => {
+  const send = useCallback(async (rawText, opts = {}) => {
     const text = String(rawText || '').trim();
     if (!text || stateRef.current.agent.running) return;
+    const images = Array.isArray(opts.images) ? opts.images : [];
+    const docs = Array.isArray(opts.docs) ? opts.docs : [];
 
+    const cfg = buildModeConfig(stateRef.current.buildMode);
     let p = stateRef.current.project;
     const empty = !p || Object.keys(stateRef.current.files || {}).length === 0;
     abortRef.current = new AbortController();
-    setAgent({ running: true, step: 'plan', round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false });
-    appendLocalUser(text);
-
+    setAgent({
+      running: true,
+      step: cfg.plan && !cfg.append ? 'plan' : 'create',
+      round: 0, prose: '', message: '', plan: null, activity: [],
+      error: null, provider: null, stopped: false, interrupted: false, pending: 0,
+      typing: null, started: Date.now(), buildMode: cfg.id,
+    });
     try {
       if (!p) {
+        /* opening the new project replaces the message list, so the optimistic
+           message is added after it — otherwise the attachment would vanish */
         p = await createProject({ prompt: text, keepAgent: true });
       }
-      if (empty) {
-        const planRes = await runAgent({ mode: 'plan', message: text, projectId: p.id });
-        const planFiles = (planRes.done?.missing?.length
-          ? planRes.done.missing
-          : (planRes.done?.plan?.files || planRes.done?.project?.plan?.files || []).map((f) => f.path));
-        if (planRes.interrupted && !planFiles.length) {
-          throw new StudioApiError('run_interrupted', 0, 'the plan was cut off — press Continue build to resume');
+      appendLocalUser(text, images, docs);
+
+      if (empty && cfg.append) {
+        /* long-form text: one markdown file grows section by section */
+        const textPath = textTargetPath(text, 'document.md');
+        pushActivity({ kind: 'note', text: `writing ${textPath} · ${cfg.parts} sections` });
+        const built = await buildUntilComplete({
+          projectId: p.id,
+          message: text,
+          parts: cfg.parts,
+          textPath,
+          images,
+          docs,
+          onRound: ({ round, maxRounds }) => {
+            setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round, maxRounds }));
+            if (round > 1) pushActivity({ kind: 'note', text: `section ${round}` });
+          },
+        });
+        if (built.missing.length) pushActivity({ kind: 'note', text: `${built.missing.length} file(s) still missing` });
+        if (built.interrupted) notify('The connection was cut — the text so far is saved, press Continue build', 'warn');
+      } else if (empty) {
+        let planFiles = [];
+        if (cfg.plan) {
+          const planRes = await runAgent({
+            mode: 'plan',
+            message: text,
+            projectId: p.id,
+            extra: { ...(images.length ? { images } : {}), ...(docs.length ? { docs } : {}) },
+          });
+          planFiles = (planRes.done?.missing?.length
+            ? planRes.done.missing
+            : (planRes.done?.plan?.files || planRes.done?.project?.plan?.files || []).map((f) => f.path));
+          if (planRes.interrupted && !planFiles.length) {
+            throw new StudioApiError('run_interrupted', 0, 'the plan was cut off — press Continue build to resume');
+          }
         }
         const built = await buildUntilComplete({
           projectId: p.id,
           message: text,
           planFiles,
-          onRound: ({ round, missing }) => {
-            setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round }));
+          images,
+          docs,
+          onRound: ({ round, missing, maxRounds }) => {
+            setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round, maxRounds }));
             if (missing) pushActivity({ kind: 'note', text: `round ${round} · ${missing} file(s) queued` });
           },
         });
@@ -498,7 +622,13 @@ export function StudioProvider({ children }) {
         }
       } else {
         setAgent((a) => ({ ...a, running: true, step: 'edit' }));
-        await runAgent({ mode: 'edit', message: text, selectedFile: stateRef.current.activeFile || '', projectId: p.id });
+        await runAgent({
+          mode: 'edit',
+          message: text,
+          selectedFile: stateRef.current.activeFile || '',
+          projectId: p.id,
+          extra: { ...(images.length ? { images } : {}), ...(docs.length ? { docs } : {}) },
+        });
       }
       if (empty) setTab('preview');
       setPreviewNonce((n) => n + 1);
@@ -526,7 +656,7 @@ export function StudioProvider({ children }) {
     const p = stateRef.current.project;
     if (!p || stateRef.current.agent.running) return;
     abortRef.current = new AbortController();
-    setAgent((a) => ({ ...a, running: true, step: 'fix', activity: [], error: null }));
+    setAgent((a) => ({ ...a, running: true, step: 'fix', activity: [], error: null, started: Date.now(), typing: null }));
     try {
       const fix = await runAgent({ mode: 'fix', logs, message: 'Fix the failure shown in the terminal output.', projectId: p.id });
       if (fix.interrupted) notify('The fix was cut off — check the terminal and try again', 'warn');
@@ -612,7 +742,7 @@ export function StudioProvider({ children }) {
     if (!p || stateRef.current.agent.running) return null;
     const planFiles = (p.plan?.files || []).map((f) => f.path);
     abortRef.current = new AbortController();
-    setAgent((a) => ({ ...a, running: true, step: 'continue', error: null, interrupted: false }));
+    setAgent((a) => ({ ...a, running: true, step: 'continue', error: null, interrupted: false, started: Date.now() }));
     try {
       const built = await buildUntilComplete({
         projectId: p.id,
@@ -637,11 +767,90 @@ export function StudioProvider({ children }) {
   }, [buildUntilComplete, loadProjects, notify, pushActivity]);
 
   /* ================================ deploy ================================ */
-  const deployVercel = useCallback(async () => {
+  /* ----------------------------- Google Drive ----------------------------- */
+  /** Reads a Doc/Sheet/text file so it can ride along as build context. */
+  const readDriveDoc = useCallback(async (id) => {
+    const data = await request('studio/drive/read', { method: 'POST', body: { id }, timeout: 60_000 });
+    const doc = data.document;
+    notify(`Read “${doc.name}”${doc.truncated ? ' (trimmed)' : ''}`, 'ok');
+    return doc;
+  }, [notify]);
+
+  /** Writes the project back to Drive: one Google Doc, or the files as a .zip. */
+  const exportToDrive = useCallback(async ({ as = 'doc', zipBase64 = null } = {}) => {
+    const p = stateRef.current.project;
+    if (!p) return null;
+    const data = await request('studio/drive/export', {
+      method: 'POST',
+      body: { projectId: p.id, as, zipBase64 },
+      timeout: 90_000,
+    });
+    setDeployments((prev) => [{
+      id: `drive-${Date.now()}`,
+      provider: 'google',
+      status: 'exported',
+      url: data.export?.url,
+      createdAt: new Date().toISOString(),
+    }, ...prev]);
+    notify(`Saved to Drive: ${data.export?.name || 'project'}`, 'ok');
+    return data.export;
+  }, [notify]);
+
+  /* --------------------------- git repositories --------------------------- */
+  /** Opens a real GitHub repository as a Studio project (files, stack, entry). */
+  const importRepo = useCallback(async ({ repo, ref, name } = {}) => {
+    const data = await request('studio/repos/import', {
+      method: 'POST',
+      body: { repo, ref: ref || '', name: name || '' },
+      timeout: 180_000,
+    });
+    setProject(data.project);
+    setFiles(data.project.files || {});
+    setMessages([]);
+    setRevisions([]);
+    setDeployments([]);
+    setDirty({});
+    setProjects((prev) => [data.project, ...prev.filter((p) => p.id !== data.project.id)]);
+    try { localStorage.setItem(LAST_PROJECT, String(data.project.id)); } catch { /* private mode */ }
+    setActiveFile(data.project.entry || Object.keys(data.project.files || {})[0] || null);
+    setTab('preview');
+    notify(`Imported ${data.repo.imported} files from ${data.repo.full}`, 'ok');
+    loadProjects().catch(() => {});
+    return data;
+  }, [loadProjects, notify]);
+
+  /** Commits the project to a branch of an existing repository, optionally as a PR. */
+  const pushBranch = useCallback(async ({ repo, branch = '', base = '', message = '', pr = true } = {}) => {
+    const p = stateRef.current.project;
+    if (!p) return null;
+    const data = await request('studio/repos/push', {
+      method: 'POST',
+      body: { projectId: p.id, repo, branch, base, message, pr },
+      timeout: 180_000,
+    });
+    setDeployments((prev) => [{
+      id: data.deployment?.id || Date.now(),
+      provider: 'github',
+      status: data.pull ? 'pr_open' : 'ready',
+      url: data.pull?.url || data.url,
+      createdAt: new Date().toISOString(),
+    }, ...prev]);
+    notify(
+      data.pull ? `Pull request #${data.pull.number} opened on ${data.repo}` : `Pushed ${data.files} files to ${data.repo}@${data.branch}`,
+      'ok',
+    );
+    return data;
+  }, [notify]);
+
+  const deployVercel = useCallback(async ({ existingProjectId = null, name = '' } = {}) => {
     const p = stateRef.current.project;
     if (!p) return null;
     try {
-      const data = await request(`studio/projects/${p.id}/deploy/vercel`, { method: 'POST', body: { name: p.name }, timeout: 90_000 });
+      const data = await request(`studio/projects/${p.id}/deploy/vercel`, {
+        method: 'POST',
+        body: { name: name || p.name, existingProjectId },
+        timeout: 90_000,
+      });
       setDeployments((prev) => [data.deployment, ...prev]);
       notify('Deployment queued on Vercel');
       const id = data.deployment?.id;
@@ -662,6 +871,25 @@ export function StudioProvider({ children }) {
       else notify(`Deploy failed: ${e.detail || e.code}`, 'error');
       return null;
     }
+  }, [notify]);
+
+  /** Reads an existing Vercel project's newest deployment until it settles. */
+  const followVercelProject = useCallback(async ({ id = null, name = '', attempts = 20 } = {}) => {
+    let last = null;
+    for (let i = 0; i < attempts; i += 1) {
+      try {
+        last = await request('studio/vercel/state', { method: 'POST', body: { id, name }, timeout: 25_000 });
+      } catch (e) {
+        notify(`Vercel: ${e.detail || e.code}`, 'error');
+        return null;
+      }
+      if (!last.hasDeployment) { notify(`${last.name}: no deployment yet`, 'warn'); return last; }
+      if (last.state === 'READY') { notify(`Live: ${last.url}`, 'ok'); return last; }
+      if (last.state === 'ERROR' || last.state === 'CANCELED') { notify(`Vercel build ${last.state.toLowerCase()}`, 'error'); return last; }
+      await wait(3000);
+    }
+    notify('Vercel is still building — check again in a minute', 'warn');
+    return last;
   }, [notify]);
 
   const pushGithub = useCallback(async ({ repo, isPrivate = true, message } = {}) => {
@@ -738,6 +966,8 @@ export function StudioProvider({ children }) {
     writeFile, addFile, removeFile, renameFile, saveNow, restoreRevision, persistFiles,
     send, stopAgent, fixWithAI, resumeBuild, runTerminal, clearTerminal,
     accounts, loadAccounts,
+    buildMode, setBuildMode, BUILD_MODES,
+    importRepo, pushBranch, followVercelProject, readDriveDoc, exportToDrive,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   }), [
     session, booting, bootError, boot, refreshSession, projects, project, messages, revisions, deployments, files,
@@ -745,6 +975,7 @@ export function StudioProvider({ children }) {
     previewMode, switchPreview, devServer, startDev, stopDev, previewNonce, consoleEntries, logConsole,
     createProject, openProject, deleteProject, renameProject, loadProjects, writeFile, addFile, removeFile, renameFile,
     saveNow, restoreRevision, persistFiles, send, stopAgent, fixWithAI, runTerminal, clearTerminal,
+    buildMode, setBuildMode, importRepo, pushBranch, followVercelProject, readDriveDoc, exportToDrive,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   ]);
 

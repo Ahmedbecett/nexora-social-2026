@@ -205,6 +205,34 @@ function isParked(id) { const t = parked.get(id); if (t && t > Date.now()) retur
 function park(id, ms) { parked.set(id, Date.now() + ms); }
 
 /* --------------------------- OpenAI-compatible --------------------------- */
+/* Images reach each provider in its own shape. Anything else is passed through
+   untouched, so a provider without vision simply answers with its usual error. */
+function messagesForProvider(messages, kind) {
+  const hasImages = Array.isArray(messages) && messages.some((m) => Array.isArray(m.images) && m.images.length);
+  if (!hasImages) return messages;
+  if (kind === 'gemini') return messages;                       // mapped in callGemini
+  if (kind === 'anthropic') {
+    return messages.map((m) => (Array.isArray(m.images) && m.images.length
+      ? {
+        role: m.role,
+        content: [
+          ...(m.content ? [{ type: 'text', text: m.content }] : []),
+          ...m.images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: im.mime || 'image/jpeg', data: im.data } })),
+        ],
+      }
+      : { role: m.role, content: m.content }));
+  }
+  return messages.map((m) => (Array.isArray(m.images) && m.images.length
+    ? {
+      role: m.role,
+      content: [
+        ...(m.content ? [{ type: 'text', text: m.content }] : []),
+        ...m.images.map((im) => ({ type: 'image_url', image_url: { url: `data:${im.mime || 'image/jpeg'};base64,${im.data}` } })),
+      ],
+    }
+    : { role: m.role, content: m.content }));
+}
+
 async function callOpenAICompatible({ def, key, model, base, messages, maxTokens, temperature, timeoutMs, signal, onDelta }) {
   const url = String(base).replace(/\/$/, '') + '/chat/completions';
   const headers = { 'Content-Type': 'application/json', ...(def.headers ? def.headers() : {}) };
@@ -264,7 +292,13 @@ async function callGemini({ key, model, base, systemText, messages, maxTokens, t
   const url = `${String(base).replace(/\/$/, '')}/models/${encodeURIComponent(model)}:${onDelta ? 'streamGenerateContent?alt=sse&' : 'generateContent?'}key=${encodeURIComponent(key)}`;
   const body = {
     system_instruction: { parts: [{ text: systemText }] },
-    contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+    contents: messages.map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [
+        ...(m.content ? [{ text: m.content }] : []),
+        ...(Array.isArray(m.images) ? m.images.map((im) => ({ inline_data: { mime_type: im.mime || 'image/jpeg', data: im.data } })) : []),
+      ],
+    })),
     generationConfig: { maxOutputTokens: maxTokens, temperature },
   };
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: anySignal(signal, timeoutMs) });
@@ -401,7 +435,7 @@ export async function studioChat({
       const remaining = Math.max(6000, Math.min(timeoutMs, budgetMs - (Date.now() - started)));
       try {
         const args = {
-          key, model: m, base: def.base(), messages,
+          key, model: m, base: def.base(), messages: messagesForProvider(messages, def.kind),
           systemText: instructions,
           maxTokens, temperature,
           timeoutMs: remaining, signal, onDelta,

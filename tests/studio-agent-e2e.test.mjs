@@ -43,15 +43,39 @@ function sse(res, chunks) {
   tick();
 }
 
+const captured = [];
+
 const server = http.createServer((req, res) => {
   let raw = '';
   req.on('data', (c) => { raw += c; });
   req.on('end', () => {
     let body = {};
     try { body = JSON.parse(raw || '{}'); } catch { /* ignore */ }
+    captured.push(body);
     const last = body.messages?.at(-1)?.content || '';
     if (/produce a build plan/.test(last)) {
       sse(res, [`Here is the plan.\n<plan>${JSON.stringify(PLAN)}</plan>\n<message>خطة جاهزة: تطبيق عدّاد صغير.</message>`]);
+    } else if (/Start this answer with one <plan>/.test(last)) {
+      /* direct mode: the plan travels inside the first create answer */
+      sse(res, [
+        `<plan>${JSON.stringify({ title: 'Two files', summary: 's', stack: 'static', files: [{ path: 'index.html' }, { path: 'style.css' }] })}</plan>`,
+        '<file path="index.html"><!doctype html><h1>direct</h1></file>',
+      ]);
+    } else if (/TASK: long-form writing/.test(last)) {
+      if (process.env.FAKE_TEXT_CUT === '1') {
+        /* one whole section lands, the next one is cut mid-sentence */
+        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+        const NL = String.fromCharCode(10);
+        const cutBody = '<file path="article.md"># مقال' + NL + NL + 'نص القسم الأول.</file>' + NL + '<file path="article.md" append>القسم الثاني بلا نهاية';
+        res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: cutBody } }] }) + NL + NL);
+        setTimeout(() => { try { res.destroy(); } catch { /* gone */ } }, 40);
+        return;
+      }
+      if (/already|append/i.test(last)) {
+        sse(res, ['<file path="article.md" append>## القسم الثاني\n\nنص القسم الثاني.</file>']);
+      } else {
+        sse(res, ['<file path="article.md"># مقال\n\nنص القسم الأول.</file>']);
+      }
     } else if (/FILES TO WRITE IN THIS REQUEST/.test(last)) {
       // only hand back the files the prompt says are missing (the real contract)
       if (/- index\.html/.test(last)) {
@@ -207,4 +231,115 @@ test('a failing provider surfaces a typed error and writes no files', async () =
 test.after(() => {
   server.close();
   rmSync(dir, { recursive: true, force: true });
+});
+
+test('direct mode skips the plan request and still tracks what is missing', async () => {
+  const project = await createProject('dev', { name: 'Direct app' });
+  const res = fakeRes();
+  await studioAgentStream(fakeReq(), res, { projectId: project.id, mode: 'create', message: 'a direct app', buildMode: 'direct' });
+  const list = events(res.text);
+  const done = list.find((e) => e.event === 'done');
+  assert.equal(done.data.buildMode, 'direct');
+  assert.ok(list.some((e) => e.event === 'plan'), 'the plan arrives with the first files');
+  assert.equal(done.data.pending, 1, 'style.css is still missing, so the client keeps going');
+  const stored = await getProject('dev', project.id);
+  assert.ok(stored.plan && stored.plan.files.length === 2, 'the plan is stored from that answer');
+});
+
+test('long-text mode appends the next section to the same file', async () => {
+  const project = await createProject('dev', { name: 'Article' });
+  const first = fakeRes();
+  await studioAgentStream(fakeReq(), first, {
+    projectId: project.id, mode: 'create', message: 'write an article', buildMode: 'text', textPath: 'article.md', part: 1, parts: 2,
+  });
+  const firstFiles = events(first.text).filter((e) => e.event === 'file');
+  assert.equal(firstFiles.length, 1);
+  assert.equal(firstFiles[0].data.append, false);
+
+  const second = fakeRes();
+  await studioAgentStream(fakeReq(), second, {
+    projectId: project.id, mode: 'continue', message: 'write an article', buildMode: 'text', textPath: 'article.md', part: 2, parts: 2,
+  });
+  const secondFiles = events(second.text).filter((e) => e.event === 'file');
+  assert.equal(secondFiles[0].data.append, true, 'the second section is an append');
+  assert.equal(secondFiles[0].data.content.includes('نص القسم الثاني'), true);
+
+  const stored = await getProject('dev', project.id);
+  assert.equal(stored.files['article.md'], '# مقال\n\nنص القسم الأول.\n\n## القسم الثاني\n\nنص القسم الثاني.',
+    'both sections live in one file, separated by a blank line');
+});
+
+test('an attached image reaches the provider in its own image format', async () => {
+  const project = await createProject('dev', { name: 'From a screenshot' });
+  captured.length = 0;
+  const png = 'iVBORw0KGgoAAAANSUhEUg==';
+  const res = fakeRes();
+  await studioAgentStream(fakeReq(), res, {
+    projectId: project.id,
+    mode: 'create',
+    message: 'copy this design',
+    buildMode: 'direct',
+    images: [{ mime: 'image/png', data: png }, { mime: 'image/svg+xml', data: png }, { mime: 'image/png', data: 'not base64!!' }],
+  });
+  const call = captured[captured.length - 1];
+  const last = call.messages[call.messages.length - 1];
+  assert.ok(Array.isArray(last.content), 'the OpenAI-compatible call uses content parts');
+  const imageParts = last.content.filter((p) => p.type === 'image_url');
+  assert.equal(imageParts.length, 1, 'only the valid PNG survives sanitising');
+  assert.equal(imageParts[0].image_url.url, `data:image/png;base64,${png}`);
+  assert.ok(last.content.some((p) => p.type === 'text' && /attached 1 image/.test(p.text)), 'the prompt mentions the image');
+});
+
+test('an attached Drive document is read by the model as part of the prompt', async () => {
+  const project = await createProject('dev', { name: 'From a brief' });
+  captured.length = 0;
+  const res = fakeRes();
+  await studioAgentStream(fakeReq(), res, {
+    projectId: project.id,
+    mode: 'create',
+    message: 'build the page described in the brief',
+    buildMode: 'direct',
+    docs: [
+      { name: 'Brief', url: 'https://docs.google.com/document/d/1', text: 'Headline: أهلاً — lamp shop, tone warm.' },
+      { name: 'Ignored binary', url: 'javascript:x', text: '' },
+      { name: 'Second', text: 'Sections: hero, grid, footer.' },
+    ],
+  });
+
+  const call = captured[captured.length - 1];
+  const prompt = call.messages.map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n');
+  assert.match(prompt, /Reference material/, 'the prompt carries a reference section');
+  assert.match(prompt, /lamp shop, tone warm/, 'the document text reaches the model');
+  assert.match(prompt, /Sections: hero, grid, footer/, 'a second document is included too');
+  assert.ok(!prompt.includes('Ignored binary'), 'an empty document is not sent');
+
+  const frames = events(res.text);
+  assert.ok(frames.some((f) => f.event === 'status' && f.data.docs === 2), 'the run reports the attached documents');
+});
+
+test('a cut long-form run keeps the finished section and resumes by appending', async () => {
+  const project = await createProject('dev', { name: 'Article' });
+  process.env.FAKE_TEXT_CUT = '1';
+  let res = fakeRes();
+  try {
+    await studioAgentStream(fakeReq(), res, {
+      projectId: project.id, mode: 'create', buildMode: 'text', message: 'write a long article about lamps',
+    });
+  } finally {
+    delete process.env.FAKE_TEXT_CUT;
+  }
+
+  /* the section that finished is on disk, the cut one is not half-written */
+  let stored = await getProject('dev', project.id);
+  assert.ok(stored.files['article.md'], 'the finished section was saved during the run');
+  assert.match(stored.files['article.md'], /نص القسم الأول/);
+  assert.ok(!stored.files['article.md'].includes('بلا نهاية'), 'an unfinished sentence is not written as content');
+
+  /* resuming appends the next section to the same file */
+  res = fakeRes();
+  await studioAgentStream(fakeReq(), res, {
+    projectId: project.id, mode: 'continue', buildMode: 'text', message: 'write a long article about lamps',
+  });
+  stored = await getProject('dev', project.id);
+  assert.match(stored.files['article.md'], /نص القسم الأول[\s\S]*نص القسم الثاني/, 'the second section follows the first');
 });
