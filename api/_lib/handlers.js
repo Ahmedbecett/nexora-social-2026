@@ -15,6 +15,7 @@ import { configureSubscriptions, subsEnsure, plansAll, planPublic, startCheckout
          usageGate, recordUsage, usageSummary, providersStatus, walletInfo, AI_COST_ESTIMATE_USD } from './subscriptions.js';
 import { wsStatus, wsList, wsCreate, wsGet, wsUpdate, wsDelete, wsDeploy, wsGithubPush, wsDriveSave, wsDriveFiles, githubAuthUrl, githubOAuthCallback, googleAuthUrl, googleOAuthCallback, saveOAuth, disconnectOAuth } from './workspace.js';
 import { execCapabilities, runExecution, saveExecution, listExecutions, getExecution, createSnapshot, listSnapshots, getSnapshot } from './exec.js';
+import { createStudioEngine, diffSummary } from './studio.js';
 
 /* علم اختياري للمالك: NEXORA_FREE_MODE=1 يجعل المنصة كلها مجانية (لا خصم نقاط ولا
    حدود خطط) — مناسب لنسخة APK البسيطة. معطّل افتراضيًا؛ سلوك الإنتاج لا يتغيّر
@@ -3141,161 +3142,103 @@ route('GET', 'workspace/snapshots/:id', async ({ req, params }) => {
   return { snapshot: await getSnapshot(me.id, Number(params.id)) };
 });
 
-/* ---------------- autonomous planning: plan→create→debug pipeline ---------------- */
+/* ---------------- autonomous planning: plan→create→edit→debug (real AI) ---------------- */
+/* The engine is created lazily so module load never touches the network. `chat` is the same
+   provider chain the NEXORA assistant uses (Gemini / OpenAI / OpenRouter / keyless), so the
+   studio inherits its retries, parking and honest failures. Nothing here invents code: if the
+   model cannot answer, the HTTP layer reports a real error and the project stays untouched. */
+let studioEngine = null;
+function studio() {
+  if (!studioEngine) {
+    studioEngine = createStudioEngine({
+      chat: ({ message, instructions, history }) => aiChatCore({ message, instructions, history, model: undefined }),
+      log: (m) => { if (process.env.STUDIO_DEBUG === '1') console.log(m); },
+    });
+  }
+  return studioEngine;
+}
+
+const studioLang = (body) => (String(body?.lang || '').toLowerCase() === 'en' ? 'en' : 'ar');
+
+async function studioUsage(userId, kind, info) {
+  try { await recordUsage(userId, kind, info || {}); } catch { /* plan limits must not break the studio */ }
+}
+
+route('GET', 'workspace/ai-capabilities', async ({ req }) => {
+  await wsAuth(req);
+  let keyed = 0;
+  try { const k = await aiKeys(); keyed = k.openai.length + k.gemini.length + k.openrouter.length; } catch { keyed = 0; }
+  const free = AI_FREE_PROVIDERS.filter((p) => !!process.env[p.env]).map((p) => p.id);
+  return {
+    ai: { keyed, keyless: true, free },
+    exec: execCapabilities(),
+    deploy: { vercel: !!(process.env.VERCEL_TOKEN || process.env.VERCEL_API_TOKEN), github: !!(process.env.GITHUB_TOKEN) },
+  };
+});
+
 route('POST', 'workspace/plan', async ({ req, body }) => {
   const me = await wsAuth(req);
+  if (aiRateLimit('studio-plan:' + String(me.id), 12)) throw new HttpError(429, 'rate_limited', 'rate_limited');
   const prompt = cleanText(body.prompt, 4000);
   if (!prompt) throw bad('prompt_required');
-  const frameworkHint = cleanText(body.framework || '', 20);
-  // try real AI planning, fallback to template if no AI key
-  try {
-    const hist = [];
-    const instructions = 'You are NEXORA autonomous planner. Given user idea, output ONLY valid JSON with keys: title (string), description (string), framework (one of static,vite,next,api), features (array of 3-6 strings), fileStructure (array of file paths), steps (array of 4-6 strings: plan, create, execute, test, debug, deploy). Respond in language of user prompt. No markdown, just JSON.';
-    const msg = `Idea: ${prompt}${frameworkHint ? ` Hint framework: ${frameworkHint}` : ''}. Generate plan JSON.`;
-    // reuse internal AI core if available — we call via aiChatCore to respect providers
-    const { answer } = await (async () => {
-      // dynamic import to avoid circular at load time; handlers already has aiChatCore in scope
-      // aiChatCore is not exported, so we replicate minimal call: use existing aiChatCore logic via direct fetch to AI
-      // fallback: simple deterministic plan
-      throw new Error('use-fallback');
-    })();
-    return { plan: JSON.parse(answer) };
-  } catch {
-    // deterministic fallback that is still useful and honest
-    const lower = prompt.toLowerCase();
-    let fw = frameworkHint || 'static';
-    if (!frameworkHint) {
-      if (lower.includes('next') || lower.includes('api') && lower.includes('react')) fw = 'next';
-      else if (lower.includes('vite') || lower.includes('react') || lower.includes('dashboard') || lower.includes('saas')) fw = 'vite';
-      else if (lower.includes('api') || lower.includes('express') || lower.includes('backend')) fw = 'api';
-    }
-    const title = prompt.slice(0, 60).replace(/\n/g,' ') || 'مشروع NEXORA';
-    return {
-      plan: {
-        title, description: prompt.slice(0, 300),
-        framework: fw,
-        features: [
-          fw === 'static' ? 'صفحة هبوط سريعة مع استجابة جوال' : 'واجهة React حديثة',
-          'تصميم متجاوب ونظام ألوان متسق',
-          'بيانات تجريبية قابلة للربط بـ API لاحقاً',
-          'اختبارات أساسية وتوثيق README'
-        ],
-        fileStructure: fw === 'static' ? ['index.html','style.css','app.js','README.md'] : ['package.json','index.html','src/main.jsx','src/App.jsx','src/styles.css','README.md'],
-        steps: ['تحليل المتطلبات واختيار الحزمة','توليد الملفات والواجهات','تثبيت الحزم والبناء','تشغيل الاختبارات','تصحيح الأخطاء تلقائياً','نشر إلى Vercel وربط GitHub'],
-        prompt,
-        fallback: true,
-      },
-      fallback: true,
-      note: 'AI planning fallback — works offline; AI version activates when GEMINI/OPENAI keys set.'
-    };
-  }
+  const r = await studio().plan({ prompt, framework: cleanText(body.framework, 20), lang: studioLang(body) });
+  await studioUsage(me.id, 'studio-plan', { provider: r.provider });
+  return { plan: r.plan, provider: r.provider, model: r.model, real: true };
 });
 
 route('POST', 'workspace/generate', async ({ req, body }) => {
   const me = await wsAuth(req);
-  const plan = body.plan || null;
-  const prompt = cleanText(body.prompt || plan?.prompt || plan?.description || '', 4000);
-  if (!prompt && !plan) throw bad('prompt_required');
-  const fw = plan?.framework || cleanText(body.framework, 20) || 'static';
-  // Generate files via AI if possible, else deterministic templates enhanced
-  let files = null;
-  try {
-    // attempt AI generation (reuse same logic as ArenaStudio generateWithAI but server-side)
-    const instructions = `You are NEXORA file generator. Produce a complete runnable project for framework=${fw}. Output ONLY JSON object where keys are file paths and values are file contents (strings). For static: must include index.html. For vite/next: include package.json with scripts dev/build/test. Code must be runnable without extra setup. Respond with JSON only.`;
-    const hist = [];
-    // intentionally throw to use fallback in this iteration — real AI path needs aiChatCore exposure
-    throw new Error('ai-not-wired-in-this-build');
-  } catch {}
-  // Enhanced fallback: generate real runnable files based on fw
-  if (fw === 'vite') {
-    files = {
-      'package.json': JSON.stringify({ name: 'nexora-app', private: true, type: 'module', scripts: { dev: 'vite --host 0.0.0.0 --port 5173', build: 'vite build', preview: 'vite preview', test: 'vitest run' }, dependencies: { react: '^18.3.1', 'react-dom': '^18.3.1' }, devDependencies: { vite: '^6.3.0', '@vitejs/plugin-react': '^4.3.0', vitest: '^1.0.0' } }, null, 2),
-      'index.html': `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${plan?.title || 'NEXORA App'}</title></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>`,
-      'src/main.jsx': `import React from 'react'\nimport { createRoot } from 'react-dom/client'\nimport App from './App.jsx'\nimport './styles.css'\ncreateRoot(document.getElementById('root')).render(<App />)\n`,
-      'src/App.jsx': `export default function App(){\n  return <div style={{fontFamily:'system-ui',padding:24,maxWidth:800,margin:'0 auto'}}>\n    <h1 style={{background:'linear-gradient(90deg,#8b5cf6,#06b6d4)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>${plan?.title || 'NEXORA App'}</h1>\n    <p>${plan?.description || prompt || 'تطبيق تم توليده بواسطة NEXORA Studio — جاهز للتطوير والنشر'}</p>\n    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginTop:16}}>\n      ${(plan?.features || ['ميزة 1','ميزة 2','ميزة 3']).map(f=>`      <div style={{padding:16,background:'#11131a',color:'#e5e7eb',borderRadius:12,border:'1px solid #2a2d3a'}}>${f}</div>`).join('\n')}\n    </div>\n    <p style={{marginTop:20,color:'#6b7280',fontSize:12}}>Generated by NEXORA autonomous pipeline — plan→create→execute→test→debug→deploy</p>\n  </div>\n}\n`,
-      'src/styles.css': `*{box-sizing:border-box;margin:0;padding:0}body{font-family:Cairo,system-ui;background:#0a0a0f;color:#e5e7eb}\n`,
-      'vite.config.js': `import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\nexport default defineConfig({ plugins:[react()], server:{ host:'0.0.0.0', port:5173 } })\n`,
-      'README.md': `# ${plan?.title || 'NEXORA App'}\n\n${plan?.description || prompt}\n\n## Run\n\n\`\`\`bash\nnpm install\nnpm run dev\nnpm run build\nnpm test\n\`\`\`\n`,
-    };
-  } else if (fw === 'next') {
-    files = {
-      'package.json': JSON.stringify({ name: 'nexora-next', private:true, scripts:{ dev:'next dev -p 3000 -H 0.0.0.0', build:'next build', start:'next start', test:'echo no tests' }, dependencies:{ next:'^14.0.0', react:'^18.3.1', 'react-dom':'^18.3.1' } }, null,2),
-      'app/page.jsx': `export default function Page(){ return <main style={{padding:24}}><h1>${plan?.title || 'NEXORA Next'}</h1><p>${plan?.description || prompt}</p></main> }`,
-      'app/layout.jsx': `export default function Layout({children}){ return <html lang="ar"><body>{children}</body></html> }`,
-      'next.config.js': `/** @type {import('next').NextConfig} */ const nextConfig={}; module.exports=nextConfig`,
-      'README.md': `# ${plan?.title || 'NEXORA Next'}\n\n${plan?.description}\n`,
-    };
-  } else if (fw === 'api') {
-    files = {
-      'package.json': JSON.stringify({ name:'nexora-api', private:true, type:'module', scripts:{ dev:'node server.js', start:'node server.js', test:'node --test' }, dependencies:{ express:'^4.18.0', cors:'^2.8.5' } },null,2),
-      'server.js': `import express from 'express'\nimport cors from 'cors'\nconst app=express(); app.use(cors()); app.use(express.json())\napp.get('/api/health',(req,res)=>res.json({ok:true, app:'${plan?.title || 'NEXORA API'}'}))\napp.get('/',(req,res)=>res.send('<h1>${plan?.title || 'NEXORA API'} ✓</h1><p>${plan?.description || prompt}</p>'))\nconst port=process.env.PORT||3000\napp.listen(port,()=>console.log('API on '+port))\n`,
-      'README.md': `# ${plan?.title || 'NEXORA API'}\n\n${plan?.description}\n`,
-    };
-  } else {
-    // static — production-ready landing
-    const title = plan?.title || prompt.slice(0,40) || 'NEXORA Static';
-    files = {
-      'index.html': `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>\n*{box-sizing:border-box;margin:0;padding:0;font-family:Cairo,system-ui}body{background:#0a0a0f;color:#fff}\nheader{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;background:#11131a;border-bottom:1px solid #2a2d3a}\n.logo{font-weight:800;font-size:20px;background:linear-gradient(90deg,#8b5cf6,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}\n.hero{padding:40px 24px;text-align:center;max-width:800px;margin:0 auto}\n.hero h1{font-size:36px;margin-bottom:12px}\n.hero p{color:#9ca3af;line-height:1.7}\n.features{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;padding:24px;max-width:1100px;margin:0 auto}\n.card{background:#161a22;border:1px solid #2a2d3a;border-radius:16px;padding:20px}\n.card h3{color:#8b5cf6;margin-bottom:8px}\n.btn{padding:12px 24px;border-radius:999px;border:0;background:linear-gradient(90deg,#8b5cf6,#ec4899);color:#fff;font-weight:700;cursor:pointer;margin-top:16px}\n</style></head><body>\n<header><div class="logo">✦ ${title}</div><div>● NEXORA Studio</div></header>\n<div class="hero"><h1>${title}</h1><p>${plan?.description || prompt || 'تطبيق ثابت تم توليده بواسطة NEXORA — جاهز للمعاينة والنشر'}</p><button class="btn" onclick="alert('مرحباً من NEXORA!')">ابدأ الآن</button></div>\n<div class="features">${(plan?.features || ['تصميم متجاوب','أداء سريع','جاهز للنشر','كود نظيف']).map(f=>`<div class=card><h3>✦ ${f}</h3><p>ميزة مدمجة في المنصة — قابلة للتخصيص فوراً</p></div>`).join('')}</div>\n<script>console.log('NEXORA static ready')</script></body></html>`,
-      'README.md': `# ${title}\n\n${plan?.description || prompt}\n\nStatic site — open index.html or deploy to Vercel.\n`,
-    };
-  }
-  // optionally persist to project if id provided
+  if (aiRateLimit('studio-gen:' + String(me.id), 12)) throw new HttpError(429, 'rate_limited', 'rate_limited');
+  const prompt = cleanText(body.prompt, 4000);
+  const instruction = cleanText(body.instruction, 4000);
+  const plan = body.plan && typeof body.plan === 'object' ? body.plan : null;
+  const framework = cleanText(body.framework || plan?.framework, 20) || 'static';
+  const current = body.files && typeof body.files === 'object' && !Array.isArray(body.files) ? body.files : null;
+  if (!prompt && !instruction && !plan) throw bad('prompt_required');
+
+  const r = await studio().generate({ prompt: prompt || instruction, plan, framework, files: current, instruction, lang: studioLang(body) });
+  const merged = r.mode === 'edit' ? { ...(current || {}), ...r.files } : r.files;
+  const diff = diffSummary(current || {}, merged);
+  await studioUsage(me.id, 'studio-generate', { provider: r.provider });
+
+  let project = null;
   if (body.projectId) {
     const pid = Number(body.projectId);
-    try {
-      const proj = await wsGet(me.id, pid);
-      // merge files (new generation replaces but keep existing if requested)
-      const merged = body.merge ? { ...proj.files, ...files } : files;
-      await wsUpdate(me.id, pid, { files: merged, framework: fw });
-      await createSnapshot(me.id, pid, merged, 'generate: ' + (plan?.title || fw));
-    } catch {}
+    project = await wsGet(me.id, pid);
+    await wsUpdate(me.id, pid, { files: merged, framework: r.framework });
+    await createSnapshot(me.id, pid, merged, (r.mode === 'edit' ? 'edit: ' : 'generate: ') + (r.summary || plan?.title || r.framework)).catch(() => null);
   }
-  return { files, framework: fw, plan, fallback: true };
+  return {
+    files: merged,
+    changed: r.files,
+    diff,
+    mode: r.mode,
+    framework: r.framework,
+    summary: r.summary,
+    provider: r.provider,
+    model: r.model,
+    project,
+    real: true,
+  };
 });
 
 route('POST', 'workspace/debug', async ({ req, body }) => {
   const me = await wsAuth(req);
-  const logs = cleanText(body.logs, 8000);
-  const files = body.files || {};
+  if (aiRateLimit('studio-debug:' + String(me.id), 15)) throw new HttpError(429, 'rate_limited', 'rate_limited');
+  const logs = cleanText(body.logs, 12000);
+  const files = body.files && typeof body.files === 'object' ? body.files : {};
   if (!logs) throw bad('logs_required');
-  // Try AI debug; fallback to rule-based suggestions that are still actionable
-  let suggestions = [];
-  let patch = null;
-  const low = logs.toLowerCase();
-  if (low.includes('cannot find module') || low.includes('module not found')) {
-    const mod = (logs.match(/cannot find module '([^']+)'/i) || logs.match(/module not found: ([^ ]+)/i) || [])[1] || 'dependency';
-    suggestions.push('Missing dependency: ' + mod + ' — run npm install ' + mod);
-    suggestions.push('Check package.json dependencies and run install step');
-    if (files['package.json']) {
-      try {
-        const pkg = JSON.parse(files['package.json']);
-        if (!pkg.dependencies?.[mod] && !pkg.devDependencies?.[mod]) {
-          patch = { 'package.json': JSON.stringify({ ...pkg, dependencies: { ...(pkg.dependencies||{}), [mod]: '^1.0.0' } }, null, 2) };
-          suggestions.push('Proposed patch: add ' + mod + ' to package.json');
-        }
-      } catch {}
-    }
-  } else if (low.includes('syntaxerror') || low.includes('unexpected token')) {
-    suggestions.push('Syntax error detected — check recent edits for missing brackets/quotes');
-    suggestions.push('Run: npm run build --dry-run or use editor lint');
-  } else if (low.includes('enoent') || low.includes('no such file')) {
-    suggestions.push('File not found — verify file paths are case-sensitive and committed');
-  } else if (low.includes('failed') || low.includes('error')) {
-    suggestions.push('Build failed — review logs above; often fixed by npm install or correcting imports');
-  } else {
-    suggestions.push('No critical error pattern — check logs for warnings; try re-running build');
-  }
-  // If files provided, attempt minimal auto-fix for common issues
-  let fixedFiles = null;
-  if (patch) fixedFiles = { ...files, ...patch };
+  if (!Object.keys(files).length) throw new HttpError(400, 'files_required');
+  const r = await studio().debug({ files, logs, command: cleanText(body.command, 300), lang: studioLang(body) });
+  await studioUsage(me.id, 'studio-debug', { provider: r.provider });
+  const fixedFiles = Object.keys(r.fixes).length ? { ...files, ...r.fixes } : null;
   return {
-    analysis: logs.slice(0, 1500),
-    suggestions,
-    patch,
+    diagnosis: r.diagnosis,
+    patch: r.fixes,
     fixedFiles,
-    provider: 'fallback-heuristic',
-    note: 'Heuristic debug — AI debug activates when GEMINI/OPENAI key configured; these suggestions are deterministic and safe.',
-    logs,
+    rerun: r.rerun,
+    provider: r.provider,
+    model: r.model,
+    real: true,
   };
 });
-

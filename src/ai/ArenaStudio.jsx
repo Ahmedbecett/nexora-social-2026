@@ -123,6 +123,15 @@ export default function ArenaStudio({ toast }) {
   const [deployUrl, setDeployUrl] = useState(null);
   const [deployLog, setDeployLog] = useState('');
 
+  /* ── agent conversation (real operations only) ── */
+  const [messages, setMessages] = useState([]);
+  const [busy, setBusy] = useState(false);          // autonomous pipeline in flight
+  const [autoRun, setAutoRun] = useState(true);     // generate → install/build/test → self-heal
+  const [snapshots, setSnapshots] = useState([]);
+  const [showSnapshots, setShowSnapshots] = useState(false);
+  const [showChat, setShowChat] = useState(!isMobile);
+  const [lastRun, setLastRun] = useState(null);     // { provider, model, at }
+
   /* ── ui state ── */
   const [showTemplates, setShowTemplates] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -140,6 +149,21 @@ export default function ArenaStudio({ toast }) {
   const previewUrlsRef = useRef([]);
 
   const terminalRef = useRef(null);
+  const chatRef = useRef(null);
+
+  const pushMsg = useCallback((role, kind, text, extra) => {
+    setMessages((prev) => [...prev.slice(-40), { role, kind, text, at: Date.now(), ...extra }]);
+  }, []);
+
+  /** Model/provider failures get a real, localised sentence — never a silent empty project. */
+  const aiErrorText = useCallback((e) => {
+    const code = String(e?.code || '');
+    if (code === 'ai_invalid_json') return t('aiInvalidJson');
+    if (code === 'ai_no_files') return t('aiNoFiles');
+    if (code === 'ai_incomplete') return t('aiIncomplete');
+    if (code === 'rate_limited' || code === 'provider_rate_limited') return t('aiRateLimited');
+    return `${t('aiUnavailable')} (${code || e?.message || 'error'})`;
+  }, [t]);
 
   const activeContent = files[active] || '';
   const activeLang = fileLang(active);
@@ -225,6 +249,10 @@ export default function ArenaStudio({ toast }) {
     if (terminalRef.current) terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
   }, [execLogs, terminalOpen]);
 
+  useEffect(() => {
+    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+  }, [messages, showChat]);
+
   /* ── execution history for the selected project ── */
   const refreshHistory = useCallback(async () => {
     if (!selectedId) { setExecHistory([]); return; }
@@ -305,77 +333,173 @@ export default function ArenaStudio({ toast }) {
     setOrigin((o) => (o === 'saved' || o === 'template' ? 'local' : o));
   };
 
-  /* ── plan → generate ── */
-  const doPlan = async () => {
-    const p = prompt.trim();
-    if (!p) { toastFn(t('promptFirst')); return; }
+  /* ── plan → generate → edit: every call hits a real model ── */
+  const doPlan = async (opts = {}) => {
+    const p = String(opts.prompt ?? prompt).trim();
+    if (!p) { toastFn(t('promptFirst')); return null; }
     setPlanning(true);
     setCurrentStep('plan');
     try {
-      const r = await api('workspace/plan', { method: 'POST', body: { prompt: p, framework } });
+      const r = await api('workspace/plan', { method: 'POST', body: { prompt: p, framework, lang } });
       setPlan(r.plan);
       setProjectName(r.plan?.title || projectName);
       setFramework(r.plan?.framework || framework);
+      setLastRun({ provider: r.provider, model: r.model, at: Date.now() });
+      pushMsg('agent', 'plan', `${r.plan?.title || ''}${r.plan?.description ? ' — ' + r.plan.description : ''}`, { plan: r.plan, model: r.model });
       toastFn(t('planReady'));
       setCurrentStep('create');
+      return r.plan;
     } catch (e) {
-      toastFn(`${t('planFailed')}: ${e.code || 'error'}`);
+      const msg = aiErrorText(e);
+      pushMsg('agent', 'error', msg);
+      toastFn(msg);
+      return null;
+    } finally {
+      setPlanning(false);
     }
-    setPlanning(false);
   };
 
-  const doGenerate = async () => {
-    if (!plan && !prompt.trim()) { toastFn(t('planNeeded')); return; }
+  /** Create mode builds a new project; edit mode sends the current files plus one instruction
+      and only merges back the files the model actually changed. */
+  const doGenerate = async (opts = {}) => {
+    const instruction = String(opts.instruction ?? '').trim();
+    const editing = opts.edit === true || instruction.length > 0;
+    if (editing && !instruction) { toastFn(t('promptFirst')); return null; }
+    if (!editing && !plan && !prompt.trim()) { toastFn(t('planNeeded')); return null; }
     setGenerating(true);
-    setCurrentStep('create');
+    if (!editing) setCurrentStep('create');
     try {
-      const r = await api('workspace/generate', { method: 'POST', body: { plan, prompt, framework, projectId: selectedId || undefined } });
-      setFiles(r.files);
-      setActive(entryFile(r.files) || Object.keys(r.files).sort()[0] || 'index.html');
+      const r = await api('workspace/generate', {
+        method: 'POST',
+        body: {
+          plan,
+          prompt: prompt.trim(),
+          framework,
+          lang,
+          instruction: editing ? instruction : undefined,
+          files: editing ? files : undefined,
+          projectId: selectedId || undefined,
+        },
+      });
+      const next = r.files && typeof r.files === 'object' ? r.files : null;
+      if (!next) throw Object.assign(new Error('no files'), { code: 'ai_no_files' });
+      setFiles(next);
+      setActive((cur) => (next[cur] ? cur : entryFile(next) || Object.keys(next).sort()[0] || 'index.html'));
       setFramework(r.framework || framework);
-      setOrigin('generated');
-      setDirty(true);
-      setExecLogs('');
-      setExecStatus('idle');
-      setDeployLog('');
-      setDeployState('idle');
-      setDeployUrl(null);
-      setRemotePreviewUrl(null);
-      setMobileTab('preview');
-      toastFn(t('filesReady'));
-      setCurrentStep('execute');
-      if (!selectedId) {
-        try {
-          const cr = await api('workspace/projects', {
-            method: 'POST',
-            body: { name: plan?.title || projectName, description: (plan?.description || prompt).slice(0, 200), files: r.files, framework: r.framework },
-          });
-          setProjects((prev) => [cr.project, ...prev]);
-          setSelectedId(cr.project.id);
-          setOrigin('saved');
-          setDirty(false);
-          toastFn(t('saveDb'));
-        } catch { /* stays unsaved/local — honest */ }
+      setLastRun({ provider: r.provider, model: r.model, at: Date.now() });
+      const changedNames = Object.keys(r.changed || next);
+      if (editing) {
+        setOrigin(r.project ? 'saved' : 'local');
+        setDirty(!r.project);
+        if (r.project) setSelectedId(r.project.id);
+        pushMsg('agent', 'files', r.summary || t('editApplied', { n: changedNames.length }), { files: changedNames });
+        toastFn(changedNames.length ? t('editApplied', { n: changedNames.length }) : t('editNoChange'));
       } else {
-        try {
-          await api(`workspace/projects/${selectedId}`, { method: 'PATCH', body: { files: r.files, framework: r.framework } });
-          setOrigin('saved');
-          setDirty(false);
-          toastFn(t('projectUpdated'));
-        } catch { /* ignore */ }
+        setOrigin('generated');
+        setDirty(true);
+        setExecLogs('');
+        setExecStatus('idle');
+        setExecMode(null);
+        setDeployLog('');
+        setDeployState('idle');
+        setDeployUrl(null);
+        setRemotePreviewUrl(null);
+        setMobileTab('preview');
+        pushMsg('agent', 'files', r.summary || t('filesReady'), { files: changedNames });
+        toastFn(t('filesReady'));
+        setCurrentStep('execute');
+        if (!selectedId) {
+          try {
+            const cr = await api('workspace/projects', {
+              method: 'POST',
+              body: { name: plan?.title || projectName, description: (plan?.description || prompt).slice(0, 200), files: next, framework: r.framework },
+            });
+            const proj = cr?.project;
+            if (!proj?.id) throw new Error('project_not_created');
+            setProjects((prev) => [proj, ...prev.filter((x) => x.id !== proj.id)]);
+            setSelectedId(proj.id);
+            setOrigin('saved');
+            setDirty(false);
+            toastFn(t('saveDb'));
+          } catch { /* stays local — honest */ }
+        } else {
+          try {
+            await api(`workspace/projects/${selectedId}`, { method: 'PATCH', body: { files: next, framework: r.framework } });
+            setOrigin('saved');
+            setDirty(false);
+            toastFn(t('projectUpdated'));
+          } catch { /* ignore */ }
+        }
       }
+      return { files: next, changed: r.changed || {}, mode: r.mode, summary: r.summary };
     } catch (e) {
-      toastFn(`${t('generateFailed')}: ${e.code || 'error'}`);
+      const msg = aiErrorText(e);
+      setExecLogs((prev) => `${prev}${prev ? '\n' : ''}✗ ${msg}`);
+      pushMsg('agent', 'error', msg);
+      toastFn(msg);
+      return null;
+    } finally {
+      setGenerating(false);
     }
-    setGenerating(false);
+  };
+
+  /* ── autonomous pipeline: plan → generate → install/build/test → self-heal ── */
+  const runPipeline = async ({ create = false } = {}) => {
+    if (busy || planning || generating) return;
+    const text = prompt.trim();
+    if (!text) { toastFn(t('promptFirst')); return; }
+    setBusy(true);
+    // phones keep the conversation collapsed by default: the workspace is the point there
+    if (!isMobile) setShowChat(true);
+    setExecLogs('');
+    pushMsg('user', 'request', text, { mode: create ? 'build' : 'edit' });
+    try {
+      if (create) {
+        const p = await doPlan({ prompt: text });
+        if (!p) return;
+      }
+      const gen = await doGenerate({ instruction: create ? '' : text, edit: !create });
+      if (!gen) return;
+      if (create) setPrompt('');
+      else setPrompt('');
+      if (!autoRun) { pushMsg('agent', 'done', t('filesReady')); return; }
+
+      const steps = framework === 'static' ? ['build'] : ['install', 'build', 'test'];
+      let failure = null;
+      for (const action of steps) {
+        const r = await runAction(action, undefined, { quiet: true });
+        if (r && r.exitCode !== 0) { failure = { action, r }; break; }
+      }
+      for (let round = 0; failure && round < 2; round++) {
+        const fix = await doDebug({ logs: failure.r.logs, command: failure.action });
+        if (!fix || !Object.keys(fix.patch || {}).length) break;
+        pushMsg('agent', 'debug', t('autoFixApplied', { n: Object.keys(fix.patch).length }), { files: Object.keys(fix.patch) });
+        const again = await runAction(failure.action, undefined, { quiet: true });
+        if (!again || again.exitCode === 0) { failure = null; break; }
+        failure = { action: failure.action, r: again };
+      }
+      if (failure) {
+        pushMsg('agent', 'error', `${t('statusFailed')}: ${failure.action}`);
+      } else {
+        pushMsg('agent', 'done', t('pipelineDone'));
+        if (selectedId) {
+          try { await api(`workspace/projects/${selectedId}/snapshot`, { method: 'POST', body: { files, message: 'pipeline' } }); } catch { /* ignore */ }
+        }
+      }
+      refreshHistory();
+    } finally {
+      setBusy(false);
+    }
   };
 
   /* ── execution (never reported as success when it was validation only) ── */
-  const runAction = async (action, customCommand) => {
+  const runAction = async (action, customCommand, opts = {}) => {
+    const quiet = opts.quiet === true;
     setExecStatus('running');
     setExecAction(action);
     setExecMode(null);
-    setExecLogs(`▶ ${action} — ${t('statusRunning')}\n`);
+    if (!quiet) setExecLogs(`▶ ${action} — ${t('statusRunning')}\n`);
+    else setExecLogs((prev) => `${prev}${prev ? '\n' : ''}▶ ${action}…\n`);
     setTerminalOpen(true);
     setCurrentStep(action === 'test' ? 'test' : action === 'debug' ? 'debug' : 'execute');
     if (isMobile) setMobileTab('code');
@@ -397,7 +521,7 @@ export default function ArenaStudio({ toast }) {
         });
       }
       const real = r.real === true;
-      setExecLogs(r.logs || '');
+      setExecLogs((prev) => (quiet ? `${prev}${r.logs || ''}\n` : (r.logs || '')));
       setExecMode(real ? 'real' : 'validation');
       setExecStatus(r.exitCode === 0 ? (real ? 'success' : 'validated') : 'failed');
       if (r.previewUrl) {
@@ -412,43 +536,50 @@ export default function ArenaStudio({ toast }) {
         if (action === 'build') setCurrentStep('test');
       }
       refreshHistory();
+      return { exitCode: r.exitCode, logs: r.logs || '', real, mode: r.mode || null, previewUrl: r.previewUrl || null };
     } catch (e) {
       setExecLogs((prev) => `${prev}\n✗ ${e.code || 'error'}: ${e.detail || e.message || t('runFailed')}`);
       setExecStatus('failed');
       setExecMode(null);
       toastFn(`${t('runFailed')}: ${e.code || 'error'}`);
+      return { exitCode: 1, logs: `${e.code || 'error'}: ${e.detail || e.message || ''}`, real: false, error: true, previewUrl: null };
     }
   };
 
-  const doDebug = async () => {
-    if (!execLogs) { toastFn(t('noLogs')); return; }
+  const doDebug = async (opts = {}) => {
+    const logs = String(opts.logs ?? execLogs);
+    const command = String(opts.command ?? execAction);
+    if (!logs.trim()) { toastFn(t('noLogs')); return null; }
     setExecAction('debug');
     setExecStatus('running');
     setCurrentStep('debug');
-    setExecLogs((prev) => `${prev}\n\n🔍 AI Debug...\n`);
+    setExecLogs((prev) => `${prev}${prev ? '\n' : ''}🔍 ${t('stepDebug')}…\n`);
     try {
-      const r = await api('workspace/debug', { method: 'POST', body: { logs: execLogs, files } });
+      const r = await api('workspace/debug', { method: 'POST', body: { logs, files, command, lang } });
       setDebugInfo(r);
-      let out = `\n── ${t('debugTitle')} ──\nProvider: ${r.provider}\n\n`;
-      out += (r.suggestions || []).map((s, i) => `${i + 1}. ${s}`).join('\n');
-      if (r.patch) out += `\n\n── Patch ──\n${Object.keys(r.patch).join(', ')}`;
-      out += `\n${r.note || ''}\n`;
+      let out = `\n── ${t('debugTitle')} ──\n${r.diagnosis || ''}\n`;
+      const patched = Object.keys(r.patch || {});
+      if (patched.length) out += `Patch: ${patched.join(', ')}\n`;
+      if (r.rerun) out += `Rerun: ${r.rerun}\n`;
       setExecLogs((prev) => prev + out);
       setExecStatus('validated');
       setExecMode('validation');
-      if (r.fixedFiles && r.patch) {
-        if (window.confirm(t('applyFixConfirm', { files: Object.keys(r.patch).join(', ') }))) {
-          setFiles(r.fixedFiles);
-          setDirty(true);
-          if (selectedId) {
-            try { await api(`workspace/projects/${selectedId}`, { method: 'PATCH', body: { files: r.fixedFiles } }); } catch { /* ignore */ }
-          }
-          toastFn(t('projectUpdated'));
+      if (r.diagnosis) pushMsg('agent', 'debug', r.diagnosis, { files: patched });
+      if (r.fixedFiles && patched.length) {
+        setFiles(r.fixedFiles);
+        setDirty(true);
+        if (selectedId) {
+          try { await api(`workspace/projects/${selectedId}`, { method: 'PATCH', body: { files: r.fixedFiles } }); } catch { /* ignore */ }
         }
+        toastFn(t('editApplied', { n: patched.length }));
       }
+      return r;
     } catch (e) {
-      setExecLogs((prev) => `${prev}\n✗ Debug: ${e.code || 'error'}`);
+      const msg = aiErrorText(e);
+      setExecLogs((prev) => `${prev}\n✗ ${msg}`);
       setExecStatus('failed');
+      pushMsg('agent', 'error', msg);
+      return null;
     }
   };
 
@@ -602,6 +733,29 @@ export default function ArenaStudio({ toast }) {
     }
   };
 
+  /* ── snapshots: durable project history ── */
+  const loadSnapshots = async () => {
+    if (!selectedId) return;
+    try {
+      const r = await api(`workspace/projects/${selectedId}/snapshots`);
+      setSnapshots(Array.isArray(r?.snapshots) ? r.snapshots : []);
+      setShowSnapshots(true);
+    } catch { toastFn(t('saveLocal')); }
+  };
+
+  const restoreSnapshot = async (id) => {
+    try {
+      const r = await api(`workspace/snapshots/${id}`);
+      const restored = r?.snapshot?.files;
+      if (!restored || !Object.keys(restored).length) return;
+      setFiles(restored);
+      setActive(entryFile(restored) || Object.keys(restored).sort()[0]);
+      setDirty(true);
+      setOrigin('local');
+      toastFn(`✓ ${t('snapshotRestored')}`);
+    } catch { toastFn(t('saveLocal')); }
+  };
+
   /* ── clipboard / download ── */
   const copyCode = async () => {
     try { await navigator.clipboard.writeText(activeContent); toastFn(t('copied')); } catch { toastFn(t('copied')); }
@@ -674,6 +828,11 @@ export default function ArenaStudio({ toast }) {
   const stepIndex = STEPS.findIndex((s) => s.id === currentStep);
   const iframeSrc = remotePreviewUrl || previewSrc;
 
+  /* The composer builds a new project while the workspace still holds a starter or nothing,
+     and switches to "apply change" once a real project exists (Arena-style continuity). */
+  const needsBuild = origin === 'template' || !plan;
+  const submitRequest = () => { if (!prompt.trim()) { toastFn(t('promptFirst')); return; } runPipeline({ create: needsBuild }); };
+
   return (
     <div className={'nx-s' + (rtl ? ' is-rtl' : '')} dir={rtl ? 'rtl' : 'ltr'} data-view={isMobile ? 'mobile' : 'desktop'}>
       {/* ── header ── */}
@@ -682,7 +841,6 @@ export default function ArenaStudio({ toast }) {
           <span className="nx-s-mark" aria-hidden="true">N</span>
           <div className="nx-s-brand-text">
             <b>NEXORA Studio</b>
-            <small>{t('studioSub')}</small>
           </div>
         </div>
         <div className="nx-s-top-actions">
@@ -718,6 +876,9 @@ export default function ArenaStudio({ toast }) {
         ))}
         <span className="nx-s-chip muted">{t('dbProjects')}: {projects.length}</span>
       </div>
+
+      <div className="nx-s-body">
+        <aside className="nx-s-side" aria-label={t('chatTitle')}>
 
       {/* ── pipeline ── */}
       <div className="nx-s-pipeline" role="tablist" aria-label="pipeline">
@@ -764,29 +925,31 @@ export default function ArenaStudio({ toast }) {
         </div>
       )}
 
-      {/* ── AI prompt bar ── */}
-      <div className="nx-s-ai">
-        <select value={framework} onChange={(e) => setFramework(e.target.value)} className="nx-s-fw" aria-label="framework">
-          {FRAMEWORKS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        <input
-          className="nx-s-ai-input"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) doPlan(); }}
-          placeholder={t('planPlaceholder')}
-          dir="auto"
-          disabled={planning || generating}
-        />
-        <div className="nx-s-ai-actions">
-          <button type="button" className="nx-s-btn" onClick={doPlan} disabled={planning || !prompt.trim()}>
-            📋 {planning ? t('planning') : t('plan')}
-          </button>
-          <button type="button" className="nx-s-btn nx-s-btn-accent" onClick={doGenerate} disabled={generating || (!plan && !prompt.trim())}>
-            ⚡ {generating ? t('generating') : t('generate')}
-          </button>
-        </div>
-      </div>
+      {/* ── agent conversation ── */}
+      {messages.length > 0 && (
+        <section className={'nx-s-chat' + (showChat ? '' : ' is-collapsed')} aria-label={t('chatTitle')}>
+          <header className="nx-s-chat-head">
+            <b>🤖 {t('chatTitle')}</b>
+            <span className="nx-s-muted ltr">{busy ? t('pipelineRunning') : (lastRun?.model || '')}</span>
+            <button type="button" className="nx-s-icon-btn" onClick={() => setShowChat((v) => !v)} aria-expanded={showChat}>
+              {showChat ? '−' : '+'}
+            </button>
+          </header>
+          {showChat && (
+            <div className="nx-s-chat-log" ref={chatRef}>
+              {messages.map((m, i) => (
+                <div key={i} className={'nx-s-msg ' + m.role + ' ' + m.kind}>
+                  <span className="nx-s-msg-icon" aria-hidden="true">
+                    {m.role === 'user' ? '🧑' : m.kind === 'error' ? '⚠️' : m.kind === 'plan' ? '📋' : m.kind === 'files' ? '⚡' : m.kind === 'debug' ? '🐛' : '✅'}
+                  </span>
+                  <span className="nx-s-msg-text" dir="auto">{m.text}</span>
+                </div>
+              ))}
+              {busy && <div className="nx-s-msg agent running"><span className="nx-s-msg-icon">⏳</span><span className="nx-s-msg-text">{t('pipelineRunning')}</span></div>}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ── plan card ── */}
       {plan && (
@@ -805,6 +968,37 @@ export default function ArenaStudio({ toast }) {
           {plan.fallback && <small className="nx-s-muted">{t('planFallback')}</small>}
         </div>
       )}
+
+      {/* ── composer (bottom of the side column) ── */}
+      <div className="nx-s-ai">
+        <select value={framework} onChange={(e) => setFramework(e.target.value)} className="nx-s-fw" aria-label="framework">
+          {FRAMEWORKS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <input
+          className="nx-s-ai-input"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitRequest(); } }}
+          placeholder={needsBuild ? t('planPlaceholder') : t('composerPlaceholder')}
+          dir="auto"
+          disabled={busy}
+          aria-label={needsBuild ? t('planPlaceholder') : t('composerPlaceholder')}
+        />
+        <label className="nx-s-auto" title={t('autoRunHint')}>
+          <input type="checkbox" checked={autoRun} onChange={(e) => setAutoRun(e.target.checked)} />
+          <span>{t('autoRun')}</span>
+        </label>
+        <div className="nx-s-ai-actions">
+          <button type="button" className="nx-s-btn" onClick={() => doPlan()} disabled={busy || planning || !prompt.trim()}>
+            📋 {planning ? t('planning') : t('plan')}
+          </button>
+          <button type="button" className="nx-s-btn nx-s-btn-accent" onClick={submitRequest} disabled={busy || !prompt.trim()}>
+            {busy ? '⏳' : needsBuild ? '⚡' : '✎'} {busy ? t('pipelineRunning') : needsBuild ? t('composerBuild') : t('composerEdit')}
+          </button>
+        </div>
+      </div>
+
+        </aside>
 
       {/* ── mobile tabs ── */}
       <div className="nx-s-tabs" role="tablist" aria-label="workspace panels">
@@ -892,6 +1086,19 @@ export default function ArenaStudio({ toast }) {
                 <b>{ex.action}</b>
                 <small>{ex.status} · {new Date(ex.created_at).toLocaleTimeString(lang === 'ar' ? 'ar' : 'en')}</small>
                 <pre>{(ex.logs || '').slice(0, 120)}…</pre>
+              </div>
+            ))}
+            {selectedId && (
+              <button type="button" className="nx-s-link" onClick={loadSnapshots}>
+                {showSnapshots ? '−' : '+'} {t('snapshots')} ({snapshots.length})
+              </button>
+            )}
+            {showSnapshots && snapshots.length === 0 && <div className="nx-s-empty">{t('noSnapshots')}</div>}
+            {showSnapshots && snapshots.map((sn) => (
+              <div key={sn.id} className="nx-s-history-item">
+                <b dir="auto">{(sn.message || '').slice(0, 40)}</b>
+                <small>{new Date(sn.created_at).toLocaleString(lang === 'ar' ? 'ar' : 'en')}</small>
+                <button type="button" className="nx-s-link" onClick={() => restoreSnapshot(sn.id)}>↺ {t('restoreSnapshot')}</button>
               </div>
             ))}
           </div>
@@ -1080,6 +1287,7 @@ export default function ArenaStudio({ toast }) {
             <span>{dirty ? `● ${t('unsaved')}` : `✓ ${t('saved2')}`} · {fileNames.length}</span>
           </div>
         </section>
+      </div>
       </div>
     </div>
   );

@@ -765,6 +765,105 @@
 /* ============================================================
    MOBILE — one workspace panel at a time + file drawer
    ============================================================ */
+/* ── layout: chat side column + workspace (Arena-style) ─────────────── */
+.nx-s-body {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+.nx-s-side {
+  flex: none;
+  width: 320px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: #0b0d13;
+  border-inline-end: 1px solid #1a1d27;
+  /* `clip` on BOTH axes keeps the column from ever scrolling: mixing clip with
+     hidden still creates a scroll container, and RTL focus scrolling then shifted
+     the whole column sideways (measured: scrollLeft −56px in Chromium). */
+  overflow: clip;
+}
+.nx-s-side > * { min-width: 0; max-width: 100%; }
+.nx-s-side .nx-s-pipeline {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #15171f;
+  overflow: visible;
+}
+.nx-s-side .nx-s-step { justify-content: center; padding: 5px 4px; gap: 4px; }
+.nx-s-side .nx-s-step span { font-size: 10px; }
+.nx-s-side .nx-s-step b { font-size: 10px; }
+.nx-s-side .nx-s-exec-badge { display: none; }
+.nx-s-side .nx-s-chat { flex: 1 1 auto; max-height: none; border-bottom: 0; }
+.nx-s-side .nx-s-chat-log { flex: 1 1 auto; }
+.nx-s-side .nx-s-plan { margin: 6px 8px; max-height: 132px; overflow: auto; width: auto; min-width: 0; padding: 8px 10px; }
+.nx-s-side .nx-s-plan-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+.nx-s-side .nx-s-plan p { font-size: 11px; margin: 4px 0 6px; }
+.nx-s-side .nx-s-plan li { font-size: 10.5px; line-height: 1.45; }
+.nx-s-side .nx-s-templates { margin: 6px 8px; }
+.nx-s-side .nx-s-templates-grid { grid-template-columns: 1fr 1fr; }
+.nx-s-side .nx-s-ai {
+  flex: none;
+  margin-top: auto;
+  border-top: 1px solid #1a1d27;
+  border-bottom: 0;
+  background: #0e1016;
+  padding: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.nx-s-side .nx-s-ai-input { order: 1; flex: 1 1 100%; width: 100%; font-size: 12.5px; padding: 9px 11px; }
+.nx-s-side .nx-s-fw { order: 2; flex: 0 0 34%; max-width: 34%; padding: 7px 6px; font-size: 11px; }
+.nx-s-side .nx-s-auto { order: 3; padding: 0 2px; }
+.nx-s-side .nx-s-auto span { display: none; }
+.nx-s-side .nx-s-ai-actions { order: 4; flex: 1 1 auto; display: flex; gap: 6px; }
+.nx-s-side .nx-s-ai-actions .nx-s-btn { flex: 1; justify-content: center; padding: 8px 10px; font-size: 11.5px; }
+.nx-s-workspace { flex: 1 1 auto; min-width: 0; min-height: 0; }
+
+/* ── agent conversation + auto-run ───────────────────────────────────── */
+.nx-s-auto {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #9ca3af; padding: 0 4px; white-space: nowrap; flex: none;
+  cursor: pointer;
+}
+.nx-s-auto input { accent-color: #8b5cf6; width: 14px; height: 14px; margin: 0; }
+
+.nx-s-chat {
+  flex: none;
+  display: flex; flex-direction: column;
+  background: #0d0f16;
+  border-bottom: 1px solid #1a1d27;
+  max-height: 208px;
+}
+.nx-s-chat.is-collapsed { max-height: none; }
+.nx-s-chat-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; font-size: 11px; color: #9ca3af;
+  flex: none;
+}
+.nx-s-chat-head b { font-size: 11.5px; color: #e5e7eb; }
+.nx-s-chat-head .nx-s-muted { margin-inline-start: auto; font-size: 10px; }
+.nx-s-chat-head .nx-s-icon-btn { padding: 0 6px; line-height: 1.2; }
+.nx-s-chat-log {
+  overflow-y: auto; padding: 2px 12px 10px;
+  display: flex; flex-direction: column; gap: 6px;
+  scrollbar-width: thin;
+}
+.nx-s-msg { display: flex; gap: 8px; font-size: 12px; line-height: 1.6; align-items: flex-start; }
+.nx-s-msg-icon { flex: none; }
+.nx-s-msg-text { color: #d1d5db; overflow-wrap: anywhere; }
+.nx-s-msg.user .nx-s-msg-text { color: #fff; font-weight: 600; }
+.nx-s-msg.error .nx-s-msg-text { color: #fca5a5; }
+.nx-s-msg.debug .nx-s-msg-text { color: #fbbf24; }
+.nx-s-msg.running .nx-s-msg-text { color: #a78bfa; }
+
 @media (max-width: 900px) {
   .nx-s-top { padding: 5px 8px; gap: 6px; }
   /* the app-level nav already says "NEXORA Studio" — keep only the mark here */
@@ -784,18 +883,27 @@
   }
   .nx-s-chip-state { display: none; }
   .nx-s-chip { gap: 4px; }
-  /* six steps in a tidy 3×2 grid — no clipped chips, comfortable touch targets */
+  /* phones: one scrollable step row keeps the workspace tall */
+  .nx-s-body { flex-direction: column; }
+  .nx-s-side { width: auto; border-inline-end: 0; border-bottom: 1px solid #1a1d27; flex: none; }
+  .nx-s-side .nx-s-pipeline,
   .nx-s-pipeline {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: nowrap;
     gap: 5px;
     padding: 6px 8px;
-    overflow-x: visible;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
-  .nx-s-step { justify-content: center; padding: 6px 6px; }
+  .nx-s-pipeline::-webkit-scrollbar { display: none; }
+  .nx-s-step { flex: 0 0 auto; justify-content: center; padding: 6px 9px; }
   .nx-s-step span { font-size: 11px; }
   .nx-s-step b { font-size: 10.5px; }
   .nx-s-exec-badge { display: none; }
+  .nx-s-side .nx-s-chat { max-height: 132px; }
+  /* the plan already appears as a chat message on phones */
+  .nx-s-side .nx-s-plan { display: none; }
+  .nx-s-side .nx-s-ai { border-top: 0; padding: 6px 8px; }
 
   /* two compact rows instead of three: prompt, then framework + actions */
   .nx-s-ai { flex-wrap: wrap; padding: 6px 8px; gap: 5px; }
@@ -803,6 +911,11 @@
   .nx-s-fw { order: 2; flex: 0 1 38%; max-width: 38%; padding: 7px 8px; font-size: 10.5px; }
   .nx-s-ai-actions { order: 3; flex: 1 1 auto; display: flex; gap: 5px; }
   .nx-s-ai-actions .nx-s-btn { flex: 1; justify-content: center; padding: 7px 8px; }
+  .nx-s-auto { order: 4; padding: 0 2px; }
+  .nx-s-auto span { display: none; }
+  .nx-s-chat { max-height: 132px; }
+  .nx-s-chat-log { padding: 0 10px 8px; gap: 5px; }
+  .nx-s-msg { font-size: 11.5px; gap: 6px; }
 
   .nx-s-plan { max-height: 30vh; margin: 6px 10px 0; }
 
