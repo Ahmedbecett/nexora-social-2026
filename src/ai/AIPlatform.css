@@ -97,6 +97,8 @@
 .nx-ai-ad{position:relative;width:100%;max-width:970px;margin:14px auto 6px;padding:12px 10px 8px;border-radius:14px;background:rgba(255,255,255,.028);border:1px solid rgba(255,255,255,.07);overflow:hidden}
 .nx-ai-ad-tag{position:absolute;top:5px;inset-inline-start:10px;font-size:9.5px;letter-spacing:.6px;color:#8b93ad;text-transform:uppercase;opacity:.85}
 .nx-ai-ad ins{display:block;min-height:0;margin-top:10px}
+/* Collapse a confirmed unfilled or timed-out AdSense wrapper, not just its <ins>. */
+.nx-ai-ad[data-ad-state="empty"]{display:none!important}
 .nx-ai-ad.side{display:none}
 html.native .nx-ai-ad{display:none!important}
 @media(min-width:1180px){.nx-ai-ad.side{display:block;max-width:100%;margin:10px 0 0;padding:10px 8px 6px}.nx-ai-ad.side ins{min-height:250px}}

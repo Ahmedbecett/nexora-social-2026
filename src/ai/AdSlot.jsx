@@ -4,7 +4,8 @@
    - لا تظهر أبداً داخل تطبيق أندرويد (سياسة Google تمنع AdSense في WebView)
    - "home" و"chat" عرضان متبادلان (واحد فقط يُرسم في كل لحظة) فلا تتكرر الوحدة في الصفحة
    ============================================================ */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { watchAdSlot } from './adSlotVisibility.js';
 
 export const AD_CLIENT = 'ca-pub-6858364141205978';
 
@@ -27,6 +28,7 @@ export function adsAllowed() {
 
 export default function AdSlot({ name, className = '' }) {
   const wrap = useRef(null);
+  const [adState, setAdState] = useState('pending');
   const cfg = AD_SLOTS[name] || null;
   const slot = cfg && String(cfg.id || '').trim();
   const live = Boolean(slot) && adsAllowed();
@@ -35,6 +37,9 @@ export default function AdSlot({ name, className = '' }) {
     if (!live || !wrap.current) return;
     const ins = wrap.current.querySelector('ins.adsbygoogle');
     if (!ins) return;
+    // Keep the ad request measurable; collapse only after a confirmed no-fill
+    // or a timeout with no status/creative. A late result can reveal it again.
+    const stopWatching = watchAdSlot(ins, setAdState);
     // The auth/SEO page has no ad slot. Fetch AdSense only when a real in-app
     // slot mounts (never inside the Android WebView), not on every page load.
     if (!document.querySelector('script[src*="pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"]')) {
@@ -44,15 +49,16 @@ export default function AdSlot({ name, className = '' }) {
       script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${AD_CLIENT}`;
       document.head.appendChild(script);
     }
-    if (ins.getAttribute('data-adsbygoogle-status') || ins.dataset.adsbygoogleStatus === 'done') return;
+    if (ins.getAttribute('data-adsbygoogle-status') || ins.dataset.adsbygoogleStatus === 'done') return stopWatching;
     try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) { /* best effort */ }
+    return stopWatching;
   }, [live, slot]);
 
   if (!live) return null;
 
   const fluid = cfg.format === 'fluid';
   return (
-    <div className={'nx-ai-ad ' + className} ref={wrap} role="complementary" aria-label="مساحة إعلانية">
+    <div className={'nx-ai-ad ' + className} ref={wrap} role="complementary" aria-label="مساحة إعلانية" data-ad-state={adState}>
       <span className="nx-ai-ad-tag">إعلان</span>
       <ins
         className="adsbygoogle"
