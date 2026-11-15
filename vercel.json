@@ -69,6 +69,12 @@
       ]
     },
     {
+      "source": "/monetag-web.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+      ]
+    },
+    {
       "source": "/mascot-ui.webp",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400" }
