@@ -12,11 +12,12 @@ import {
   addDeployment, updateDeployment, listDeployments,
 } from './projects.js';
 import {
-  buildPlanPrompt, buildCreatePrompt, buildEditPrompt, buildFixPrompt,
+  buildPlanPrompt, buildCreatePrompt, buildEditPrompt, buildFixPrompt, buildTextPrompt,
   createProtocolStreamer, parseAgentOutput,
 } from './agent.js';
 import * as ai from './ai.js';
-import { applyOps, detectStack, guessEntry, sanitizeFiles, summarizeFiles } from './files.js';
+import { appendPart, applyOps, detectStack, guessEntry, normalizePath, sanitizeFiles, summarizeFiles } from './files.js';
+import { buildModeConfig, textTargetPath } from './modes.js';
 import * as exec from './exec.js';
 import * as deploy from './deploy.js';
 import { startSSE } from './stream.js';
@@ -120,6 +121,11 @@ export async function studioAgentStream(req, res, body = {}) {
 
     sse.send('status', { step: mode, label: MODE_LABEL[mode], provider: null, at: nowIso() });
 
+    /* the build mode is what the composer selected; it decides the batch size,
+       the temperature and whether long-form text is appended section by section */
+    const buildMode = buildModeConfig(body.buildMode);
+    const batch = Math.max(1, Math.min(5, Number(body.batch) || buildMode.batch));
+
     const history = mode === 'edit'
       ? (await listMessages(ownerId, projectId, 40))
         .filter((m) => m.kind === 'text' && m.role !== 'error')
@@ -139,14 +145,34 @@ export async function studioAgentStream(req, res, body = {}) {
         sse.send('done', { project: projectPayload(project), changed: [], missing: [], pending: 0, note: 'nothing_missing' });
         return;
       }
-      prompt = buildCreatePrompt({
-        project,
-        plan,
-        userMessage: message || plan?.summary || project.description || 'Finish this project so it runs.',
-        missing,
-        batch: Math.max(1, Math.min(5, Number(body.batch) || 3)),
-      });
-      maxTokens = 8000;
+      if (buildMode.append) {
+        const target = normalizePath(String(body.textPath || '').trim())
+          || normalizePath(textTargetPath(message, project.entry || 'document.md'))
+          || 'document.md';
+        const part = Math.max(1, Number(body.part) || 1);
+        const parts = Math.max(1, Number(body.parts) || buildMode.parts || 4);
+        prompt = buildTextPrompt({
+          project,
+          userMessage: message || project.description || 'Write the requested document.',
+          targetPath: target,
+          part,
+          parts,
+          existing: project.files[target] || '',
+        });
+        maxTokens = 8000;
+      } else {
+        prompt = buildCreatePrompt({
+          project,
+          plan,
+          userMessage: message || plan?.summary || project.description || 'Finish this project so it runs.',
+          missing,
+          batch,
+          /* direct mode has no plan step, so the first answer carries the plan
+             it will be held to — that is what "still missing" is measured against */
+          askPlan: !plan && !buildMode.plan && mode === 'create',
+        });
+        maxTokens = 8000;
+      }
     } else if (mode === 'edit') {
       prompt = buildEditPrompt({ project, userMessage: message, selectedPath: String(body.selectedFile || ''), history });
       maxTokens = 8000;
@@ -176,10 +202,10 @@ export async function studioAgentStream(req, res, body = {}) {
 
     const streamer = createProtocolStreamer({
       onProse: (chunk) => { prose = (prose + chunk).replace(/\n{3,}/g, '\n\n'); sse.send('prose', { text: prose }); },
-      onFile: ({ path, content }) => {
-        seen.push({ op: 'write', path, content });
-        liveFiles[path] = content;
-        sse.send('file', { path, content, saved: true });
+      onFile: ({ path, content, append }) => {
+        seen.push({ op: 'write', path, content, append: Boolean(append) });
+        liveFiles[path] = append ? appendPart(liveFiles[path], content) : content;
+        sse.send('file', { path, content, append: Boolean(append), saved: true });
         persistNow();
       },
       onDelete: (path) => {
@@ -199,7 +225,7 @@ export async function studioAgentStream(req, res, body = {}) {
         instructions: prompt.instructions,
         messages: prompt.messages,
         maxTokens,
-        temperature: mode === 'plan' ? 0.35 : 0.25,
+        temperature: mode === 'plan' ? 0.35 : buildMode.temp,
         signal: abort.signal,
         preferProvider: body.provider || null,
         model: body.model || null,
@@ -273,6 +299,7 @@ export async function studioAgentStream(req, res, body = {}) {
       missing,
       pending: missing.length,
       savedDuringRun: persisted,
+      buildMode: buildMode.id,
       provider: result.provider,
       providerLabel: result.providerLabel,
       model: result.model,

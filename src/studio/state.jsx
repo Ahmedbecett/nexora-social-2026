@@ -21,6 +21,10 @@ const deriveName = (text) => {
   return t.slice(0, 52);
 };
 
+import { BUILD_MODES, DEFAULT_BUILD_MODE, buildModeConfig, textTargetPath } from '../../api/_lib/studio/modes.js';
+import { appendPart } from '../../api/_lib/studio/files.js';
+
+const BUILD_MODE_KEY = 'nxs-build-mode';
 const MAX_AGENT_ROUNDS = 12;
 const INTERRUPT_RETRIES = 3;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -58,6 +62,11 @@ export function StudioProvider({ children }) {
   const [agent, setAgent] = useState({ running: false, step: null, round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false, interrupted: false, pending: 0, lastNotes: [] });
   const [accounts, setAccounts] = useState({ github: null, vercel: null });
 
+  /* ----------------------------- build mode ------------------------------ */
+  const [buildMode, setBuildModeState] = useState(() => {
+    try { return buildModeConfig(localStorage.getItem(BUILD_MODE_KEY)).id; } catch { return DEFAULT_BUILD_MODE; }
+  });
+
   /* ------------------------------- terminal ------------------------------ */
   const [terminal, setTerminal] = useState({ running: false, logs: '', kind: null, command: '', runId: null, exitCode: null, durationMs: null, engine: null, error: null });
 
@@ -70,12 +79,20 @@ export function StudioProvider({ children }) {
   const abortRef = useRef(null);
   const saveTimer = useRef(null);
   const stateRef = useRef({});
-  stateRef.current = { session, projects, project, messages, files, activeFile, dirty, agent, terminal, tab, previewMode, devServer };
+  stateRef.current = { session, projects, project, messages, files, activeFile, dirty, agent, terminal, tab, previewMode, devServer, buildMode };
 
   const notify = useCallback((text, tone = 'info') => {
     setToast({ text, tone, id: Date.now() });
     setTimeout(() => setToast((t) => (t && Date.now() - t.id > 2200 ? null : t)), 3200);
   }, []);
+
+  /* build mode lives next to notify because it announces itself when changed */
+  const setBuildMode = useCallback((id) => {
+    const next = buildModeConfig(id);
+    setBuildModeState(next.id);
+    try { localStorage.setItem(BUILD_MODE_KEY, next.id); } catch { /* private mode */ }
+    notify(`${next.label} mode · ${next.hint}`, 'info');
+  }, [notify]);
 
   /* ================================= boot ================================= */
   const loadProjects = useCallback(async () => {
@@ -320,7 +337,10 @@ export function StudioProvider({ children }) {
         setAgent((a) => ({ ...a, prose: data.text || '' }));
         break;
       case 'file':
-        setFiles((prev) => ({ ...prev, [data.path]: data.content }));
+        setFiles((prev) => ({
+          ...prev,
+          [data.path]: data.append ? appendPart(prev[data.path], data.content) : data.content,
+        }));
         setOpenFiles((prev) => (prev.includes(data.path) ? prev : (prev.length < 6 ? [...prev, data.path] : prev)));
         setActiveFile((cur) => cur || data.path);
         pushActivity({ kind: 'file', path: data.path });
@@ -374,13 +394,15 @@ export function StudioProvider({ children }) {
     }
   }, [pushActivity]);
 
-  const runAgent = useCallback(async ({ mode, message = '', selectedFile = '', logs = '', projectId }) => {
+  const runAgent = useCallback(async ({ mode, message = '', selectedFile = '', logs = '', projectId, extra = {} }) => {
     const id = projectId || stateRef.current.project?.id;
     if (!id) throw new Error('no project');
     let done = null;
     let failure = null;
     await streamRequest('studio/agent', {
       projectId: id, mode, message, selectedFile, logs,
+      buildMode: stateRef.current.buildMode || DEFAULT_BUILD_MODE,
+      ...extra,
     }, {
       signal: abortRef.current?.signal,
       onEvent: (event, data) => {
@@ -408,34 +430,65 @@ export function StudioProvider({ children }) {
    * request, so nothing depends on a single long-lived connection; an
    * interrupted round is retried from the files that already exist.
    */
-  const buildUntilComplete = useCallback(async ({ projectId, message, planFiles = [], onRound }) => {
+  const buildUntilComplete = useCallback(async ({ projectId, message, planFiles = [], parts = 0, textPath = '', onRound }) => {
+    const cfg = buildModeConfig(stateRef.current.buildMode);
+    const maxRounds = Math.max(1, Math.min(40, cfg.rounds || MAX_AGENT_ROUNDS));
+    const retries = Math.max(0, cfg.retries ?? INTERRUPT_RETRIES);
+    const isText = parts > 0;
+
     let missing = Array.isArray(planFiles) && planFiles.length
       ? planFiles.filter((path) => !(path in stateRef.current.files))
       : [];
     let interrupted = 0;
+    let stalls = 0;
     let round = 0;
     let lastInterrupted = false;
-    while (round < MAX_AGENT_ROUNDS && (missing.length || round === 0)) {
+
+    while (round < maxRounds) {
+      const more = isText ? round < parts : (missing.length > 0 || round === 0);
+      if (!more) break;
       round += 1;
       const mode = round === 1 ? 'create' : 'continue';
-      if (onRound) onRound({ round, missing: missing.length, mode });
-      const res = await runAgent({ mode, message, projectId });
+      if (onRound) onRound({ round, missing: missing.length, mode, maxRounds });
+      const res = await runAgent({
+        mode,
+        message,
+        projectId,
+        extra: {
+          batch: cfg.batch,
+          ...(isText ? { parts, part: round, textPath } : {}),
+        },
+      });
+
       if (res.interrupted) {
         lastInterrupted = true;
         interrupted += 1;
         setAgent((a) => ({ ...a, interrupted: true, pending: missing.length, running: true }));
-        if (interrupted >= INTERRUPT_RETRIES) break;
+        if (interrupted > retries) break;
         await wait(700);
-        round -= 1;                       // the same batch is retried
+        round -= 1;                       // the same round is retried from what exists
         continue;
       }
+
       const done = res.done || {};
-      const remaining = Array.isArray(done.missing) ? done.missing : missing;
       const progress = (done.changed || []).length;
-      missing = remaining;
-      if (progress === 0 && remaining.length >= missing.length) break;
+      if (!isText && Array.isArray(done.missing)) missing = done.missing;
+
+      if (isText) {
+        if (progress === 0) break;        // an empty section means the document is done
+        continue;
+      }
       if (!missing.length) break;
+      /* a round that wrote nothing while files are still missing would loop
+         forever — allow one retry, then stop and show the pending counter */
+      if (progress === 0) {
+        stalls += 1;
+        if (stalls >= 2) break;
+      } else {
+        stalls = 0;
+      }
     }
+
     setAgent((a) => ({ ...a, interrupted: lastInterrupted && missing.length > 0, pending: missing.length }));
     return { missing, interrupted: lastInterrupted };
   }, [runAgent]);
@@ -465,30 +518,57 @@ export function StudioProvider({ children }) {
     const text = String(rawText || '').trim();
     if (!text || stateRef.current.agent.running) return;
 
+    const cfg = buildModeConfig(stateRef.current.buildMode);
     let p = stateRef.current.project;
     const empty = !p || Object.keys(stateRef.current.files || {}).length === 0;
     abortRef.current = new AbortController();
-    setAgent({ running: true, step: 'plan', round: 0, prose: '', message: '', plan: null, activity: [], error: null, provider: null, stopped: false });
+    setAgent({
+      running: true,
+      step: cfg.plan && !cfg.append ? 'plan' : 'create',
+      round: 0, prose: '', message: '', plan: null, activity: [],
+      error: null, provider: null, stopped: false, interrupted: false, pending: 0,
+      buildMode: cfg.id,
+    });
     appendLocalUser(text);
 
     try {
       if (!p) {
         p = await createProject({ prompt: text, keepAgent: true });
       }
-      if (empty) {
-        const planRes = await runAgent({ mode: 'plan', message: text, projectId: p.id });
-        const planFiles = (planRes.done?.missing?.length
-          ? planRes.done.missing
-          : (planRes.done?.plan?.files || planRes.done?.project?.plan?.files || []).map((f) => f.path));
-        if (planRes.interrupted && !planFiles.length) {
-          throw new StudioApiError('run_interrupted', 0, 'the plan was cut off — press Continue build to resume');
+
+      if (empty && cfg.append) {
+        /* long-form text: one markdown file grows section by section */
+        const textPath = textTargetPath(text, 'document.md');
+        pushActivity({ kind: 'note', text: `writing ${textPath} · ${cfg.parts} sections` });
+        const built = await buildUntilComplete({
+          projectId: p.id,
+          message: text,
+          parts: cfg.parts,
+          textPath,
+          onRound: ({ round, maxRounds }) => {
+            setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round, maxRounds }));
+            if (round > 1) pushActivity({ kind: 'note', text: `section ${round}` });
+          },
+        });
+        if (built.missing.length) pushActivity({ kind: 'note', text: `${built.missing.length} file(s) still missing` });
+        if (built.interrupted) notify('The connection was cut — the text so far is saved, press Continue build', 'warn');
+      } else if (empty) {
+        let planFiles = [];
+        if (cfg.plan) {
+          const planRes = await runAgent({ mode: 'plan', message: text, projectId: p.id });
+          planFiles = (planRes.done?.missing?.length
+            ? planRes.done.missing
+            : (planRes.done?.plan?.files || planRes.done?.project?.plan?.files || []).map((f) => f.path));
+          if (planRes.interrupted && !planFiles.length) {
+            throw new StudioApiError('run_interrupted', 0, 'the plan was cut off — press Continue build to resume');
+          }
         }
         const built = await buildUntilComplete({
           projectId: p.id,
           message: text,
           planFiles,
-          onRound: ({ round, missing }) => {
-            setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round }));
+          onRound: ({ round, missing, maxRounds }) => {
+            setAgent((a) => ({ ...a, running: true, step: round === 1 ? 'create' : 'continue', round, maxRounds }));
             if (missing) pushActivity({ kind: 'note', text: `round ${round} · ${missing} file(s) queued` });
           },
         });
@@ -738,6 +818,7 @@ export function StudioProvider({ children }) {
     writeFile, addFile, removeFile, renameFile, saveNow, restoreRevision, persistFiles,
     send, stopAgent, fixWithAI, resumeBuild, runTerminal, clearTerminal,
     accounts, loadAccounts,
+    buildMode, setBuildMode, BUILD_MODES,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   }), [
     session, booting, bootError, boot, refreshSession, projects, project, messages, revisions, deployments, files,
@@ -745,6 +826,7 @@ export function StudioProvider({ children }) {
     previewMode, switchPreview, devServer, startDev, stopDev, previewNonce, consoleEntries, logConsole,
     createProject, openProject, deleteProject, renameProject, loadProjects, writeFile, addFile, removeFile, renameFile,
     saveNow, restoreRevision, persistFiles, send, stopAgent, fixWithAI, runTerminal, clearTerminal,
+    buildMode, setBuildMode,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   ]);
 

@@ -90,11 +90,31 @@ export function applyOps(files, ops = []) {
       continue;
     }
     if (typeof op.content !== 'string') continue;
+    if (op.append) {
+      const joined = appendPart(next[path] || '', op.content);
+      if (joined === next[path]) continue;
+      next[path] = joined;
+      changedByPath.set(path, { path, op: 'append' });
+      continue;
+    }
     if (next[path] === op.content) continue;
     next[path] = op.content;
     changedByPath.set(path, { path, op: 'write' });
   }
   return { files: next, changed: [...changedByPath.values()] };
+}
+
+/**
+ * Long-form text arrives in sections; sections must not be glued onto the last
+ * line of the previous one, so a blank line is inserted when needed.
+ */
+export function appendPart(previous, next) {
+  const prev = typeof previous === 'string' ? previous : '';
+  const add = typeof next === 'string' ? next : '';
+  if (!add) return prev;
+  if (!prev) return add;
+  if (/\n\s*$/.test(prev)) return prev + add;
+  return prev + '\n\n' + add;
 }
 
 /** A compact directory view for prompts (dirs first, indented). */

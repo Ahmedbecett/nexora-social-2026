@@ -29,7 +29,7 @@ function FileChip({ path, op, onOpen }) {
 export default function ChatPanel() {
   const {
     project, messages, agent, send, stopAgent, resumeBuild, createProject, setActiveFile, setTab,
-    session, setSettingsOpen, booting,
+    session, setSettingsOpen, booting, buildMode, setBuildMode, BUILD_MODES,
   } = useStudio();
   const [text, setText] = useState('');
   const [focus, setFocus] = useState(false);
@@ -231,6 +231,18 @@ export default function ChatPanel() {
                 <IconWarn size={11} /> no model connected
               </button>
             )}
+            <label className="nxs-mode" title="Build mode — it really changes how the agent works">
+              <IconSpark size={11} />
+              <select
+                value={buildMode}
+                onChange={(e) => setBuildMode(e.target.value)}
+                aria-label="Build mode"
+              >
+                {BUILD_MODES.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            </label>
             {project && (
               <span className="nxs-chip"><IconLayers size={11} /> {Object.keys(project.files || {}).length} files</span>
             )}

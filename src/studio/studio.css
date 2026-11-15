@@ -310,6 +310,23 @@
 .nxs-composer textarea::placeholder { color: var(--text-3); }
 .nxs-composer-bar { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
 .nxs-composer-bar .hint { font-size: 10.5px; color: var(--text-3); margin-inline-start: auto; }
+
+/* build mode selector — a native select so Android and Windows both use their
+   own picker, with no custom popover to break */
+.nxs-mode {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 6px;
+  border: 1px solid var(--line); border-radius: 7px; background: var(--bg-3);
+  color: var(--violet-2); font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.nxs-mode:hover, .nxs-mode:focus-within { border-color: var(--violet); background: var(--bg-4); }
+.nxs-mode select {
+  appearance: none; -webkit-appearance: none; border: 0; background: transparent;
+  color: var(--text); font: inherit; font-weight: 600; cursor: pointer; padding-inline-end: 2px;
+  max-width: 92px;
+}
+.nxs-mode select:focus { outline: none; }
+.nxs-mode select option { background: var(--bg-2); color: var(--text); }
 .nxs-send {
   width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center;
   background: linear-gradient(135deg, var(--violet), #5b3ddb); color: #fff;

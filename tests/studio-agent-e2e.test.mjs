@@ -52,6 +52,18 @@ const server = http.createServer((req, res) => {
     const last = body.messages?.at(-1)?.content || '';
     if (/produce a build plan/.test(last)) {
       sse(res, [`Here is the plan.\n<plan>${JSON.stringify(PLAN)}</plan>\n<message>خطة جاهزة: تطبيق عدّاد صغير.</message>`]);
+    } else if (/Start this answer with one <plan>/.test(last)) {
+      /* direct mode: the plan travels inside the first create answer */
+      sse(res, [
+        `<plan>${JSON.stringify({ title: 'Two files', summary: 's', stack: 'static', files: [{ path: 'index.html' }, { path: 'style.css' }] })}</plan>`,
+        '<file path="index.html"><!doctype html><h1>direct</h1></file>',
+      ]);
+    } else if (/TASK: long-form writing/.test(last)) {
+      if (/append/.test(last)) {
+        sse(res, ['<file path="article.md" append>## القسم الثاني\n\nنص القسم الثاني.</file>']);
+      } else {
+        sse(res, ['<file path="article.md"># مقال\n\nنص القسم الأول.</file>']);
+      }
     } else if (/FILES TO WRITE IN THIS REQUEST/.test(last)) {
       // only hand back the files the prompt says are missing (the real contract)
       if (/- index\.html/.test(last)) {
@@ -207,4 +219,40 @@ test('a failing provider surfaces a typed error and writes no files', async () =
 test.after(() => {
   server.close();
   rmSync(dir, { recursive: true, force: true });
+});
+
+test('direct mode skips the plan request and still tracks what is missing', async () => {
+  const project = await createProject('dev', { name: 'Direct app' });
+  const res = fakeRes();
+  await studioAgentStream(fakeReq(), res, { projectId: project.id, mode: 'create', message: 'a direct app', buildMode: 'direct' });
+  const list = events(res.text);
+  const done = list.find((e) => e.event === 'done');
+  assert.equal(done.data.buildMode, 'direct');
+  assert.ok(list.some((e) => e.event === 'plan'), 'the plan arrives with the first files');
+  assert.equal(done.data.pending, 1, 'style.css is still missing, so the client keeps going');
+  const stored = await getProject('dev', project.id);
+  assert.ok(stored.plan && stored.plan.files.length === 2, 'the plan is stored from that answer');
+});
+
+test('long-text mode appends the next section to the same file', async () => {
+  const project = await createProject('dev', { name: 'Article' });
+  const first = fakeRes();
+  await studioAgentStream(fakeReq(), first, {
+    projectId: project.id, mode: 'create', message: 'write an article', buildMode: 'text', textPath: 'article.md', part: 1, parts: 2,
+  });
+  const firstFiles = events(first.text).filter((e) => e.event === 'file');
+  assert.equal(firstFiles.length, 1);
+  assert.equal(firstFiles[0].data.append, false);
+
+  const second = fakeRes();
+  await studioAgentStream(fakeReq(), second, {
+    projectId: project.id, mode: 'continue', message: 'write an article', buildMode: 'text', textPath: 'article.md', part: 2, parts: 2,
+  });
+  const secondFiles = events(second.text).filter((e) => e.event === 'file');
+  assert.equal(secondFiles[0].data.append, true, 'the second section is an append');
+  assert.equal(secondFiles[0].data.content.includes('نص القسم الثاني'), true);
+
+  const stored = await getProject('dev', project.id);
+  assert.equal(stored.files['article.md'], '# مقال\n\nنص القسم الأول.\n\n## القسم الثاني\n\nنص القسم الثاني.',
+    'both sections live in one file, separated by a blank line');
 });

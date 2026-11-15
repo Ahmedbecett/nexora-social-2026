@@ -5,6 +5,7 @@
 
      <plan>{ json }</plan>
      <file path="src/App.jsx">…full file…</file>
+     <file path="article.md" append>…next section only…</file>
      <delete path="old.css"/>
      <message>one short paragraph</message>
 
@@ -19,6 +20,7 @@ You plan, write files and run commands for the user. The user describes what the
 
 OUTPUT PROTOCOL — this is a strict contract:
 - Produce complete files with <file path="relative/path"> … </file>. The content is the ENTIRE file.
+- Only when the task asks for long-form text may you continue an existing file with <file path="same/path" append> … </file>, which carries ONLY the next section.
 - Delete a file with <delete path="relative/path"/>.
 - Return the project plan only with <plan>{valid JSON}</plan>.
 - End with <message>one short paragraph</message> written in Saudi-friendly Modern Standard Arabic unless the user writes in another language — then use that language.
@@ -64,7 +66,7 @@ Pick the smallest stack that satisfies the request. The "files" list must be the
   };
 }
 
-export function buildCreatePrompt({ project, plan, userMessage, missing = [], existingContext = true, batch = 3 }) {
+export function buildCreatePrompt({ project, plan, userMessage, missing = [], existingContext = true, batch = 3, askPlan = false }) {
   const files = project.files || {};
   const ctx = existingContext && Object.keys(files).length
     ? pickContext(files, { maxChars: 24_000, prefer: [project.entry] }).text
@@ -96,7 +98,46 @@ ${JSON.stringify(plan || {}, null, 2)}
 ${ctx ? `Existing files (replace only when you output them again):\n${ctx}\n` : ''}
 ${missingList ? `FILES TO WRITE IN THIS REQUEST — output these now, and only these:\n${missingList}\n` : 'Write the files the app still needs to run.'}
 
-Rules for this turn: at most ${Math.max(1, batch)} complete files, each ONE whole file, smallest stack that works, no placeholder content. Start with the entry point (index.html) so the preview can render immediately. Stop after these files — the system asks for the rest.`,
+${askPlan ? 'Start this answer with one <plan>{…}</plan> block (JSON, the same shape as a build plan) so the system knows the complete file list, then write the files.\n' : ''}Rules for this turn: at most ${Math.max(1, batch)} complete files, each ONE whole file, smallest stack that works, no placeholder content. Start with the entry point (index.html) so the preview can render immediately. Stop after these files — the system asks for the rest.`,
+      },
+    ],
+  };
+}
+
+/**
+ * Long-text mode: the same markdown file grows section by section. The first
+ * section replaces the file, every later section is appended, so a very long
+ * document never has to fit in one response.
+ */
+export function buildTextPrompt({ project, userMessage, targetPath = 'document.md', part = 1, parts = 4, existing = '' }) {
+  const tail = existing ? existing.slice(-2_400) : '';
+  const first = part <= 1;
+  const rules = [
+    `Write section ${part} of ${parts} of the requested document.`,
+    first
+      ? `Start the document at the very beginning and end with <file path="${targetPath}">.</file>.`
+      : `Continue EXACTLY where the previous section stopped — do not repeat what is already written, do not summarise it, and do not add headings that already exist.`,
+    first
+      ? 'Use informative markdown structure (title, sections, lists).'
+      : `Answer with ONE block: <file path="${targetPath}" append> … only the new text … </file>`,
+    'Write real, finished prose — no placeholders, no "continue here" notes, no meta commentary.',
+  ];
+  return {
+    instructions: STUDIO_SYSTEM,
+    messages: [
+      {
+        role: 'user',
+        content: `TASK: long-form writing.
+
+Request:
+${userMessage}
+
+Target file: ${targetPath}
+${tail ? `The end of what is already written:\n…${tail}\n` : '(the file does not exist yet)'}
+
+${rules.map((r) => '- ' + r).join('\n')}
+
+Section length: 700–1100 words. ${first ? 'The opening section must stand on its own.' : 'Pick up mid-thought if that is where the previous section ended.'}`,
       },
     ],
   };
@@ -165,6 +206,8 @@ function stripFences(content) {
   return c.replace(/^\n+/, '').replace(/\n+$/, '\n');
 }
 
+const hasAppend = (attrs) => /(^|\s)append\b/i.test(String(attrs || ''));
+
 function parseJsonLoose(raw) {
   let s = String(raw || '').trim();
   s = s.replace(/^```[a-zA-Z]*\n?/, '').replace(/```$/, '').trim();
@@ -229,7 +272,7 @@ export function parseAgentOutput(raw) {
     openRe.lastIndex = last;
 
     if (kind === 'file') {
-      if (path) out.ops.push({ op: 'write', path, content: stripFences(body) });
+      if (path) out.ops.push({ op: 'write', path, content: stripFences(body), append: hasAppend(attrs) });
     } else if (kind === 'plan') {
       const plan = normalizePlan(parseJsonLoose(body));
       if (plan) out.plan = plan;
@@ -318,7 +361,7 @@ export function createProtocolStreamer({ onProse, onFile, onDelete, onPlan, onMe
       if (open.kind === 'file') {
         const m = open.attrs.match(/path\s*=\s*("([^"]*)"|'([^']*)')/);
         const path = normalizePath(m ? (m[2] || m[3]) : '');
-        if (path && onFile) onFile({ path, content: stripFences(body) });
+        if (path && onFile) onFile({ path, content: stripFences(body), append: hasAppend(open.attrs) });
       } else if (open.kind === 'plan') {
         const plan = normalizePlan(parseJsonLoose(body));
         if (plan && onPlan) onPlan(plan);

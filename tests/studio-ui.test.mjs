@@ -91,6 +91,7 @@ function installDom() {
 }
 
 const requests = [];
+const bodies = [];
 let mode = 'existing';
 let createAttempts = 0;
 
@@ -109,6 +110,7 @@ function installFetch() {
     const url = String(typeof input === 'string' ? input : input.url);
     const method = (init.method || 'GET').toUpperCase();
     requests.push(`${method} ${url}`);
+    try { bodies.push({ url, body: init.body ? JSON.parse(init.body) : null }); } catch { bodies.push({ url, body: null }); }
     if (url.includes('/api/studio/session')) {
       return jsonResponse({
         authenticated: true,
@@ -349,6 +351,49 @@ test('an interrupted build resumes automatically and keeps the streamed files', 
       .filter((el) => /\bpending\b|\bcontinue build\b/i.test(el.textContent || ''));
     assert.equal(leftover.length, 0, 'no leftover pending counter');
     assert.deepEqual(errors, [], 'resuming raised no React errors');
+  } finally {
+    console.error = origError;
+    root.unmount();
+  }
+});
+
+test('the composer offers every build mode and sends the chosen one', async () => {
+  mode = 'empty';
+  errors.length = 0;
+  requests.length = 0;
+  bodies.length = 0;
+  const window = installDom();
+  installFetch();
+  const { StudioApp } = await bundleApp();
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+
+  const root = createRoot(document.getElementById('root'));
+  const origError = console.error;
+  console.error = (...args) => { errors.push(args.map(String).join(' ')); origError(...args); };
+  try {
+    root.render(React.createElement(StudioApp));
+    assert.ok(await until(() => document.querySelector('select[aria-label="Build mode"]')), 'the build mode picker is in the composer');
+    const picker = document.querySelector('select[aria-label="Build mode"]');
+    const ids = [...picker.querySelectorAll('option')].map((o) => o.value);
+    assert.deepEqual(ids, ['direct', 'fast', 'precise', 'endless', 'text', 'review']);
+
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+    setValue.call(picker, 'direct');
+    picker.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    const area = document.querySelector('textarea[aria-label="Message NEXORA Studio"]');
+    const setText = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+    setText.call(area, 'build a tiny page');
+    area.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await until(() => document.querySelector('button.nxs-send:not(.stop)'));
+    document.querySelector('button.nxs-send:not(.stop)').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+
+    assert.ok(await until(() => bodies.some((b) => b.url.includes('/api/studio/agent'))), 'the agent was called');
+    const agentCall = bodies.find((b) => b.url.includes('/api/studio/agent'));
+    assert.equal(agentCall.body.buildMode, 'direct', 'the selected mode reaches the agent');
+    assert.equal(agentCall.body.mode, 'create', 'direct mode starts with create — no plan request');
+    assert.deepEqual(errors, []);
   } finally {
     console.error = origError;
     root.unmount();
