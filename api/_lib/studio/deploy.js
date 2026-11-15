@@ -34,7 +34,7 @@ async function gh(token, path, { method = 'GET', body } = {}) {
   const text = await res.text();
   let data = {};
   try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text.slice(0, 300) }; }
-  return { ok: res.ok, status: res.status, data };
+  return { ok: res.ok, status: res.status, data, scopes: res.headers.get('x-oauth-scopes') || '' };
 }
 
 export async function githubToken(ownerId) {
@@ -244,7 +244,7 @@ async function githubAccountWith(auth) {
   const me = await gh(auth.token, '/user');
   if (!me.ok) return { connected: false, source: auth.source, error: `GitHub rejected the token (${me.status}${me.data?.message ? `: ${me.data.message}` : ''})` };
   const repos = await gh(auth.token, '/user/repos?per_page=30&sort=updated&affiliation=owner,collaborator');
-  const scope = /scopes?:\s*([^\n]*)/i.exec(me.headers || '')?.[1] || '';
+  const scope = me.scopes || '';
   return {
     connected: true,
     source: auth.source,
@@ -303,7 +303,7 @@ async function vercelAccountWith(auth) {
  */
 export async function connectionProbe() {
   const out = {
-    github: { configured: false, valid: false, status: null, login: null, error: null },
+    github: { configured: false, valid: false, status: null, login: null, scopes: null, canPush: null, repoChecked: null, error: null },
     vercel: { configured: false, valid: false, status: null, username: null, projects: null, error: null },
   };
 
@@ -315,7 +315,20 @@ export async function connectionProbe() {
       out.github.status = me.status;
       out.github.valid = me.ok;
       out.github.login = me.ok ? me.data.login : null;
+      out.github.scopes = me.ok ? (me.scopes || null) : null;
       if (!me.ok) out.github.error = me.data?.message || `HTTP ${me.status}`;
+      if (me.ok) {
+        /* prove the token can actually write, without writing anything */
+        try {
+          const list = await gh(gt.token, '/user/repos?per_page=1&sort=updated&affiliation=owner');
+          const first = Array.isArray(list.data) ? list.data[0] : null;
+          if (first?.full_name) {
+            const repo = await gh(gt.token, '/' + first.full_name);
+            out.github.canPush = Boolean(repo.data?.permissions?.push);
+            out.github.repoChecked = first.full_name;
+          }
+        } catch { /* capability stays unknown */ }
+      }
     } catch (e) {
       out.github.error = e.message || 'unreachable';
     }
