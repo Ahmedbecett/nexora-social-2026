@@ -28,6 +28,12 @@ async function ensureExec() {
       created_at timestamptz not null default now()
     )`);
     await q(`create index if not exists ws_snap_proj_idx on workspace_snapshots(project_id, created_at desc)`);
+    await q(`create table if not exists workspace_sandboxes (
+      user_id bigint not null references users(id) on delete cascade,
+      project_id bigint not null references workspace_projects(id) on delete cascade,
+      sandbox_id text not null, updated_at timestamptz not null default now(),
+      primary key (user_id, project_id)
+    )`);
     execReady = true;
   } catch (e) { console.warn('exec ensure', e.message); }
 }
@@ -39,7 +45,7 @@ function cleanStr(s, max) {
 // ---- capabilities ----
 export function execCapabilities() {
   const e2bKey = !!(process.env.E2B_API_KEY || process.env.E2B_TOKEN);
-  const vercelToken = !!(process.env.VERCEL_TOKEN || process.env.VERCEL_API_TOKEN);
+  const vercelToken = !!process.env.VERCEL_STUDIO_TOKEN;
   return {
     e2b: e2bKey,
     vercel: true, // always available as fallback
@@ -156,7 +162,7 @@ async function fallbackExec({ files, command, action }) {
 }
 
 // ---- E2B execution ----
-async function e2bExec({ files, command, timeoutMs = 25000, action }) {
+async function e2bExec({ files, command, timeoutMs = 25000, action, userId, projectId }) {
   const start = Date.now();
   const apiKey = process.env.E2B_API_KEY || process.env.E2B_TOKEN;
   if (!apiKey) throw new Error('E2B_API_KEY not set');
@@ -164,6 +170,7 @@ async function e2bExec({ files, command, timeoutMs = 25000, action }) {
   let logs = '';
   let exitCode = 0;
   let previewUrl = null;
+  let executed = false;
 
   // Lazy import to avoid crash when not installed or misconfigured
   let Sandbox;
@@ -176,24 +183,43 @@ async function e2bExec({ files, command, timeoutMs = 25000, action }) {
   }
 
   let sandbox = null;
+  let keepSandbox = false;
   try {
+    if (userId && projectId) {
+      const session = await one('select sandbox_id from workspace_sandboxes where user_id=$1 and project_id=$2', [userId, projectId]);
+      if (session) {
+        try { sandbox = await Sandbox.connect(session.sandbox_id, { apiKey, timeoutMs: 600000 }); }
+        catch { await q('delete from workspace_sandboxes where user_id=$1 and project_id=$2 and sandbox_id=$3', [userId, projectId, session.sandbox_id]); }
+      }
+    }
+    if (!sandbox) {
     logs += `> [NEXORA E2B] Creating isolated sandbox...\n`;
-    sandbox = await Sandbox.create({
-      apiKey: apiKey,
-      // template can be configured via env
-      template: process.env.E2B_TEMPLATE_ID || undefined,
-      timeoutMs: 60000,
-    });
+    const sandboxOptions = { apiKey, timeoutMs: userId && projectId ? 600000 : 60000 };
+    sandbox = process.env.E2B_TEMPLATE_ID
+      ? await Sandbox.create(process.env.E2B_TEMPLATE_ID, sandboxOptions)
+      : await Sandbox.create(sandboxOptions);
+    if (userId && projectId) {
+      const row = await one(`insert into workspace_sandboxes(user_id, project_id, sandbox_id) values ($1,$2,$3)
+        on conflict (user_id, project_id) do update set sandbox_id=workspace_sandboxes.sandbox_id returning sandbox_id`, [userId, projectId, sandbox.sandboxId]);
+      if (row.sandbox_id !== sandbox.sandboxId) {
+        await sandbox.kill();
+        sandbox = await Sandbox.connect(row.sandbox_id, { apiKey, timeoutMs: 600000 });
+      }
+    }
+    }
+    keepSandbox = !!(userId && projectId);
     logs += `✓ Sandbox ready: ${sandbox.sandboxId || sandbox.sandboxID || 'sandbox'}\n`;
 
     // Ensure app directory
     await sandbox.commands.run('mkdir -p /home/user/app', { timeoutMs: 5000 });
     
+    // Sync the project, keeping installed dependencies between commands.
+    await sandbox.commands.run("cd /home/user/app && find . -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +", { timeoutMs: 5000 });
     // Write files
     logs += `> Writing ${Object.keys(files).length} files...\n`;
     for (const [fname, content] of Object.entries(files)) {
       // security: prevent directory traversal
-      const safeName = fname.replace(/\.\./g, '_').replace(/^\/+/, '');
+      const safeName = fname; // paths were validated in runExecution
       const fullPath = `/home/user/app/${safeName}`;
       const dir = fullPath.substring(0, fullPath.lastIndexOf('/'));
       if (dir && dir !== '/home/user/app') {
@@ -212,11 +238,30 @@ async function e2bExec({ files, command, timeoutMs = 25000, action }) {
 
     let stdout = '';
     let stderr = '';
-    const result = await sandbox.commands.run(fullCmd, {
-      timeoutMs: timeoutMs,
-      onStdout: (data) => { stdout += data; },
-      onStderr: (data) => { stderr += data; },
-    });
+    let result;
+    if (action === 'dev') {
+      if (!keepSandbox) throw new Error('Save the project before starting a persistent preview');
+      const port = command.includes('3000') ? 3000 : 5173;
+      executed = true;
+      await sandbox.commands.run(fullCmd, { background: true, timeoutMs: 0 });
+      // Verify a real listener inside the sandbox before publishing its URL.
+      await sandbox.commands.run(`python3 -c 'import socket,time; p=${port}; end=time.time()+12; s=None
+while time.time()<end:
+ try:
+  s=socket.create_connection(("127.0.0.1",p),timeout=1); break
+ except OSError: time.sleep(.3)
+if not s: raise SystemExit("Preview server did not start")
+s.close()'`, { timeoutMs: 15000 });
+      previewUrl = `https://${sandbox.getHost(port)}`;
+      result = { exitCode: 0, stdout: 'Preview server is listening.' };
+    } else {
+      executed = true;
+      result = await sandbox.commands.run(fullCmd, {
+        timeoutMs: timeoutMs,
+        onStdout: (data) => { stdout += data; },
+        onStderr: (data) => { stderr += data; },
+      });
+    }
 
     // E2B returns result with stdout/stderr or streams already captured
     if (result.stdout) stdout = result.stdout;
@@ -229,21 +274,7 @@ async function e2bExec({ files, command, timeoutMs = 25000, action }) {
     logs += `Exit code: ${exitCode}\n`;
     logs += `Duration: ${Date.now() - start}ms\n`;
 
-    // Try to get preview URL if this was a dev server
-    if (action === 'dev' || command.includes('dev') || command.includes('5173') || command.includes('3000')) {
-      try {
-        const host = sandbox.getHost ? sandbox.getHost(5173) : null;
-        if (host) {
-          previewUrl = `https://${host}`;
-          logs += `Preview: ${previewUrl}\n`;
-        } else if (sandbox.getHost) {
-          // try 3000
-          const host2 = sandbox.getHost(3000);
-          if (host2) previewUrl = `https://${host2}`;
-        }
-      } catch {}
-    }
-
+    // This sandbox is closed below. Never return a URL that cannot remain live.
     // For build, check if dist was created
     if (action === 'build' || command.includes('build')) {
       try {
@@ -253,6 +284,8 @@ async function e2bExec({ files, command, timeoutMs = 25000, action }) {
     }
 
   } catch (e) {
+    if (e.stdout) logs += String(e.stdout).slice(0, 12000) + '\n';
+    if (e.stderr) logs += String(e.stderr).slice(0, 12000) + '\n';
     logs += `\n✗ E2B error: ${e.message}\n`;
     // fallback to honest error, not fake success
     if (e.message.includes('timeout')) {
@@ -260,7 +293,7 @@ async function e2bExec({ files, command, timeoutMs = 25000, action }) {
     }
     exitCode = exitCode || 1;
   } finally {
-    if (sandbox) {
+    if (sandbox && !keepSandbox) {
       try { await sandbox.kill(); logs += `✓ Sandbox closed\n`; } catch {}
     }
   }
@@ -269,15 +302,15 @@ async function e2bExec({ files, command, timeoutMs = 25000, action }) {
     logs,
     exitCode,
     duration: Date.now() - start,
-    real: true,
-    executed: true,
+    real: executed,
+    executed,
     mode: 'e2b',
     previewUrl,
   };
 }
 
 // ---- unified run ----
-export async function runExecution({ files, command, action, timeoutMs }) {
+export async function runExecution({ files, command, action, timeoutMs, userId, projectId }) {
   await ensureExec();
   const cap = execCapabilities();
   // sanitize
@@ -285,6 +318,10 @@ export async function runExecution({ files, command, action, timeoutMs }) {
   for (const [k, v] of Object.entries(files || {}).slice(0, 100)) {
     if (typeof k !== 'string' || typeof v !== 'string') continue;
     if (k.length > 200 || v.length > 500000) continue;
+    // Paths are later used inside a shell command; reject traversal and shell syntax.
+    if (!/^[a-zA-Z0-9_@.+\-/]+$/.test(k) || k.startsWith('/') || k.split('/').some(part => !part || part === '.' || part === '..')) {
+      throw new HttpError(400, 'invalid_file_path');
+    }
     safeFiles[k] = v;
   }
   if (!Object.keys(safeFiles).length) throw new HttpError(400, 'files_required');
@@ -296,7 +333,7 @@ export async function runExecution({ files, command, action, timeoutMs }) {
   let result;
   if (cap.e2b) {
     try {
-      result = await e2bExec({ files: safeFiles, command: cmd, timeoutMs: t, action });
+      result = await e2bExec({ files: safeFiles, command: cmd, timeoutMs: t, action, userId, projectId });
     } catch (e) {
       // E2B failed — fallback but mark as attempted
       result = await fallbackExec({ files: safeFiles, command: cmd, action });

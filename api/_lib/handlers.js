@@ -3050,6 +3050,7 @@ route('GET', 'workspace/capabilities', async ({ req }) => {
 
 route('POST', 'workspace/execute', async ({ req, body }) => {
   const me = await wsAuth(req);
+  if (aiRateLimit('studio-exec:' + String(me.id), 30)) throw new HttpError(429, 'rate_limited', 'rate_limited');
   const files = body.files || null;
   const projectId = body.projectId ? Number(body.projectId) : null;
   let effectiveFiles = files;
@@ -3068,14 +3069,14 @@ route('POST', 'workspace/execute', async ({ req, body }) => {
     const cmds = {
       install: fw === 'static' ? 'echo "static: no install needed"' : 'npm install',
       build: fw === 'static' ? 'echo "static: validating build" && ls -R' : (fw === 'next' ? 'npm run build' : 'npm run build'),
-      test: 'npm test --if-present',
-      dev: fw === 'next' ? 'npm run dev -- --port 3000 --hostname 0.0.0.0' : 'npm run dev -- --host 0.0.0.0 --port 5173',
+      test: 'npm test',
+      dev: fw === 'static' ? 'python3 -m http.server 5173 --bind 0.0.0.0' : fw === 'next' ? 'npm run dev -- --port 3000 --hostname 0.0.0.0' : 'npm run dev -- --host 0.0.0.0 --port 5173',
       run: 'npm start',
       exec: command,
     };
     cmd = cmds[action] || command;
   }
-  const result = await runExecution({ files: effectiveFiles, command: cmd, action, timeoutMs: body.timeoutMs });
+  const result = await runExecution({ files: effectiveFiles, command: cmd, action, timeoutMs: body.timeoutMs, userId: me.id, projectId });
   // persist execution
   const saved = await saveExecution({ userId: me.id, projectId, action, command: cmd, logs: result.logs, exitCode: result.exitCode, duration: result.duration, status: result.exitCode === 0 ? (result.real ? 'success' : 'validated') : 'failed' });
   // if files were passed and project exists, update project files timestamp
@@ -3087,18 +3088,19 @@ route('POST', 'workspace/execute', async ({ req, body }) => {
 
 route('POST', 'workspace/projects/:id/execute', async ({ req, params, body }) => {
   const me = await wsAuth(req);
+  if (aiRateLimit('studio-exec:' + String(me.id), 30)) throw new HttpError(429, 'rate_limited', 'rate_limited');
   const project = await wsGet(me.id, Number(params.id));
   const action = cleanText(body.action, 40) || 'build';
-  const fw = project.framework || 'static';
+  const fw = body.framework || project.framework || 'static';
   const map = {
     install: fw === 'static' ? 'echo "static: no install needed"' : 'npm install',
     build: fw === 'static' ? 'echo "static: validating build"' : 'npm run build',
-    test: 'npm test --if-present 2>&1; echo "exit:$?"',
-    dev: fw === 'next' ? 'npm run dev -- --port 3000 --hostname 0.0.0.0' : 'npm run dev -- --host 0.0.0.0 --port 5173',
+    test: 'npm test',
+    dev: fw === 'static' ? 'python3 -m http.server 5173 --bind 0.0.0.0' : fw === 'next' ? 'npm run dev -- --port 3000 --hostname 0.0.0.0' : 'npm run dev -- --host 0.0.0.0 --port 5173',
     run: body.command ? cleanText(body.command, 2000) : 'npm start',
   };
   const cmd = body.command ? cleanText(body.command, 2000) : (map[action] || 'echo "exec"');
-  const result = await runExecution({ files: body.files || project.files, command: cmd, action, timeoutMs: body.timeoutMs });
+  const result = await runExecution({ files: body.files || project.files, command: cmd, action, timeoutMs: body.timeoutMs, userId: me.id, projectId: project.id });
   const saved = await saveExecution({ userId: me.id, projectId: project.id, action, command: cmd, logs: result.logs, exitCode: result.exitCode, duration: result.duration, status: result.exitCode === 0 ? (result.real ? 'success' : 'validated') : 'failed' });
   return { execution: saved, ...result };
 });

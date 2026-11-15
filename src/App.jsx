@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { applyTheme } from './theme.js';
-import { getLang } from './i18n.js';
 import AIPlatform from './ai/AIPlatform.jsx';
 import ArenaStudio from './ai/ArenaStudio.jsx';
 import './ai/ArenaStudio.css';
@@ -19,7 +18,6 @@ export default function App() {
   const [view, setView] = useState(() => localStorage.getItem('nx_view') || 'chat');
   useEffect(() => { applyTheme({ immersive: false }); }, []);
   useEffect(() => { localStorage.setItem('nx_view', view); }, [view]);
-  const ar = getLang() === 'ar';
   return (
     <div className="nx-app">
       <nav className="nx-arena-nav">
@@ -43,9 +41,7 @@ export default function App() {
             🛠️ <span>NEXORA Studio</span>
           </button>
         </div>
-        <small className="nx-arena-nav-note">
-          {ar ? 'استوديو تطوير حقيقي: محرر كود + معاينة حية — بلا نتائج تنفيذ أو نشر وهمية' : 'Real dev studio: code editor + live preview — no fake execution or deployment results'}
-        </small>
+
       </nav>
       <div className="nx-app-body">
         {view === 'chat' ? <AIPlatform /> : <ArenaStudio toast={studioToast} />}

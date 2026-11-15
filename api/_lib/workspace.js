@@ -50,9 +50,9 @@ function cleanStr(s, max) {
 }
 
 // ---- Vercel deploy (real API) ----
-async function vercelDeploy({ files, name, project }) {
-  const token = process.env.VERCEL_TOKEN || process.env.VERCEL_API_TOKEN || '';
-  if (!token) return null; // no token -> simulate
+async function vercelDeploy({ files, name, project, framework }) {
+  const token = process.env.VERCEL_STUDIO_TOKEN || '';
+  if (!token) return null; // Studio deployments require a separate, explicitly configured token
   const fileEntries = Object.entries(files || {}).slice(0, 50);
   if (!fileEntries.length) throw new HttpError(400, 'files_required');
   // Vercel API expects array of { file, data, encoding }
@@ -63,8 +63,9 @@ async function vercelDeploy({ files, name, project }) {
   const body = {
     name: (name || 'nexora-studio').toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 50) || 'nexora-studio',
     files: payloadFiles,
-    projectSettings: { framework: null, buildCommand: null, outputDirectory: null, installCommand: null },
+    projectSettings: { framework: framework === 'vite' ? 'vite' : framework === 'next' ? 'nextjs' : null, buildCommand: null, outputDirectory: null, installCommand: null },
   };
+  // Never deploy user-generated files to the NEXORA application project.
   if (project) body.project = project;
   // teamId if set
   const qs = process.env.VERCEL_TEAM_ID ? '?teamId=' + encodeURIComponent(process.env.VERCEL_TEAM_ID) : '';
@@ -83,6 +84,7 @@ async function vercelDeploy({ files, name, project }) {
     url: data.url ? 'https://' + data.url : null,
     id: data.id || null,
     inspector: data.inspectorUrl || null,
+    state: data.readyState || data.status || 'QUEUED',
   };
 }
 
@@ -147,8 +149,8 @@ async function googleDriveSave({ files, name, tokenOverride }) {
 
 export async function wsStatus(userId) {
   await ensure();
-  const vercelToken = !!process.env.VERCEL_TOKEN || !!process.env.VERCEL_API_TOKEN;
-  const githubToken = !!process.env.GITHUB_TOKEN;
+  const vercelToken = !!process.env.VERCEL_STUDIO_TOKEN;
+  const githubToken = false;
   const driveToken = !!process.env.GOOGLE_DRIVE_TOKEN;
   // user oauth
   let ghOAuth = null, gOAuth = null;
@@ -158,8 +160,8 @@ export async function wsStatus(userId) {
   } catch {}
   const count = await one('select count(*)::int as c from workspace_projects where user_id=$1', [userId]).catch(() => ({ c: 0 }));
   return {
-    vercel: { connected: vercelToken, project: process.env.VERCEL_PROJECT_ID || 'nexora-social-2026', team: process.env.VERCEL_TEAM_ID || null },
-    github: { connected: githubToken || !!ghOAuth, repo: process.env.GITHUB_DEFAULT_REPO || 'Ahmedbecett/nexora-social-2026', branch: 'main', oauth: !!ghOAuth },
+    vercel: { connected: vercelToken, team: process.env.VERCEL_TEAM_ID || null },
+    github: { connected: !!ghOAuth, oauth: !!ghOAuth },
     drive: { connected: driveToken || !!gOAuth, oauth: !!gOAuth },
     projects: count.c,
     env: { vercel: vercelToken, github: githubToken, drive: driveToken },
@@ -176,7 +178,7 @@ export async function wsCreate(userId, { name, description, files, framework }) 
   await ensure();
   const n = cleanStr(name, 80) || 'مشروع NEXORA ' + new Date().toISOString().slice(0, 10);
   const d = cleanStr(description, 300);
-  const f = files && typeof files === 'object' ? files : { 'index.html': '<!doctype html><html><body><h1>مرحبا</h1></body></html>' };
+  const f = files && typeof files === 'object' ? files : {};
   const fw = ['static', 'next', 'vite', 'react', 'api', 'node'].includes(framework) ? framework : 'static';
   const row = await one('insert into workspace_projects(user_id, name, description, files, framework) values ($1,$2,$3,$4,$5) returning *', [userId, n, d, JSON.stringify(f), fw]);
   return row;
@@ -209,21 +211,24 @@ export async function wsDelete(userId, id) {
 
 export async function wsDeploy(userId, { projectId, files, name }) {
   await ensure();
+  if (!projectId) throw new HttpError(400, 'project_required');
   let f = files;
   let pname = name;
+  let framework = 'static';
   if (projectId) {
     const p = await wsGet(userId, projectId);
     f = f || p.files;
     pname = pname || p.name;
+    framework = p.framework;
   }
   if (!f || !Object.keys(f).length) throw new HttpError(400, 'files_required');
   // try real vercel
   let real = null;
-  try { real = await vercelDeploy({ files: f, name: pname, project: process.env.VERCEL_PROJECT_ID }); } catch (e) { if (e instanceof HttpError) throw e; throw new HttpError(502, 'vercel_failed', String(e.message).slice(0, 200)); }
+  try { real = await vercelDeploy({ files: f, name: `nexora-user-${userId}-project-${projectId}`, framework }); } catch (e) { if (e instanceof HttpError) throw e; throw new HttpError(502, 'vercel_failed', String(e.message).slice(0, 200)); }
   if (real) {
     if (projectId) await q('update workspace_projects set vercel_url=$2, vercel_deployment_id=$3, updated_at=now() where id=$1', [projectId, real.url, real.id]);
-    await q('insert into workspace_deployments(project_id, provider, url, deployment_id, status) values ($1,$2,$3,$4,$5)', [projectId || null, 'vercel', real.url, real.id, 'ready']);
-    return { ok: true, url: real.url, id: real.id, inspector: real.inspector, real: true };
+    await q('insert into workspace_deployments(project_id, provider, url, deployment_id, status) values ($1,$2,$3,$4,$5)', [projectId || null, 'vercel', real.url, real.id, real.state]);
+    return { ok: true, url: real.url, id: real.id, inspector: real.inspector, state: real.state, real: true };
   }
   // No VERCEL_TOKEN: report honestly. We must NOT invent a deployment URL —
   // a fake "preview" link made the Studio look like it deployed when nothing happened.
@@ -232,7 +237,7 @@ export async function wsDeploy(userId, { projectId, files, name }) {
     real: false,
     deployed: false,
     url: null,
-    note: 'VERCEL_TOKEN is not configured — nothing was deployed. Add the token, or push to GitHub and deploy manually.',
+    note: 'VERCEL_STUDIO_TOKEN is not configured — nothing was deployed.',
   };
 }
 
@@ -244,8 +249,10 @@ export async function wsGithubPush(userId, { projectId, files, repo, message, br
   // try user oauth token first
   let userToken = null;
   try { const r = await one('select access_token from workspace_oauth where user_id=$1 and provider=$2', [userId, 'github']); userToken = r?.access_token || null; } catch {}
+  if (!userToken) return { ok: false, real: false, note: 'Connect your GitHub account first.' };
+  if (!repo || !branch) throw new HttpError(400, 'github_target_required');
   let real = null;
-  try { real = await githubPush({ files: f, repo, message, branch, tokenOverride: userToken || undefined }); } catch (e) { if (e instanceof HttpError) throw e; throw new HttpError(502, 'github_failed', String(e.message).slice(0, 200)); }
+  try { real = await githubPush({ files: f, repo, message, branch, tokenOverride: userToken }); } catch (e) { if (e instanceof HttpError) throw e; throw new HttpError(502, 'github_failed', String(e.message).slice(0, 200)); }
   if (real) {
     if (projectId) await q('update workspace_projects set github_repo=$2, github_branch=$3, updated_at=now() where id=$1', [projectId, real.repo, real.branch]);
     return { ok: true, repo: real.repo, branch: real.branch, url: real.url, real: true };

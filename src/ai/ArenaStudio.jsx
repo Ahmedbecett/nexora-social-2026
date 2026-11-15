@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '../api.js';
 import { getLang, isRtl } from '../i18n.js';
 import { makeStudioT } from './studioStrings.js';
-import { TEMPLATES, DEFAULT_TEMPLATE, templateName, templateDesc } from './studioTemplates.js';
 import { buildPreviewDocument, entryFile, fileLang, fileIcon } from './studioPreview.js';
 import CodeEditor from './CodeEditor.jsx';
 
@@ -38,11 +37,12 @@ function loadBoot() {
     const saved = JSON.parse(localStorage.getItem(FILES_KEY) || 'null');
     if (saved && typeof saved === 'object' && Object.keys(saved).length) {
       const stored = localStorage.getItem(ORIGIN_KEY);
+      if (stored === 'template') return { files: {}, origin: 'local' };
       const origin = stored === 'template' || stored === 'generated' ? stored : 'local';
       return { files: saved, origin };
     }
   } catch { /* ignore */ }
-  return { files: { ...DEFAULT_TEMPLATE.files }, origin: 'template' };
+  return { files: {}, origin: 'local' };
 }
 
 function useIsMobile(query = '(max-width: 900px)') {
@@ -75,6 +75,8 @@ function defaultToast(message) {
   } catch { /* ignore */ }
 }
 
+const textForNoTests = (lang) => lang === 'ar' ? 'لم يُشغّل اختبار: لا يوجد أمر اختبار في المشروع.' : 'No tests were run: the project has no test script.';
+
 const STATUS_CLASS = { idle: 'idle', running: 'running', success: 'success', validated: 'validated', failed: 'failed' };
 
 export default function ArenaStudio({ toast }) {
@@ -89,7 +91,7 @@ export default function ArenaStudio({ toast }) {
   if (!bootRef.current) bootRef.current = loadBoot();
 
   const [files, setFiles] = useState(bootRef.current.files);
-  const [active, setActive] = useState(() => entryFile(bootRef.current.files) || Object.keys(bootRef.current.files).sort()[0] || 'index.html');
+  const [active, setActive] = useState(() => entryFile(bootRef.current.files) || Object.keys(bootRef.current.files).sort()[0] || '');
   const [origin, setOrigin] = useState(bootRef.current.origin);
   const [dirty, setDirty] = useState(false);
 
@@ -133,9 +135,8 @@ export default function ArenaStudio({ toast }) {
   const [lastRun, setLastRun] = useState(null);     // { provider, model, at }
 
   /* ── ui state ── */
-  const [showTemplates, setShowTemplates] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [mobileTab, setMobileTab] = useState('code'); // files|code|preview
+  const [mobileTab, setMobileTab] = useState('chat'); // files|code|preview
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(!isMobile);
 
@@ -265,6 +266,7 @@ export default function ArenaStudio({ toast }) {
 
   /* ── editor helpers ── */
   const updateActive = (val) => {
+    if (!active || !(active in files)) return;
     setFiles((f) => ({ ...f, [active]: val }));
     setDirty(true);
   };
@@ -272,13 +274,7 @@ export default function ArenaStudio({ toast }) {
   const addFile = () => {
     const name = window.prompt(t('fileNamePrompt'), 'new-file.html');
     if (!name || files[name]) return;
-    let seed = '';
-    if (name.endsWith('.html')) seed = '<!doctype html>\n<html lang="ar" dir="rtl">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>New page</title>\n</head>\n<body>\n  <h1>مرحبا</h1>\n</body>\n</html>\n';
-    else if (name.endsWith('.css')) seed = '/* styles */\nbody { font-family: system-ui, sans-serif; }\n';
-    else if (name.endsWith('.jsx') || name.endsWith('.js')) seed = 'export default function App() {\n  return <div>Hello NEXORA</div>;\n}\n';
-    else if (name.endsWith('.json')) seed = '{\n  "name": "nexora"\n}\n';
-    else seed = '// new file\n';
-    setFiles((f) => ({ ...f, [name]: seed }));
+    setFiles((f) => ({ ...f, [name]: '' }));
     setActive(name);
     setOrigin((o) => (o === 'saved' ? 'local' : o));
     setDirty(true);
@@ -307,26 +303,6 @@ export default function ArenaStudio({ toast }) {
     setDirty(true);
   };
 
-  const loadTemplate = (tpl) => {
-    if (!window.confirm(t('loadTemplateConfirm', { name: templateName(tpl, lang) }))) return;
-    setFiles({ ...tpl.files });
-    setActive(entryFile(tpl.files) || Object.keys(tpl.files).sort()[0]);
-    setFramework(tpl.framework || 'static');
-    setShowTemplates(false);
-    setOrigin('template');
-    setDirty(false);
-    setSelectedId(null);
-    setPlan(null);
-    setExecLogs('');
-    setExecStatus('idle');
-    setExecMode(null);
-    setDeployLog('');
-    setDeployState('idle');
-    setDeployUrl(null);
-    setRemotePreviewUrl(null);
-    setMobileTab('preview');
-    toastFn(t('templateLoaded'));
-  };
 
   const markDirty = () => {
     setDirty(true);
@@ -372,9 +348,9 @@ export default function ArenaStudio({ toast }) {
       const r = await api('workspace/generate', {
         method: 'POST',
         body: {
-          plan,
+          plan: opts.plan ?? plan,
           prompt: prompt.trim(),
-          framework,
+          framework: opts.plan?.framework || framework,
           lang,
           instruction: editing ? instruction : undefined,
           files: editing ? files : undefined,
@@ -382,6 +358,7 @@ export default function ArenaStudio({ toast }) {
         },
       });
       const next = r.files && typeof r.files === 'object' ? r.files : null;
+      let generatedProjectId = selectedId;
       if (!next) throw Object.assign(new Error('no files'), { code: 'ai_no_files' });
       setFiles(next);
       setActive((cur) => (next[cur] ? cur : entryFile(next) || Object.keys(next).sort()[0] || 'index.html'));
@@ -412,12 +389,13 @@ export default function ArenaStudio({ toast }) {
           try {
             const cr = await api('workspace/projects', {
               method: 'POST',
-              body: { name: plan?.title || projectName, description: (plan?.description || prompt).slice(0, 200), files: next, framework: r.framework },
+              body: { name: opts.plan?.title || plan?.title || projectName, description: (opts.plan?.description || plan?.description || prompt).slice(0, 200), files: next, framework: r.framework },
             });
             const proj = cr?.project;
             if (!proj?.id) throw new Error('project_not_created');
             setProjects((prev) => [proj, ...prev.filter((x) => x.id !== proj.id)]);
             setSelectedId(proj.id);
+            generatedProjectId = proj.id;
             setOrigin('saved');
             setDirty(false);
             toastFn(t('saveDb'));
@@ -431,7 +409,7 @@ export default function ArenaStudio({ toast }) {
           } catch { /* ignore */ }
         }
       }
-      return { files: next, changed: r.changed || {}, mode: r.mode, summary: r.summary };
+      return { files: next, changed: r.changed || {}, mode: r.mode, summary: r.summary, projectId: generatedProjectId };
     } catch (e) {
       const msg = aiErrorText(e);
       setExecLogs((prev) => `${prev}${prev ? '\n' : ''}✗ ${msg}`);
@@ -454,36 +432,42 @@ export default function ArenaStudio({ toast }) {
     setExecLogs('');
     pushMsg('user', 'request', text, { mode: create ? 'build' : 'edit' });
     try {
+      let newPlan = plan;
       if (create) {
-        const p = await doPlan({ prompt: text });
-        if (!p) return;
+        newPlan = await doPlan({ prompt: text });
+        if (!newPlan) return;
       }
-      const gen = await doGenerate({ instruction: create ? '' : text, edit: !create });
+      const gen = await doGenerate({ instruction: create ? '' : text, edit: !create, plan: newPlan });
       if (!gen) return;
       if (create) setPrompt('');
       else setPrompt('');
       if (!autoRun) { pushMsg('agent', 'done', t('filesReady')); return; }
 
-      const steps = framework === 'static' ? ['build'] : ['install', 'build', 'test'];
+      let hasTests = false;
+      try { hasTests = !!JSON.parse(gen.files['package.json'] || '{}').scripts?.test; } catch { /* build will report invalid package.json */ }
+      const steps = (newPlan?.framework || framework) === 'static' ? ['dev'] : ['install', 'build', ...(hasTests ? ['test'] : []), 'dev'];
+      if (!hasTests) pushMsg('agent', 'info', textForNoTests(lang));
+      let currentFiles = gen.files;
       let failure = null;
       for (const action of steps) {
-        const r = await runAction(action, undefined, { quiet: true });
-        if (r && r.exitCode !== 0) { failure = { action, r }; break; }
+        const r = await runAction(action, undefined, { quiet: true, files: currentFiles, framework: newPlan?.framework || framework, projectId: gen.projectId });
+        if (!r || r.exitCode !== 0 || !r.real) { failure = { action, r: r || { logs: '', exitCode: 1 } }; break; }
       }
-      for (let round = 0; failure && round < 2; round++) {
-        const fix = await doDebug({ logs: failure.r.logs, command: failure.action });
-        if (!fix || !Object.keys(fix.patch || {}).length) break;
+      for (let round = 0; failure && failure.r.real && round < 2; round++) {
+        const fix = await doDebug({ logs: failure.r.logs, command: failure.action, files: currentFiles });
+        if (!failure.r.real || !fix || !Object.keys(fix.patch || {}).length) break;
+        currentFiles = fix.fixedFiles || currentFiles;
         pushMsg('agent', 'debug', t('autoFixApplied', { n: Object.keys(fix.patch).length }), { files: Object.keys(fix.patch) });
-        const again = await runAction(failure.action, undefined, { quiet: true });
-        if (!again || again.exitCode === 0) { failure = null; break; }
+        const again = await runAction(failure.action, undefined, { quiet: true, files: currentFiles, framework: newPlan?.framework || framework, projectId: gen.projectId });
+        if (again && again.real && again.exitCode === 0) { failure = null; break; }
         failure = { action: failure.action, r: again };
       }
       if (failure) {
         pushMsg('agent', 'error', `${t('statusFailed')}: ${failure.action}`);
       } else {
         pushMsg('agent', 'done', t('pipelineDone'));
-        if (selectedId) {
-          try { await api(`workspace/projects/${selectedId}/snapshot`, { method: 'POST', body: { files, message: 'pipeline' } }); } catch { /* ignore */ }
+        if (gen.projectId) {
+          try { await api(`workspace/projects/${gen.projectId}/snapshot`, { method: 'POST', body: { files: currentFiles, message: 'pipeline' } }); } catch { /* ignore */ }
         }
       }
       refreshHistory();
@@ -505,19 +489,19 @@ export default function ArenaStudio({ toast }) {
     if (isMobile) setMobileTab('code');
     try {
       let r;
-      if (selectedId) {
-        r = await api(`workspace/projects/${selectedId}/execute`, { method: 'POST', body: { action, command: customCommand, files } });
+      if (opts.projectId || selectedId) {
+        r = await api(`workspace/projects/${opts.projectId || selectedId}/execute`, { method: 'POST', body: { action, command: customCommand, files: opts.files || files, framework: opts.framework || framework } });
       } else {
         const cmdMap = {
-          install: framework === 'static' ? 'echo "static: no install needed"' : 'npm install',
-          build: framework === 'static' ? 'echo "static build — validating"' : 'npm run build',
-          test: 'npm test --if-present',
-          dev: framework === 'next' ? 'npm run dev -- --port 3000 --hostname 0.0.0.0' : 'npm run dev -- --host 0.0.0.0 --port 5173',
+          install: (opts.framework || framework) === 'static' ? 'echo "static: no install needed"' : 'npm install',
+          build: (opts.framework || framework) === 'static' ? 'echo "static build — validating"' : 'npm run build',
+          test: 'npm test',
+          dev: (opts.framework || framework) === 'static' ? 'python3 -m http.server 5173 --bind 0.0.0.0' : (opts.framework || framework) === 'next' ? 'npm run dev -- --port 3000 --hostname 0.0.0.0' : 'npm run dev -- --host 0.0.0.0 --port 5173',
           run: customCommand || 'npm start',
         };
         r = await api('workspace/execute', {
           method: 'POST',
-          body: { files, command: customCommand || cmdMap[action] || 'echo hello', action, framework },
+          body: { files: opts.files || files, command: customCommand || cmdMap[action] || 'echo hello', action, framework: opts.framework || framework },
         });
       }
       const real = r.real === true;
@@ -555,7 +539,7 @@ export default function ArenaStudio({ toast }) {
     setCurrentStep('debug');
     setExecLogs((prev) => `${prev}${prev ? '\n' : ''}🔍 ${t('stepDebug')}…\n`);
     try {
-      const r = await api('workspace/debug', { method: 'POST', body: { logs, files, command, lang } });
+      const r = await api('workspace/debug', { method: 'POST', body: { logs, files: opts.files || files, command, lang } });
       setDebugInfo(r);
       let out = `\n── ${t('debugTitle')} ──\n${r.diagnosis || ''}\n`;
       const patched = Object.keys(r.patch || {});
@@ -594,6 +578,13 @@ export default function ArenaStudio({ toast }) {
     try {
       const r = await api('workspace/deploy', { method: 'POST', body: { files, projectId: selectedId || undefined, name: projectName } });
       if (r?.real && r?.url) {
+        if (r.state !== 'READY') {
+          setDeployState('idle');
+          setDeployLog((prev) => `${prev}Vercel: ${r.state || 'QUEUED'} — ${r.url}\n`);
+          toastFn(lang === 'ar' ? 'بدأ النشر؛ تحقق من حالته في Vercel' : 'Deployment started; check its status in Vercel');
+          setDeploying(false);
+          return;
+        }
         setDeployState('live');
         setDeployUrl(r.url);
         setDeployLog((prev) => `${prev}✅ ${t('deployLive')}\n🔗 ${r.url}\n`);
@@ -613,10 +604,14 @@ export default function ArenaStudio({ toast }) {
   };
 
   const handlePushGitHub = async () => {
+    const repo = window.prompt(lang === 'ar' ? 'مستودع GitHub (المالك/المستودع)' : 'GitHub repository (owner/repo)');
+    if (!repo) return;
+    const branch = window.prompt(lang === 'ar' ? 'الفرع' : 'Branch', 'main');
+    if (!branch) return;
     setDeploying(true);
     setDeployLog((prev) => `${prev}⬆ GitHub...\n`);
     try {
-      const r = await api('workspace/github/push', { method: 'POST', body: { files, projectId: selectedId || undefined } });
+      const r = await api('workspace/github/push', { method: 'POST', body: { files, projectId: selectedId || undefined, repo, branch } });
       if (r?.real) {
         setDeployLog((prev) => `${prev}✅ ${t('githubPushed')} — ${r.repo}@${r.branch}\n${r.url ? `🔗 ${r.url}\n` : ''}`);
         toastFn(`✓ ${t('githubPushed')}`);
@@ -656,6 +651,9 @@ export default function ArenaStudio({ toast }) {
 
   /* ── projects ── */
   const selectProject = async (p) => {
+    setRemotePreviewUrl(null);
+    setMessages([]);
+    setExecLogs('');
     setSelectedId(p.id);
     setProjectName(p.name);
     setFramework(p.framework || 'static');
@@ -677,18 +675,18 @@ export default function ArenaStudio({ toast }) {
     const name = window.prompt(t('projectNamePrompt'), projectName);
     if (!name) return;
     setProjectName(name);
-    const tpl = DEFAULT_TEMPLATE;
-    setFiles({ ...tpl.files });
-    setActive(entryFile(tpl.files) || Object.keys(tpl.files).sort()[0]);
+    setFiles({});
+    setActive('');
+    setMessages([]);
+    setRemotePreviewUrl(null);
     setSelectedId(null);
     setPlan(null);
     setCurrentStep('plan');
     setExecLogs('');
     setExecStatus('idle');
     setExecMode(null);
-    setOrigin('template');
+    setOrigin('local');
     setDirty(false);
-    setShowTemplates(false);
     toastFn(t('newProjectCreated'));
   };
 
@@ -699,9 +697,11 @@ export default function ArenaStudio({ toast }) {
       setProjects((prev) => prev.filter((x) => x.id !== p.id));
       if (selectedId === p.id) {
         setSelectedId(null);
-        setFiles({ ...DEFAULT_TEMPLATE.files });
-        setActive(entryFile(DEFAULT_TEMPLATE.files) || Object.keys(DEFAULT_TEMPLATE.files).sort()[0]);
-        setOrigin('template');
+        setFiles({});
+        setActive('');
+        setPlan(null);
+        setRemotePreviewUrl(null);
+        setOrigin('local');
       }
       toastFn(t('projectDeleted'));
     } catch {
@@ -776,18 +776,13 @@ export default function ArenaStudio({ toast }) {
   };
 
   const openPreview = () => {
-    const url = previewSrcRef.current || previewSrc;
+    // Blob documents inherit the application's origin; never open untrusted code unsandboxed.
+    const url = remotePreviewUrl;
     if (url) {
       const win = window.open(url, '_blank', 'noopener,noreferrer');
       if (win) return;
     }
-    const win = window.open('', '_blank');
-    if (!win) { toastFn(t('popupBlocked')); return; }
-    try {
-      win.document.open();
-      win.document.write(previewDoc.html);
-      win.document.close();
-    } catch { toastFn(t('popupBlocked')); }
+    toastFn(t('popupBlocked'));
   };
 
   /* ── labels ── */
@@ -830,464 +825,66 @@ export default function ArenaStudio({ toast }) {
 
   /* The composer builds a new project while the workspace still holds a starter or nothing,
      and switches to "apply change" once a real project exists (Arena-style continuity). */
-  const needsBuild = origin === 'template' || !plan;
+  const needsBuild = Object.keys(files).length === 0;
   const submitRequest = () => { if (!prompt.trim()) { toastFn(t('promptFirst')); return; } runPipeline({ create: needsBuild }); };
 
+  const text = (ar, en) => lang === 'ar' ? ar : en;
   return (
-    <div className={'nx-s' + (rtl ? ' is-rtl' : '')} dir={rtl ? 'rtl' : 'ltr'} data-view={isMobile ? 'mobile' : 'desktop'}>
-      {/* ── header ── */}
-      <header className="nx-s-top">
-        <div className="nx-s-brand">
-          <span className="nx-s-mark" aria-hidden="true">N</span>
-          <div className="nx-s-brand-text">
-            <b>NEXORA Studio</b>
-          </div>
-        </div>
-        <div className="nx-s-top-actions">
-          <button type="button" className="nx-s-btn" onClick={() => setShowTemplates((v) => !v)} aria-expanded={showTemplates}>
-            📦 <span className="nx-s-btn-label">{t('templates')}</span>
-          </button>
-          <button type="button" className="nx-s-btn" onClick={saveProject} disabled={deploying}>
-            💾 <span className="nx-s-btn-label">{t('save')}</span>
-          </button>
-          <button type="button" className="nx-s-btn" onClick={handlePushGitHub} disabled={deploying}>
-            📤 <span className="nx-s-btn-label">GitHub</span>
-          </button>
-          <button type="button" className="nx-s-btn nx-s-btn-primary" onClick={handleDeploy} disabled={deploying}>
-            🚀 <span className="nx-s-btn-label">{deploying ? t('deploying') : t('deploy')}</span>
-          </button>
+    <div className="nxs2" dir={rtl ? 'rtl' : 'ltr'}>
+      <header className="nxs2-header">
+        <strong>nexora studio</strong>
+        <div className="nxs2-actions">
+          <button onClick={createNewProject}>{text('مشروع جديد', 'New project')}</button>
+          <button onClick={saveProject} disabled={!fileNames.length}>{t('save')}</button>
+          <button onClick={handlePushGitHub} disabled={!fileNames.length || deploying}>GitHub</button>
+          <button className="nxs2-primary" onClick={handleDeploy} disabled={!fileNames.length || deploying}>{t('deploy')}</button>
         </div>
       </header>
-
-      {/* ── status: capabilities + real connection state ── */}
-      <div className="nx-s-status" role="status">
-        <span className={'nx-s-badge ' + originMeta.cls} title={originMeta.note}>{originMeta.label}</span>
-        <span className="nx-s-chip" title={execCapability.label} aria-label={execCapability.label}>
-          <i className={'nx-s-dot ' + execCapability.cls} />
-          <span className="nx-s-chip-name">{execCapability.short}</span>
-          <span className="nx-s-chip-state">{execCapability.label.slice(execCapability.short.length)}</span>
-        </span>
-        {conns.map((c) => (
-          <span className="nx-s-chip" key={c.key} title={`${c.name}: ${connWord(c.key)}`} aria-label={`${c.name}: ${connWord(c.key)}`}>
-            <i className={'nx-s-dot ' + connState(c.key)} />
-            <span className="nx-s-chip-name">{c.name}</span>
-            <span className="nx-s-chip-state"> · {connWord(c.key)}</span>
-          </span>
-        ))}
-        <span className="nx-s-chip muted">{t('dbProjects')}: {projects.length}</span>
-      </div>
-
-      <div className="nx-s-body">
-        <aside className="nx-s-side" aria-label={t('chatTitle')}>
-
-      {/* ── pipeline ── */}
-      <div className="nx-s-pipeline" role="tablist" aria-label="pipeline">
-        {STEPS.map((s, i) => (
-          <button
-            key={s.id}
-            type="button"
-            className={'nx-s-step' + (currentStep === s.id ? ' active' : '') + (i < stepIndex ? ' done' : '')}
-            onClick={() => setCurrentStep(s.id)}
-          >
-            <span aria-hidden="true">{s.icon}</span>
-            <b>{lang === 'ar' ? s.ar : s.en}</b>
-          </button>
-        ))}
-        <span className={'nx-s-exec-badge ' + (STATUS_CLASS[execStatus] || 'idle')}>
-          {execStatus === 'running' ? '⏳ ' : execStatus === 'failed' ? '❌ ' : execStatus === 'idle' ? '• ' : execStatus === 'validated' ? '⚠️ ' : '✅ '}
-          {statusLabel}
-        </span>
-      </div>
-
-      {/* ── templates ── */}
-      {showTemplates && (
-        <div className="nx-s-templates">
-          <div className="nx-s-templates-head">
-            <b>{t('templatesTitle')}</b>
-            <button type="button" className="nx-s-icon-btn" onClick={() => setShowTemplates(false)} aria-label={t('close')}>×</button>
+      <nav className="nxs2-mobile-tabs" aria-label={text('لوحات مساحة العمل', 'Workspace panels')}>
+        {['chat', 'files', 'code', 'preview'].map((tab) => <button key={tab} className={mobileTab === tab ? 'selected' : ''} onClick={() => setMobileTab(tab)}>{tab === 'chat' ? text('المحادثة', 'Chat') : t(tab === 'files' ? 'filesTab' : tab === 'code' ? 'codeTab' : 'previewTab')}</button>)}
+      </nav>
+      <div className="nxs2-layout">
+        <section className={'nxs2-chat nxs2-panel' + (mobileTab === 'chat' ? ' nxs2-active' : '')}>
+          <div className="nxs2-panel-title"><b>{text('المحادثة', 'Chat')}</b><span>{lastRun?.model || ''}</span></div>
+          <div className="nxs2-messages" ref={chatRef} aria-live="polite">
+            {messages.map((m, i) => <div key={i} className={'nxs2-message ' + m.role}><span>{m.role === 'user' ? text('أنت', 'You') : 'nexora'}</span><p dir="auto">{m.text}</p></div>)}
+            {busy && <p className="nxs2-muted">{t('pipelineRunning')}</p>}
           </div>
-          <div className="nx-s-templates-grid">
-            {TEMPLATES.map((tpl) => (
-              <button key={tpl.id} type="button" className="nx-s-tpl" onClick={() => loadTemplate(tpl)}>
-                <span className="nx-s-tpl-icon" aria-hidden="true">{tpl.icon}</span>
-                <b>{templateName(tpl, lang)}</b>
-                <small>{templateDesc(tpl, lang)}</small>
-                <span className="nx-s-tpl-tag">{t('sampleBadge')}</span>
-              </button>
-            ))}
-            <button type="button" className="nx-s-tpl dashed" onClick={createNewProject}>
-              <span className="nx-s-tpl-icon" aria-hidden="true">➕</span>
-              <b>{t('blankProject')}</b>
-              <small>{t('blankProjectDesc')}</small>
-              <span className="nx-s-tpl-tag">{t('create')}</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── agent conversation ── */}
-      {messages.length > 0 && (
-        <section className={'nx-s-chat' + (showChat ? '' : ' is-collapsed')} aria-label={t('chatTitle')}>
-          <header className="nx-s-chat-head">
-            <b>🤖 {t('chatTitle')}</b>
-            <span className="nx-s-muted ltr">{busy ? t('pipelineRunning') : (lastRun?.model || '')}</span>
-            <button type="button" className="nx-s-icon-btn" onClick={() => setShowChat((v) => !v)} aria-expanded={showChat}>
-              {showChat ? '−' : '+'}
-            </button>
-          </header>
-          {showChat && (
-            <div className="nx-s-chat-log" ref={chatRef}>
-              {messages.map((m, i) => (
-                <div key={i} className={'nx-s-msg ' + m.role + ' ' + m.kind}>
-                  <span className="nx-s-msg-icon" aria-hidden="true">
-                    {m.role === 'user' ? '🧑' : m.kind === 'error' ? '⚠️' : m.kind === 'plan' ? '📋' : m.kind === 'files' ? '⚡' : m.kind === 'debug' ? '🐛' : '✅'}
-                  </span>
-                  <span className="nx-s-msg-text" dir="auto">{m.text}</span>
-                </div>
-              ))}
-              {busy && <div className="nx-s-msg agent running"><span className="nx-s-msg-icon">⏳</span><span className="nx-s-msg-text">{t('pipelineRunning')}</span></div>}
+          <div className="nxs2-compose">
+            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={needsBuild ? text('صف التطبيق الذي تريد إنشاءه', 'Describe the app you want to build') : text('صف التعديل الذي تريده', 'Describe the change you want')} dir="auto" rows={3} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitRequest(); }} />
+            <div className="nxs2-compose-actions">
+              <select value={framework} onChange={(e) => setFramework(e.target.value)} aria-label="Framework">{FRAMEWORKS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
+              <button onClick={() => doPlan()} disabled={busy || planning || !prompt.trim()}>{t('stepPlan')}</button>
+              <button className="nxs2-primary" onClick={submitRequest} disabled={busy || !prompt.trim()}>{needsBuild ? text('إنشاء', 'Create') : text('تعديل', 'Edit')}</button>
             </div>
-          )}
+            <label className="nxs2-auto"><input type="checkbox" checked={autoRun} onChange={(e) => setAutoRun(e.target.checked)} /> {text('التشغيل تلقائيًا', 'Run automatically')}</label>
+          </div>
         </section>
-      )}
-
-      {/* ── plan card ── */}
-      {plan && (
-        <div className="nx-s-plan">
-          <div className="nx-s-plan-head">
-            <b>📋 {t('planTitle')}: {plan.title}</b>
-            <span className="nx-s-chip accent">{plan.framework}</span>
-            <button type="button" className="nx-s-icon-btn" onClick={() => setPlan(null)} aria-label={t('close')}>×</button>
+        <aside className={'nxs2-explorer nxs2-panel' + (mobileTab === 'files' ? ' nxs2-active' : '')}>
+          <div className="nxs2-panel-title"><b>{t('projectsTitle')}</b><button onClick={createNewProject} aria-label={t('newProject')}>+</button></div>
+          <div className="nxs2-projects">
+            {projectsError && <p className="nxs2-muted">{t('projectsError')}</p>}
+            {projects.map((p) => <div className="nxs2-project" key={p.id}><button className={selectedId === p.id ? 'selected' : ''} onClick={() => selectProject(p)} dir="auto">{p.name}</button><button onClick={() => deleteProject(p)} aria-label={text('حذف المشروع', 'Delete project')}>×</button></div>)}
           </div>
-          <p dir="auto">{plan.description}</p>
-          <div className="nx-s-plan-grid">
-            <div><b>{t('features')}</b><ul>{(plan.features || []).map((f, i) => <li key={i} dir="auto">{f}</li>)}</ul></div>
-            <div><b>{t('filesLabel')}</b><ul>{(plan.fileStructure || fileNames).map((f, i) => <li key={i} className="ltr">{f}</li>)}</ul></div>
-            <div><b>{t('steps')}</b><ol>{(plan.steps || STEPS.map((s) => (lang === 'ar' ? s.ar : s.en))).map((s, i) => <li key={i} dir="auto">{s}</li>)}</ol></div>
-          </div>
-          {plan.fallback && <small className="nx-s-muted">{t('planFallback')}</small>}
-        </div>
-      )}
-
-      {/* ── composer (bottom of the side column) ── */}
-      <div className="nx-s-ai">
-        <select value={framework} onChange={(e) => setFramework(e.target.value)} className="nx-s-fw" aria-label="framework">
-          {FRAMEWORKS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        <input
-          className="nx-s-ai-input"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitRequest(); } }}
-          placeholder={needsBuild ? t('planPlaceholder') : t('composerPlaceholder')}
-          dir="auto"
-          disabled={busy}
-          aria-label={needsBuild ? t('planPlaceholder') : t('composerPlaceholder')}
-        />
-        <label className="nx-s-auto" title={t('autoRunHint')}>
-          <input type="checkbox" checked={autoRun} onChange={(e) => setAutoRun(e.target.checked)} />
-          <span>{t('autoRun')}</span>
-        </label>
-        <div className="nx-s-ai-actions">
-          <button type="button" className="nx-s-btn" onClick={() => doPlan()} disabled={busy || planning || !prompt.trim()}>
-            📋 {planning ? t('planning') : t('plan')}
-          </button>
-          <button type="button" className="nx-s-btn nx-s-btn-accent" onClick={submitRequest} disabled={busy || !prompt.trim()}>
-            {busy ? '⏳' : needsBuild ? '⚡' : '✎'} {busy ? t('pipelineRunning') : needsBuild ? t('composerBuild') : t('composerEdit')}
-          </button>
-        </div>
-      </div>
-
-        </aside>
-
-      {/* ── mobile tabs ── */}
-      <div className="nx-s-tabs" role="tablist" aria-label="workspace panels">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={drawerOpen}
-          aria-expanded={drawerOpen}
-          className={'nx-s-tab' + (drawerOpen ? ' on' : '')}
-          onClick={() => setDrawerOpen((v) => !v)}
-        >
-          <span aria-hidden="true">🗂️</span> {t('filesTab')}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={!drawerOpen && mobileTab === 'code'}
-          className={'nx-s-tab' + (!drawerOpen && mobileTab === 'code' ? ' on' : '')}
-          onClick={() => { setMobileTab('code'); setDrawerOpen(false); }}
-        >
-          <span aria-hidden="true">⌨️</span> {t('codeTab')}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={!drawerOpen && mobileTab === 'preview'}
-          className={'nx-s-tab' + (!drawerOpen && mobileTab === 'preview' ? ' on' : '')}
-          onClick={() => { setMobileTab('preview'); setDrawerOpen(false); }}
-        >
-          <span aria-hidden="true">👁️</span> {t('previewTab')}
-        </button>
-      </div>
-
-      {/* ── workspace ── */}
-      <div className={'nx-s-workspace' + (isMobile ? ' is-mobile' : '')}>
-        {isMobile && drawerOpen && (
-          <button type="button" className="nx-s-backdrop" aria-label={t('close')} onClick={() => setDrawerOpen(false)} />
-        )}
-
-        {/* file explorer / drawer */}
-        <aside className={'nx-s-panel nx-s-files' + (drawerOpen ? ' is-open' : '')} aria-label={t('explorer')}>
-          <div className="nx-s-panel-head">
-            <b>🗂️ {t('explorer')}</b>
-            <span className="nx-s-head-actions">
-              <button type="button" className="nx-s-icon-btn" onClick={addFile} title={t('newFile')}>+</button>
-              <button type="button" className="nx-s-icon-btn" onClick={saveProject} title={t('save')}>💾</button>
-              {isMobile && <button type="button" className="nx-s-icon-btn" onClick={() => setDrawerOpen(false)} aria-label={t('close')}>×</button>}
-            </span>
-          </div>
-
-          <div className={'nx-s-origin ' + originMeta.cls}>
-            <b>{originMeta.label}</b>
-            <small dir="auto">{originMeta.note}</small>
-            {origin === 'template' && <span className="nx-s-origin-tag">{t('sampleNotice')}</span>}
-          </div>
-
-          <div className="nx-s-projects">
-            <div className="nx-s-section-title">
-              <span>{t('projectsTitle')}</span>
-              <button type="button" onClick={createNewProject}>{t('newProject')}</button>
-            </div>
-            {projectsError && <div className="nx-s-empty warn">{t('projectsError')}</div>}
-            {!projectsError && projects.length === 0 && <div className="nx-s-empty">{t('noProjects')}</div>}
-            {projects.map((p) => (
-              <div
-                key={p.id}
-                className={'nx-s-proj' + (selectedId === p.id ? ' active' : '')}
-                onClick={() => selectProject(p)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') selectProject(p); }}
-              >
-                <span className="nx-s-proj-name" dir="auto">{p.name}</span>
-                <small className="ltr">{p.framework} · {p.updated_at ? new Date(p.updated_at).toLocaleDateString(lang === 'ar' ? 'ar' : 'en') : ''}</small>
-                <button type="button" onClick={(e) => { e.stopPropagation(); deleteProject(p); }} title="delete">×</button>
-              </div>
-            ))}
-            {selectedId && (
-              <button type="button" className="nx-s-link" onClick={() => setShowHistory((v) => !v)}>
-                {showHistory ? '−' : '+'} {t('history')} ({execHistory.length})
-              </button>
-            )}
-            {showHistory && execHistory.map((ex) => (
-              <div key={ex.id} className="nx-s-history-item">
-                <b>{ex.action}</b>
-                <small>{ex.status} · {new Date(ex.created_at).toLocaleTimeString(lang === 'ar' ? 'ar' : 'en')}</small>
-                <pre>{(ex.logs || '').slice(0, 120)}…</pre>
-              </div>
-            ))}
-            {selectedId && (
-              <button type="button" className="nx-s-link" onClick={loadSnapshots}>
-                {showSnapshots ? '−' : '+'} {t('snapshots')} ({snapshots.length})
-              </button>
-            )}
-            {showSnapshots && snapshots.length === 0 && <div className="nx-s-empty">{t('noSnapshots')}</div>}
-            {showSnapshots && snapshots.map((sn) => (
-              <div key={sn.id} className="nx-s-history-item">
-                <b dir="auto">{(sn.message || '').slice(0, 40)}</b>
-                <small>{new Date(sn.created_at).toLocaleString(lang === 'ar' ? 'ar' : 'en')}</small>
-                <button type="button" className="nx-s-link" onClick={() => restoreSnapshot(sn.id)}>↺ {t('restoreSnapshot')}</button>
-              </div>
-            ))}
-          </div>
-
-          <div className="nx-s-section-title files">
-            <span>{t('filesLabel')} ({fileNames.length})</span>
-          </div>
-          <div className="nx-s-file-list">
-            {fileNames.map((name) => (
-              <div
-                key={name}
-                className={'nx-s-file' + (active === name ? ' active' : '')}
-                onClick={() => { setActive(name); setDrawerOpen(false); if (isMobile) setMobileTab('code'); }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setActive(name); setDrawerOpen(false); setMobileTab('code'); } }}
-              >
-                <span className="nx-s-file-name">
-                  <span aria-hidden="true">{fileIcon(name)}</span>
-                  <span dir="ltr">{name}</span>
-                </span>
-                <span className="nx-s-file-ops">
-                  <button type="button" onClick={(e) => { e.stopPropagation(); renameFile(name); }} title="rename">✏️</button>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); deleteFile(name); }} title="delete">×</button>
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="nx-s-files-foot">
-            <label className="nx-s-field">
-              <span>{t('projectName')}</span>
-              <input value={projectName} onChange={(e) => { setProjectName(e.target.value); markDirty(); }} dir="auto" />
-            </label>
-            <small className="nx-s-muted">{dirty ? `● ${t('unsaved')}` : `✓ ${t('saved2')}`}</small>
+          <div className="nxs2-panel-title"><b>{t('filesTab')}</b><button onClick={addFile} aria-label={t('newFile')}>+</button></div>
+          <div className="nxs2-file-list">{fileNames.map((name) => <div className="nxs2-file" key={name}><button dir="ltr" className={active === name ? 'selected' : ''} onClick={() => { setActive(name); setMobileTab('code'); }}>{name}</button><button onClick={() => renameFile(name)} aria-label={text('إعادة تسمية', 'Rename')}>✎</button><button onClick={() => deleteFile(name)} aria-label={text('حذف', 'Delete')}>×</button></div>)}</div>
+          <div className="nxs2-explorer-foot"><input value={projectName} onChange={(e) => { setProjectName(e.target.value); markDirty(); }} aria-label={t('projectName')} dir="auto" /><small>{dirty ? t('unsaved') : selectedId ? t('saved2') : ''}</small>
+          {selectedId && <><button onClick={() => { setShowHistory(!showHistory); refreshHistory(); }}>{t('history')}</button><button onClick={loadSnapshots}>{t('snapshots')}</button></>}
+          {showHistory && execHistory.map((ex) => <div key={ex.id} className="nxs2-muted">{ex.action} · {ex.status}</div>)}
+          {showSnapshots && snapshots.map((sn) => <button key={sn.id} onClick={() => restoreSnapshot(sn.id)}>{sn.message || t('restoreSnapshot')} · {new Date(sn.created_at).toLocaleString()}</button>)}
           </div>
         </aside>
-
-        {/* code editor */}
-        <main className={'nx-s-panel nx-s-editor' + (mobileTab === 'code' ? ' is-active' : '')} aria-label={t('codeTab')}>
-          <div className="nx-s-panel-head">
-            <span className="nx-s-file-current">
-              {isMobile && (
-                <button type="button" className="nx-s-icon-btn" onClick={() => setDrawerOpen(true)} aria-label={t('filesTab')}>🗂️</button>
-              )}
-              <b dir="ltr">{active}</b>
-              <small className="ltr">{activeLang} · {t('chars', { n: activeContent.length })}</small>
-            </span>
-            <span className="nx-s-head-actions">
-              <button type="button" className="nx-s-btn tiny" onClick={copyCode}>📋 <span className="nx-s-btn-label">{t('copy')}</span></button>
-              <button type="button" className="nx-s-btn tiny" onClick={downloadFile}>⬇️ <span className="nx-s-btn-label">{t('download')}</span></button>
-              <button type="button" className="nx-s-btn tiny primary" onClick={saveProject}>💾 <span className="nx-s-btn-label">{t('save')}</span></button>
-            </span>
-          </div>
-
-          <div className="nx-s-editor-meta">
-            <span className="ltr">{t('lines', { n: activeContent.split('\n').length })}</span>
-            <span>{t('noWrap')}</span>
-            <span className="nx-s-ltr-pill" dir="ltr">LTR</span>
-          </div>
-
-          <CodeEditor
-            value={activeContent}
-            onChange={updateActive}
-            fileName={active}
-            onSave={saveProject}
-            label={`${active} — ${t('codeTab')}`}
-          />
-
-          {/* terminal */}
-          <section className={'nx-s-terminal' + (terminalOpen ? '' : ' is-collapsed')} aria-label={t('terminal')}>
-            <div className="nx-s-terminal-bar">
-              <b><span className="nx-s-term-emoji">🖥️</span> {t('terminal')}</b>
-              <span className="nx-s-terminal-tools">
-                <button type="button" onClick={() => runAction('install')} disabled={execStatus === 'running'} title={t('install')} aria-label={t('install')}>
-                  📦 <span className="nx-s-tool-label">{t('install')}</span>
-                </button>
-                <button type="button" onClick={() => runAction('build')} disabled={execStatus === 'running'} title={t('build')} aria-label={t('build')}>
-                  🔨 <span className="nx-s-tool-label">{t('build')}</span>
-                </button>
-                <button type="button" onClick={() => runAction('test')} disabled={execStatus === 'running'} title={t('test')} aria-label={t('test')}>
-                  🧪 <span className="nx-s-tool-label">{t('test')}</span>
-                </button>
-                <button type="button" onClick={doDebug} disabled={execStatus === 'running' || !execLogs} title={t('debug')} aria-label={t('debug')}>
-                  🐛 <span className="nx-s-tool-label">{t('debug')}</span>
-                </button>
-                <button type="button" onClick={() => runAction('dev')} disabled={execStatus === 'running'} title={t('dev')} aria-label={t('dev')}>
-                  ▶️ <span className="nx-s-tool-label">{t('dev')}</span>
-                </button>
-                <button
-                  type="button"
-                  className="nx-s-terminal-toggle"
-                  onClick={() => setTerminalOpen((v) => !v)}
-                  aria-expanded={terminalOpen}
-                  aria-label={terminalOpen ? t('clear') : t('terminal')}
-                >
-                  {terminalOpen ? '−' : '+'}
-                </button>
-              </span>
-            </div>
-            {terminalOpen && (
-              <>
-                <div className="nx-s-terminal-cmd">
-                  <input
-                    value={customCmd}
-                    onChange={(e) => setCustomCmd(e.target.value)}
-                    placeholder={t('customCmd')}
-                    dir="ltr"
-                    onKeyDown={(e) => { if (e.key === 'Enter' && customCmd.trim()) runAction('exec', customCmd); }}
-                  />
-                  <button type="button" onClick={() => runAction('exec', customCmd)} disabled={!customCmd.trim() || execStatus === 'running'}>{t('run')}</button>
-                  <button type="button" className="ghost" onClick={() => { setExecLogs(''); setExecStatus('idle'); setExecMode(null); setDebugInfo(null); }}>{t('clear')}</button>
-                </div>
-                <pre ref={terminalRef} className="nx-s-terminal-log">
-{execLogs
-  || `${t('terminalIdle')}\n${execCapability.label}\n${execMode === 'validation' ? t('execNotReal') : execMode === 'real' ? t('execReal') : ''}`}
-                </pre>
-                {execMode === 'validation' && execStatus !== 'idle' && (
-                  <div className="nx-s-hint warn">⚠ {t('execNotReal')}</div>
-                )}
-                {execMode === 'real' && (
-                  <div className="nx-s-hint ok">● {t('execReal')}</div>
-                )}
-                {debugInfo && (
-                  <div className="nx-s-debug">
-                    <b>🐛 {t('debugTitle')}</b>
-                    <ul>{(debugInfo.suggestions || []).map((s, i) => <li key={i} dir="auto">{s}</li>)}</ul>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
+        <main className={'nxs2-code nxs2-panel' + (mobileTab === 'code' ? ' nxs2-active' : '')}>
+          <div className="nxs2-panel-title"><b dir="ltr">{active || t('codeTab')}</b><div><button onClick={copyCode} disabled={!active}>{t('copy')}</button><button onClick={downloadFile} disabled={!active}>{t('download')}</button></div></div>
+          {active && Object.hasOwn(files, active) ? <CodeEditor value={activeContent} onChange={updateActive} fileName={active} onSave={saveProject} label={active} /> : <div className="nxs2-empty">{text('لا توجد ملفات بعد', 'No files yet')}</div>}
+          <section className="nxs2-terminal"><div className="nxs2-panel-title"><button onClick={() => setTerminalOpen(!terminalOpen)}>{t('terminal')} {terminalOpen ? '−' : '+'}</button><div>{['install', 'build', 'test', 'dev'].map((action) => <button key={action} disabled={execStatus === 'running' || !fileNames.length} onClick={() => runAction(action)}>{t(action)}</button>)}<button onClick={() => doDebug()} disabled={!execLogs || execStatus === 'running'}>{t('debug')}</button></div></div>
+          {terminalOpen && <><pre ref={terminalRef}>{execLogs || t('terminalIdle')}</pre><div className="nxs2-command"><input dir="ltr" value={customCmd} onChange={(e) => setCustomCmd(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && customCmd.trim()) runAction('exec', customCmd); }} placeholder={t('customCmd')} /><button onClick={() => runAction('exec', customCmd)} disabled={!customCmd.trim() || execStatus === 'running'}>{t('run')}</button></div></>}</section>
         </main>
-
-        {/* live preview */}
-        <section className={'nx-s-panel nx-s-preview' + (mobileTab === 'preview' ? ' is-active' : '')} aria-label={t('previewTab')}>
-          <div className="nx-s-panel-head preview">
-            <span className="nx-s-preview-title">
-              <b>👁️ {t('previewTab')}</b>
-              <small className="ltr">
-                {remotePreviewUrl ? t('previewRemote') : t('previewLocal')} · {previewDoc.entry || '—'}
-              </small>
-            </span>
-            <span className="nx-s-head-actions">
-              {remotePreviewUrl && (
-                <button type="button" className="nx-s-btn tiny" onClick={() => setRemotePreviewUrl(null)}>{t('backToLocal')}</button>
-              )}
-              <button type="button" className="nx-s-btn tiny" onClick={refreshPreview}>🔄 <span className="nx-s-btn-label">{t('refresh')}</span></button>
-              <button type="button" className="nx-s-btn tiny primary" onClick={openPreview}>🔗 <span className="nx-s-btn-label">{t('open')}</span></button>
-            </span>
-          </div>
-
-          <div className="nx-s-preview-stage">
-            {!previewReady && <span className="nx-s-preview-loading" aria-live="polite">{t('statusRunning')}</span>}
-            {iframeSrc ? (
-              <iframe
-                key="nx-preview-frame"
-                title={t('previewTab')}
-                className="nx-s-iframe"
-                src={iframeSrc}
-                onLoad={() => setPreviewReady(true)}
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-              />
-            ) : (
-              <div className="nx-s-empty big">{t('noPreviewTitle')}</div>
-            )}
-          </div>
-
-          <div className="nx-s-preview-foot">
-            {previewDoc.entry
-              ? <span className="ltr">{t('previewEntry', { name: previewDoc.entry })}{previewDoc.inlined?.length ? ` · ${t('previewInlined', { n: previewDoc.inlined.length })}` : ''}</span>
-              : <span>{t('noPreviewBody')}</span>}
-            <span className="nx-s-muted">{t('previewAuto')}</span>
-          </div>
-
-          {deployLog && (
-            <pre className="nx-s-deploy-log">{deployLog}</pre>
-          )}
-          {deployState === 'live' && deployUrl && (
-            <a className="nx-s-deploy-link" href={deployUrl} target="_blank" rel="noreferrer">{t('deployLive')} ↗</a>
-          )}
-
-          <div className="nx-s-statusbar">
-            <span className="ltr">⚙️ {framework}</span>
-            <span className={'nx-s-dot-label ' + (STATUS_CLASS[execStatus] || 'idle')}>● {execAction || 'idle'} · {statusLabel}</span>
-            <span>{dirty ? `● ${t('unsaved')}` : `✓ ${t('saved2')}`} · {fileNames.length}</span>
-          </div>
+        <section className={'nxs2-preview nxs2-panel' + (mobileTab === 'preview' ? ' nxs2-active' : '')}>
+          <div className="nxs2-panel-title"><div><b>{t('previewTab')}</b><small>{remotePreviewUrl ? t('previewRemote') : t('previewLocal')}</small></div><div><button onClick={refreshPreview}>{t('refresh')}</button><button onClick={openPreview} disabled={!remotePreviewUrl}>{t('open')}</button></div></div>
+          <div className="nxs2-preview-body">{iframeSrc && fileNames.length ? <iframe key={previewNonce} title={t('previewTab')} src={iframeSrc} onLoad={() => setPreviewReady(true)} sandbox={remotePreviewUrl ? 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals' : 'allow-scripts allow-forms allow-popups allow-modals'} /> : <div className="nxs2-empty">{t('noPreviewTitle')}</div>}</div>
+          {deployLog && <pre className="nxs2-deploy-log">{deployLog}</pre>}{deployUrl && <a href={deployUrl} target="_blank" rel="noreferrer">{deployUrl}</a>}
         </section>
-      </div>
       </div>
     </div>
   );

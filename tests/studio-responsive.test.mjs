@@ -21,7 +21,6 @@ import {
   noPreviewDocument,
   IMAGE_FALLBACK_SCRIPT,
 } from '../src/ai/studioPreview.js';
-import { TEMPLATES, DEFAULT_TEMPLATE } from '../src/ai/studioTemplates.js';
 
 const read = (p) => readFileSync(p, 'utf8');
 const studioSrc = read('src/ai/ArenaStudio.jsx');
@@ -32,35 +31,10 @@ const execSrc = read('api/_lib/exec.js');
 const handlersSrc = read('api/_lib/handlers.js');
 
 /* ─────────────── 1. mobile workspace layout ─────────────── */
-test('تبويبات الهاتف الثلاثة موجودة: Files / Code Editor / Live Preview', () => {
-  assert.match(studioSrc, /t\('filesTab'\)/);
-  assert.match(studioSrc, /t\('codeTab'\)/);
-  assert.match(studioSrc, /t\('previewTab'\)/);
-  assert.match(studioSrc, /className="nx-s-tabs"[\s\S]*?filesTab[\s\S]*?codeTab[\s\S]*?previewTab/);
-  const strings = read('src/ai/studioStrings.js');
-  assert.match(strings, /filesTab: 'الملفات'/);
-  assert.match(strings, /codeTab: 'محرر الكود'/);
-  assert.match(strings, /previewTab: 'المعاينة الحية'/);
-  assert.match(strings, /filesTab: 'Files'/);
-  assert.match(strings, /codeTab: 'Code Editor'/);
-  assert.match(strings, /previewTab: 'Live Preview'/);
-});
-
-test('لوحة واحدة تُعرض على الهاتف مع إبقاء الأخريات في DOM (حفظ حالة المعاينة)', () => {
-  // التبديل عبر visibility فقط — لا unmount ولا display:none للوحة، فلا يُعاد تحميل الـ iframe
-  assert.match(cssSrc, /\.nx-s-workspace\.is-mobile \.nx-s-panel:not\(\.is-active\):not\(\.is-open\)\s*\{[^}]*visibility:\s*hidden/);
-  assert.match(cssSrc, /\.nx-s-workspace\.is-mobile\s*\{[^}]*display:\s*block/);
-  // مساحة العمل نفسها لا يجب أن تُخفى بـ display:none
-  assert.doesNotMatch(cssSrc, /\.nx-s-preview[^{]*\{[^}]*display:\s*none/);
-  assert.doesNotMatch(cssSrc, /\.nx-s-editor[^{]*\{[^}]*display:\s*none/);
-});
-
-test('الحاسوب يحتفظ بتصميم ثلاثة أعمدة', () => {
-  assert.match(cssSrc, /\.nx-s-workspace\s*\{[^}]*display:\s*flex/);
-  assert.match(cssSrc, /\.nx-s-files\s*\{[^}]*width:\s*238px/);
-  assert.match(cssSrc, /\.nx-s-preview\s*\{[^}]*width:\s*42%/);
-  // الاستعلام الوحيد الذي يغيّر التخطيط هو شاشات <= 900px
-  assert.match(cssSrc, /@media \(max-width: 900px\)/);
+test('واجهة الهاتف تعرض المحادثة والملفات والكود والمعاينة', () => {
+  assert.match(studioSrc, /\['chat', 'files', 'code', 'preview'\]/);
+  assert.match(cssSrc, /\.nxs2-mobile-tabs/);
+  assert.match(cssSrc, /\.nxs2-panel\.nxs2-active/);
 });
 
 /* ─────────────── 2. code editor ─────────────── */
@@ -87,16 +61,14 @@ test('الكود دائماً LTR مع عزل ثنائي الاتجاه للوا
   assert.match(editorSrc, /className="nx-code" dir="ltr"/);
   assert.match(editorSrc, /direction: ltr|dir="ltr"/);
   assert.match(cssSrc, /\.nx-code \{[^}]*direction:\s*ltr[^}]*unicode-bidi:\s*isolate/);
-  assert.match(cssSrc, /\.nx-s \.ltr \{ direction:\s*ltr; unicode-bidi:\s*isolate; \}/);
   // الواجهة تتبع اتجاه لغة i18n
   assert.match(studioSrc, /const rtl = isRtl\(\)/);
   assert.match(studioSrc, /dir=\{rtl \? 'rtl' : 'ltr'\}/);
 });
 
-test('أسماء الملفات والمسارات معزولة LTR داخل واجهة RTL', () => {
-  assert.match(studioSrc, /<span dir="ltr">\{name\}<\/span>/);
-  assert.match(studioSrc, /dir="auto"/);
-  assert.match(cssSrc, /\.nx-s-file-name > span:last-child \{[^}]*direction:\s*ltr[^}]*unicode-bidi:\s*isolate/);
+test('مسارات الملفات والكود معزولة LTR', () => {
+  assert.match(studioSrc, /dir="ltr" className=\{active === name/);
+  assert.match(editorSrc, /className="nx-code" dir="ltr"/);
 });
 
 /* ─────────────── 3. live preview ─────────────── */
@@ -118,28 +90,12 @@ test('المعاينة مبنية كمستند واحد مكتفٍ بذاته (C
   assert.ok(inlined.includes('assets/logo.svg'));
 });
 
-test('كل قالب جاهز يُعاين بدون شبكة ولا صور خارجية', () => {
-  for (const tpl of TEMPLATES) {
-    for (const [name, content] of Object.entries(tpl.files)) {
-      assert.doesNotMatch(content, /https?:\/\/(images|source)\.unsplash\.com/, `${tpl.id}/${name} لا يستخدم Unsplash`);
-      if (/\.html$/.test(name)) {
-        assert.doesNotMatch(content, /<img[^>]+src="https?:\/\//i, `${tpl.id}/${name} لا يحتوي صوراً خارجية`);
-      }
-    }
-    const { html, entry } = buildPreviewDocument(tpl.files, { sample: true });
-    assert.ok(entry, `${tpl.id} له صفحة HTML`);
-    assert.match(html, /data-nx-fallback/, `${tpl.id} يحصل على سكربت احتياط الصور`);
-    assert.doesNotMatch(html, /<link[^>]+href="(?!https?:|data:)[^"]+\.css"/i, `${tpl.id}: CSS مضمّن لا رابط خارجي`);
-  }
-});
-
 test('صورة مكسورة تُستبدل بمخطط بديل بدل أيقونة مكسورة', () => {
   assert.match(IMAGE_FALLBACK_SCRIPT, /addEventListener\('error'/);
   assert.match(IMAGE_FALLBACK_SCRIPT, /nx-img-broken/);
   assert.match(IMAGE_FALLBACK_SCRIPT, /image unavailable/);
   const { html } = buildPreviewDocument({ 'index.html': '<html><body><img src="missing.png" alt="x"></body></html>' });
   assert.match(html, /data-nx-fallback/);
-  assert.match(cssSrc, /nx-s-preview-loading/);
 });
 
 test('المعاينة تحتوي viewport لتعمل بعرض كامل على الهاتف', () => {
@@ -163,29 +119,9 @@ test('أدوات المعاينة: تحديث وفتح في نافذة جديد�
 });
 
 /* ─────────────── 4. file explorer drawer ─────────────── */
-test('مستكشف الملفات يصبح درجاً قابلاً للفتح/الإغلاق على الهاتف', () => {
-  assert.match(cssSrc, /\.nx-s-workspace\.is-mobile \.nx-s-files\s*\{[^}]*position|\.nx-s-workspace\.is-mobile \.nx-s-files\s*\{/);
-  assert.match(cssSrc, /\.nx-s-workspace\.is-mobile \.nx-s-files\s*\{[^}]*transform:\s*translateX\(-104%\)/);
-  assert.match(cssSrc, /\.nx-s-files\.is-open \{ transform: none; visibility: visible; \}/);
-  assert.match(cssSrc, /\.nx-s-backdrop/);
-  assert.match(studioSrc, /className="nx-s-backdrop"/);
-  // اختيار ملف يغلق الدرج ويحفظ التحرير
-  assert.match(studioSrc, /setActive\(name\); setDrawerOpen\(false\)/);
-});
-
-/* ─────────────── 5. sample vs production data ─────────────── */
-test('البيانات التجريبية معلَّمة بوضوح ولا تُقدَّم كمخزون حقيقي', () => {
-  assert.match(sampleNoteHtml(), /بيانات/);
-  assert.match(sampleNoteHtml(), /ليست مخزوناً حقيقياً/);
-  const { html } = buildPreviewDocument(DEFAULT_TEMPLATE.files, { sample: true });
-  assert.match(html, /id="nx-sample-note"/);
-  const plain = buildPreviewDocument(DEFAULT_TEMPLATE.files, { sample: false });
-  assert.doesNotMatch(plain.html, /id="nx-sample-note"/);
-  // القوالب تُوسم بوسم sample في البيانات
-  for (const tpl of TEMPLATES) assert.equal(tpl.sample, true, `${tpl.id} موسوم كقالب تجريبي`);
-  // الواجهة تعرض شارة المصدر
-  assert.match(studioSrc, /originTemplateNote/);
-  assert.match(studioSrc, /className=\{'nx-s-origin ' \+ originMeta\.cls\}/);
+test('مستكشف الملفات قابل للتصفح على الهاتف', () => {
+  assert.match(studioSrc, /setActive\(name\); setMobileTab\('code'\)/);
+  assert.match(cssSrc, /\.nxs2-explorer/);
 });
 
 test('لا وعود اتصال وهمية عند تعذّر قراءة حالة الخدمات', () => {
@@ -241,8 +177,48 @@ test('أدوات الملفات: اللغة والأيقونة والمسارا�
   assert.equal(assetDataUri('logo.png', '<svg/>'), null);
 });
 
-test('الواجهة تحتفظ بوظائف المشروع الأصلية (حفظ/توليد/تنفيذ/قوالب)', () => {
-  for (const fn of ['saveProject', 'doPlan', 'doGenerate', 'runAction', 'doDebug', 'loadTemplate', 'deleteProject', 'renameFile', 'addFile']) {
+test('الواجهة تحتفظ بوظائف المشروع دون القوالب التجريبية', () => {
+  for (const fn of ['saveProject', 'doPlan', 'doGenerate', 'runAction', 'doDebug', 'deleteProject', 'renameFile', 'addFile']) {
     assert.match(studioSrc, new RegExp(`const ${fn} = `), `${fn} ما زالت موجودة`);
+  }
+});
+
+
+test('studio opens without demo files and never reloads the old sample', () => {
+  assert.doesNotMatch(studioSrc, /DEFAULT_TEMPLATE|TEMPLATES|loadTemplate/);
+  assert.match(studioSrc, /stored === 'template'.*files: \{\}/);
+  assert.match(studioSrc, /setFiles\(\{\}\)/);
+});
+
+test('pipeline passes newly generated files to execution rather than stale React state', () => {
+  assert.match(studioSrc, /let currentFiles = gen\.files/);
+  assert.match(studioSrc, /files: currentFiles/);
+  assert.match(studioSrc, /plan: opts\.plan \?\? plan/);
+});
+
+test('execution never returns a preview URL for a closed sandbox and preserves test failure', () => {
+  assert.doesNotMatch(execSrc, /previewUrl = `https:\/\/\$\{host/);
+  assert.doesNotMatch(handlersSrc, /npm test --if-present 2>&1; echo/);
+});
+
+test('user project deployment cannot target the NEXORA application project', () => {
+  assert.match(workspaceSrc, /process\.env\.VERCEL_STUDIO_TOKEN/);
+  assert.match(workspaceSrc, /nexora-user-\$\{userId\}-project-\$\{projectId\}/);
+  assert.doesNotMatch(workspaceSrc, /vercelDeploy\(\{ files: f, name: pname, project: process\.env\.VERCEL_PROJECT_ID/);
+  assert.match(workspaceSrc, /if \(!userToken\) return \{ ok: false, real: false/);
+});
+
+test('sandbox sessions are scoped to user and project and expose preview only after a listener check', () => {
+  assert.match(execSrc, /primary key \(user_id, project_id\)/);
+  assert.match(execSrc, /Sandbox\.connect\(session\.sandbox_id/);
+  assert.match(execSrc, /socket\.create_connection/);
+  assert.match(execSrc, /previewUrl = `https:\/\/\$\{sandbox\.getHost\(port\)\}`/);
+  assert.match(handlersSrc, /studio-exec:/);
+});
+
+test('sandbox execution rejects unsafe paths', async () => {
+  const { runExecution } = await import('../api/_lib/exec.js');
+  for (const name of ['../outside', 'folder/$(whoami)', '/absolute']) {
+    await assert.rejects(runExecution({ files: { [name]: 'x' }, command: 'echo ok' }), (err) => err.status === 400);
   }
 });
