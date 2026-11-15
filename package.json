@@ -34,7 +34,7 @@
     "@capacitor/status-bar": "^7.0.3",
     "@fontsource-variable/cairo": "^5.2.6",
     "@fontsource/grand-hotel": "^5.2.6",
-    "@neondatabase/serverless": "^1.2.0",
+    "@neondatabase/serverless": "^1.2.1",
     "@vercel/blob": "^1.1.1",
     "bcryptjs": "^3.0.2",
     "dompurify": "^3.4.17",
