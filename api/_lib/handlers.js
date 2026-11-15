@@ -13,6 +13,7 @@ import { fbSignUp, fbSignIn, fbUpdate, fbDelete, fbSendVerify, fbSendReset, fbSi
 import { configureSubscriptions, subsEnsure, plansAll, planPublic, startCheckout, verifyWebhook, normalizeEvent, applyWebhook,
          userSubscriptionView, revenueOverview, adminConfirmPayment, cancelOrResume, refundCreate, adminUpdatePlan,
          usageGate, recordUsage, usageSummary, providersStatus, walletInfo, AI_COST_ESTIMATE_USD } from './subscriptions.js';
+import { wsStatus, wsList, wsCreate, wsGet, wsUpdate, wsDelete, wsDeploy, wsGithubPush, wsDriveSave, wsDriveFiles, githubAuthUrl, githubOAuthCallback, googleAuthUrl, googleOAuthCallback, saveOAuth, disconnectOAuth } from './workspace.js';
 
 /* علم اختياري للمالك: NEXORA_FREE_MODE=1 يجعل المنصة كلها مجانية (لا خصم نقاط ولا
    حدود خطط) — مناسب لنسخة APK البسيطة. معطّل افتراضيًا؛ سلوك الإنتاج لا يتغيّر
@@ -2957,4 +2958,84 @@ route('GET', 'client-errors', async ({ req }) => {
   await aiEnsureSchema();
   const rows = await q('select id, user_id, path, code, detail, ua, created_at from client_errors order by id desc limit 30');
   return { errors: rows };
+});
+
+/* ==================== NEXORA Arena Workspace — Vercel + GitHub + Drive ==================== */
+const wsAuth = async (req) => { const u = await authUser(req); return u; };
+
+route('GET', 'workspace/status', async ({ req }) => {
+  const me = await wsAuth(req);
+  return await wsStatus(me.id);
+});
+route('GET', 'workspace/projects', async ({ req }) => {
+  const me = await wsAuth(req);
+  return { projects: await wsList(me.id) };
+});
+route('POST', 'workspace/projects', async ({ req, body }) => {
+  const me = await wsAuth(req);
+  return { project: await wsCreate(me.id, body) };
+});
+route('GET', 'workspace/projects/:id', async ({ req, params }) => {
+  const me = await wsAuth(req);
+  return { project: await wsGet(me.id, Number(params.id)) };
+});
+route('PATCH', 'workspace/projects/:id', async ({ req, params, body }) => {
+  const me = await wsAuth(req);
+  return { project: await wsUpdate(me.id, Number(params.id), body) };
+});
+route('DELETE', 'workspace/projects/:id', async ({ req, params }) => {
+  const me = await wsAuth(req);
+  return await wsDelete(me.id, Number(params.id));
+});
+route('POST', 'workspace/deploy', async ({ req, body }) => {
+  const me = await wsAuth(req);
+  return await wsDeploy(me.id, body);
+});
+route('POST', 'workspace/github/push', async ({ req, body }) => {
+  const me = await wsAuth(req);
+  return await wsGithubPush(me.id, body);
+});
+route('POST', 'workspace/drive/save', async ({ req, body }) => {
+  const me = await wsAuth(req);
+  return await wsDriveSave(me.id, body);
+});
+route('GET', 'workspace/drive/files', async ({ req }) => {
+  const me = await wsAuth(req);
+  return await wsDriveFiles(me.id);
+});
+// OAuth starts — return URL for frontend to open
+route('GET', 'workspace/github/auth', async ({ req, query }) => {
+  const me = await wsAuth(req);
+  const state = Buffer.from(JSON.stringify({ uid: me.id, ts: Date.now() })).toString('base64url');
+  return { url: githubAuthUrl(state) };
+});
+route('GET', 'workspace/github/callback', async ({ query }) => {
+  const code = String(query.code || '');
+  if (!code) throw new HttpError(400, 'missing_code');
+  const state = (() => { try { return JSON.parse(Buffer.from(String(query.state||''), 'base64url').toString()) } catch { return null } })();
+  const token = await githubOAuthCallback(code);
+  if (state?.uid) await saveOAuth(state.uid, 'github', token, null, null, { via: 'oauth' });
+  // redirect to frontend
+  return { ok: true, token: token.slice(0, 10) + '…', stored: !!state?.uid, note: 'GitHub connected. Return to NEXORA Studio.' };
+});
+route('GET', 'workspace/google/auth', async ({ req }) => {
+  const me = await wsAuth(req);
+  const state = Buffer.from(JSON.stringify({ uid: me.id, ts: Date.now() })).toString('base64url');
+  return { url: googleAuthUrl(state) };
+});
+route('GET', 'workspace/google/callback', async ({ query }) => {
+  const code = String(query.code || '');
+  if (!code) throw new HttpError(400, 'missing_code');
+  const state = (() => { try { return JSON.parse(Buffer.from(String(query.state||''), 'base64url').toString()) } catch { return null } })();
+  const t = await googleOAuthCallback(code);
+  if (state?.uid) await saveOAuth(state.uid, 'google', t.access, t.refresh, t.expiry, { via: 'oauth' });
+  return { ok: true, stored: !!state?.uid, note: 'Google Drive connected. Return to NEXORA Studio.' };
+});
+route('POST', 'workspace/github/disconnect', async ({ req }) => {
+  const me = await wsAuth(req);
+  return await disconnectOAuth(me.id, 'github');
+});
+route('POST', 'workspace/google/disconnect', async ({ req }) => {
+  const me = await wsAuth(req);
+  return await disconnectOAuth(me.id, 'google');
 });

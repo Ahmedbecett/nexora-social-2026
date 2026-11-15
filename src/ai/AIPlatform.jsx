@@ -281,9 +281,9 @@ export default function AIPlatform() {
   const shareApp=useCallback(async()=>{
     const url=WEB_URL;
     try{
-      if(Capacitor.isNativePlatform()){const {Share}=await import('@capacitor/share');await Share.share({title:'NEXORA AI',text:'حمّل NEXORA AI — ذكاء اصطناعي عربي:\n'+url,url,dialogTitle:'مشاركة NEXORA AI'});return}
-      if(navigator.share){await navigator.share({title:'NEXORA AI',text:'حمّل NEXORA AI',url});return}
-      await navigator.clipboard.writeText(url);toast('نُسخ رابط التطبيق');
+      if(Capacitor.isNativePlatform()){const {Share}=await import('@capacitor/share');await Share.share({title:'NEXORA AI — منصة ويب',text:'جرّب NEXORA AI — منصة ذكاء اصطناعي على الويب مثل Arena AI:\n'+url,url,dialogTitle:'مشاركة NEXORA AI'});return}
+      if(navigator.share){await navigator.share({title:'NEXORA AI — منصة ويب',text:'منصة ذكاء اصطناعي على الويب',url});return}
+      await navigator.clipboard.writeText(url);toast('نُسخ رابط المنصة');
     }catch{/* لا شيء */}
   },[toast]);
   /* أزرار ذكية تحت كل رد: تلخيص / تبسيط / ترجمة */
@@ -507,7 +507,7 @@ export default function AIPlatform() {
       </aside>
       {sidebarOpen&&<button className="nx-ai-backdrop" onClick={()=>setSidebarOpen(false)} aria-label="إغلاق القائمة"/>}
       <main className="nx-ai-main">
-        <header className="nx-ai-topbar"><button className="nx-ai-mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="القائمة"><Icon name="menu"/></button><div className="nx-ai-top-title"><i/> مساحة الذكاء الاصطناعي</div><div className="nx-ai-top-actions">
+        <header className="nx-ai-topbar"><button className="nx-ai-mobile-menu" onClick={()=>setSidebarOpen(true)} aria-label="القائمة"><Icon name="menu"/></button><div className="nx-ai-top-title"><i/> منصة ويب — مثل Arena AI</div><div className="nx-ai-top-actions">
             <button type="button" className={'nx-ai-icon-button'+(voiceOut?' on':'')} onClick={()=>{const v=!voiceOut;setVoiceOut(v);localStorage.setItem('nx_ai_tts',v?'1':'0');if(!v&&typeof speechSynthesis!=='undefined')speechSynthesis.cancel()}} title={voiceOut?'إيقاف قراءة الردود':'قراءة الردود صوتيًا'}><Icon name={voiceOut?'speaker':'speakerOff'}/></button>
             <label className="nx-ai-mini" title="أسلوب الرد"><Icon name="tune" size={15}/><select value={style} onChange={e=>{setStyle(e.target.value);localStorage.setItem('nx_ai_style',e.target.value)}} aria-label="أسلوب الرد">
               <option value="auto">تلقائي</option><option value="short">مختصر</option><option value="detailed">مفصّل</option>
@@ -523,7 +523,7 @@ export default function AIPlatform() {
           {!messages.length?<div className="nx-ai-welcome">
             <div className="nx-ai-hero-art"><img src="/mascot-ui.webp" alt="NEXORA AI" width={176} height={176} fetchPriority="high" decoding="async"/><i className="orb-star one">✦</i><i className="orb-star two">✧</i><i className="orb-star three">✳</i></div>
             <div className="nx-ai-eyebrow"><Icon name="spark" size={14}/> الجيل الجديد من الذكاء الاصطناعي</div>
-            <h1>أهلاً بك في <span>NEXORA AI</span></h1><p className="nx-ai-subtitle">ماذا تريد أن تصنع اليوم؟<br/>أفكارك تبدأ من هنا.</p>
+            <h1>أهلاً بك في <span>NEXORA AI</span></h1><p className="nx-ai-subtitle">منصة ويب متكاملة مثل Arena AI — ماذا تريد أن تصنع اليوم؟<br/>أفكارك تبدأ من هنا.</p>
             <div className="nx-ai-tools">{TOOLS.map(t=><button key={t.id} className={'nx-ai-tool '+t.color} onClick={()=>{setMode(t.id);field.current?.focus()}}><span className="nx-ai-tool-icon">{t.icon}</span><b>{t.title}</b><small>{t.sub}</small><span className="nx-ai-arrow"><Icon name="chevron" size={15}/></span></button>)}</div>
             <div className="nx-ai-prompt-title">ابدأ بفكرة</div><div className="nx-ai-prompts">{welcomePrompts.map(p=><button key={p.label} onClick={()=>{setMode(p.mode);setInput(p.text);field.current?.focus()}}><span>✧</span>{p.label}<Icon name="chevron" size={14}/></button>)}</div>
             <AdSlot name="home"/>
@@ -572,11 +572,11 @@ export default function AIPlatform() {
                   }}><span className="nx-ai-avatar sm">{(a.fullName||a.username||'?').slice(0,1).toUpperCase()}</span><span><b>{a.fullName||a.username}</b><small>@{a.username}{a.id===me?.id?' · الحالي':''}</small></span>{a.id===me?.id&&<Icon name="chevron"/>}</button>)}
               </div>
               <div className="nx-ai-pin">
-                <h4><Icon name="globe" size={15}/> NEXORA على الويب</h4>
-                <button className="nx-ai-wide" onClick={()=>openUrl(WEB_URL)}><Icon name="globe" size={16}/> زيارة الموقع الرسمي</button>
+                <h4><Icon name="globe" size={15}/> NEXORA — منصة ويب</h4>
+                <button className="nx-ai-wide" onClick={()=>openUrl(WEB_URL)}><Icon name="globe" size={16}/> فتح المنصة على الويب</button>
                 <button className="nx-ai-wide" onClick={()=>openUrl(WEB_URL+'/privacy.html')}><Icon name="lock" size={16}/> سياسة الخصوصية</button>
-                <button className="nx-ai-wide" onClick={shareApp}><Icon name="spark" size={16}/> مشاركة التطبيق مع صديق</button>
-                <small className="mut">أي تحديث يصل إلى الموقع يصل تلقائيًا إلى التطبيق — نفس المنصة على الهاتف والويب.</small>
+                <button className="nx-ai-wide" onClick={shareApp}><Icon name="spark" size={16}/> مشاركة المنصة مع صديق</button>
+                <small className="mut">NEXORA منصة ويب متكاملة مثل Arena AI — تعمل بدون تثبيت. شارك رابط المنصة مباشرة.</small>
               </div>
               <button className="nx-ai-wide" onClick={()=>{setAddingAccount(true);setSheet(null)}}><Icon name="plus" size={16}/> إضافة حساب آخر</button>
               <button className="nx-ai-wide" onClick={async()=>{try{await api('me/logout-all',{method:'POST'});toast('تم إنهاء الجلسات على كل الأجهزة')}catch{toast('تعذر تنفيذ الطلب')}}}><Icon name="logout" size={16}/> إنهاء الجلسات على كل الأجهزة</button>

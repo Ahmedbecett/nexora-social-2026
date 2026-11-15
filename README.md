@@ -2,14 +2,16 @@
 
 <img src="public/icon-192.png" width="110" alt="Nexora icon" />
 
-# NEXORA AI
+# NEXORA AI — منصة ويب متكاملة
 
-**منصة ذكاء اصطناعي: محادثة ذكية متعددة اللغات · بحث ويب بالمصادر · تحليل ملفات وصور · صوت دخولًا وخروجًا · مساعدة برمجية**
+**منصة ذكاء اصطناعي على الويب مثل Arena AI: محادثة ذكية متعددة اللغات · بحث ويب بالمصادر · تحليل ملفات وصور · صوت دخولًا وخروجًا · مساعدة برمجية — تعمل كاملة في المتصفح بدون تثبيت**
 
 الحساب الرسمي: **[@official.nexora](https://nexora-social-2026.vercel.app)** ✔️
 
-<a href="https://nexora-social-2026.vercel.app"><img src="https://img.shields.io/badge/نسخة_الويب-افتح-d62976?style=for-the-badge&logo=vercel" alt="Web" height="34"/></a>
-<a href="https://nexora-social-2026.vercel.app/download/Nexora.apk"><img src="https://img.shields.io/badge/تحميل_مباشر-Nexora.apk-1a8cff?style=for-the-badge&logo=android&logoColor=white" alt="Download APK" height="34"/></a>
+<a href="https://nexora-social-2026.vercel.app"><img src="https://img.shields.io/badge/منصة_الويب-افتح_الآن-d62976?style=for-the-badge&logo=vercel" alt="Web" height="34"/></a>
+<a href="https://nexora-social-2026.vercel.app/download"><img src="https://img.shields.io/badge/APK_اختياري-تحميل-1a8cff?style=for-the-badge&logo=android&logoColor=white" alt="APK optional" height="34"/></a>
+
+> **منصة ويب أولاً — مثل Arena AI** · كل الميزات تعمل في المتصفح مباشرة · APK اختياري فقط
 
 </div>
 

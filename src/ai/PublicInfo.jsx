@@ -8,9 +8,9 @@ export default function PublicInfo() {
       <a href="/en.html" lang="en" hreflang="en">English</a>
     </nav>
     <section className="nx-ai-public-hero">
-      <p className="nx-ai-public-eyebrow">مساحة ذكاء اصطناعي على الويب وأندرويد</p>
-      <h1>NEXORA AI — محادثة ذكية لأفكارك ومهامك</h1>
-      <p>استخدم مساعداً للمحادثة والكتابة والبرمجة والترجمة والتلخيص وتوليد الصور. سجّل الدخول أعلاه لبدء محادثة حقيقية وحفظ سجلها في حسابك؛ هذه الصفحة تشرح المنتج ولا تُحاكيه.</p>
+      <p className="nx-ai-public-eyebrow">منصة ذكاء اصطناعي متكاملة على الويب — مثل Arena AI</p>
+      <h1>NEXORA AI — منصة ويب ذكية لأفكارك ومهامك</h1>
+      <p>منصة كاملة في المتصفح: محادثة، كتابة، برمجة، ترجمة، تلخيص وتوليد صور — بدون تثبيت. سجّل الدخول أعلاه لبدء محادثة حقيقية وحفظ سجلها؛ هذه الصفحة تشرح المنصة ولا تُحاكيها.</p>
     </section>
     <section aria-labelledby="nx-public-tools">
       <h2 id="nx-public-tools">ماذا يمكنك أن تفعل مع NEXORA AI؟</h2>
@@ -22,8 +22,8 @@ export default function PublicInfo() {
       <p><a href="/features.html">اقرأ شرح الميزات بالتفصيل</a></p>
     </section>
     <section aria-labelledby="nx-public-get-started">
-      <h2 id="nx-public-get-started">ابدأ بالطريقة المناسبة لك</h2>
-      <p>تعمل المساحة في المتصفح، ويتوفر <a href="/download.html">تطبيق رسمي لأندرويد</a>. اقرأ <a href="/faq.html">الأسئلة الشائعة</a> لمعرفة متطلبات الحساب والتحميل. النسخة الحالية ليست موجز منشورات أو ريلز أو رسائل اجتماعية بين المستخدمين.</p>
+      <h2 id="nx-public-get-started">منصة ويب — بدون تحميل</h2>
+      <p>مثل Arena AI، تعمل NEXORA كاملة في المتصفح — افتح المنصة وابدأ فوراً. يتوفر <a href="/download.html">APK اختياري</a> لمن يفضّل التطبيق، لكنه ليس مطلوباً. اقرأ <a href="/faq.html">الأسئلة الشائعة</a> لمعرفة المزيد. المنصة ليست شبكة اجتماعية للمنشورات أو الرسائل.</p>
     </section>
     <footer><a href="/about.html">حول المشروع</a><span aria-hidden="true">·</span><a href="/privacy.html">سياسة الخصوصية</a><span aria-hidden="true">·</span><a href="/en.html" lang="en" hreflang="en">English</a></footer>
   </main>;
