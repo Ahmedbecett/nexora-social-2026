@@ -17,7 +17,7 @@ export function Wordmark({ size = 34, gradient = false, className = '' }) {
     (NEXORA AI · Ahmed Becetti). Used everywhere the old lens glyph appeared. */
 export function Glyph({ size = 72, filled = false, className = '' }) {
   return (
-    <img src="/mascot.png" alt="Nexora" width={size} height={size} draggable={false}
+    <img src="/mascot-ui.webp" alt="Nexora" width={size} height={size} decoding="async" draggable={false}
       className={`glyph-filled ${className}`} style={{ borderRadius: size * 0.24 }} />
   );
 }

@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppCtx, Glyph, Splash } from '../components.jsx';
 import AuthFlow from '../screens/Auth.jsx';
+import PublicInfo from './PublicInfo.jsx';
 import { api, API_BASE, WEB_URL, getToken, setToken, onUnauthorized, upsertAccount, getAccounts, forgetAccount, dropAccountToken } from '../api.js';
 import { getLang, setLang as saveLang } from '../i18n.js';
 import AdSlot from './AdSlot.jsx';
-import Markdown from './Markdown.jsx';
 import { Capacitor } from '@capacitor/core';
-import AdminRevenue from './AdminRevenue.jsx';
 import { openUrl } from '../native.js';
 import { setAdSlot, maybeShowInterstitial, showRewardedAd, interstitialFreeUntil } from '../ads.js';
 import './AIPlatform.css';
 import { APP_VERSION_LABEL } from '../version.js';
+
+// Rich Markdown (KaTeX/highlighter) and the owner dashboard are not needed at sign-in.
+const Markdown = lazy(() => import('./Markdown.jsx'));
+const AdminRevenue = lazy(() => import('./AdminRevenue.jsx'));
 
 const TOOLS = [
   { id:'chat', title:'المحادثة الذكية', sub:'اسأل واستكشف الأفكار', icon:'✦', color:'violet' },
@@ -446,14 +449,22 @@ export default function AIPlatform() {
     runPrompt(prompt)};
   if(booting)return <Splash/>;
   if(pinOpen&&anchorPin)return <div className="nx-ai-pinlock" dir={lang==='ar'?'rtl':'ltr'}>
-    <div className="card"><img src="/mascot-avatar.png" alt="NEXORA AI" width={72} height={72}/><h2>NEXORA AI مقفل</h2><p>أدخل رمز PIN للمتابعة</p>
+    <div className="card"><img src="/mascot-avatar.webp" alt="NEXORA AI" width={72} height={72}/><h2>NEXORA AI مقفل</h2><p>أدخل رمز PIN للمتابعة</p>
       <input autoFocus value={pinInput} onChange={e=>setPinInput(e.target.value.replace(/\D/g,'').slice(0,6))} inputMode="numeric" dir="ltr" placeholder="••••" onKeyDown={async(e)=>{if(e.key==='Enter'){const h=await pinHash(pinInput);if(h===anchorPin){sessionStorage.setItem('nx_ai_unlocked','1');setPinOpen(false);setPinInput('')}else{toast('رمز غير صحيح');setPinInput('')}}}}/>
       <button onClick={async()=>{const h=await pinHash(pinInput);if(h===anchorPin){sessionStorage.setItem('nx_ai_unlocked','1');setPinOpen(false);setPinInput('')}else{toast('رمز غير صحيح');setPinInput('')}}}>فتح</button>
       <small>NEXORA AI · نسخة Ahmed Becetti</small></div>
     {toastMsg&&<div className="nx-ai-toast">{toastMsg}</div>}
   </div>;
   if(addingAccount)return <AppCtx.Provider value={ctx}><div className="nx-ai-auth"><div className="nx-ai-auth-brand"><Glyph size={45}/><strong>إضافة حساب</strong><p>سجّل الدخول بحساب آخر — تبقى حساباتك محفوظة للتبديل السريع</p></div><AuthFlow onCancel={()=>setAddingAccount(false)}/><button className="nx-ai-wide" onClick={()=>setAddingAccount(false)}>رجوع</button></div></AppCtx.Provider>;
-  if(!token||!me)return <AppCtx.Provider value={ctx}><div className="nx-ai-auth"><div className="nx-ai-auth-brand"><Glyph size={45}/><strong>NEXORA <b>AI</b></strong><p>مساحتك للإبداع والمعرفة</p><em className="nx-ai-credit auth">AI BECETTI</em></div><AuthFlow/></div></AppCtx.Provider>;
+  if(!token||!me){
+    const showPublic = !Capacitor.isNativePlatform() && !/NexoraAI/i.test(navigator.userAgent || '');
+    return <AppCtx.Provider value={ctx}><>
+      <div className="nx-ai-auth"><div className="nx-ai-auth-brand"><Glyph size={45}/><strong>NEXORA <b>AI</b></strong><p>مساحتك للإبداع والمعرفة</p><em className="nx-ai-credit auth">AI BECETTI</em>
+        {showPublic && <a className="nx-ai-discover-link" href="#discover">اكتشف NEXORA AI ↓</a>}
+      </div><AuthFlow/></div>
+      {showPublic && <PublicInfo/>}
+    </></AppCtx.Provider>;
+  }
   const active=TOOLS.find(t=>t.id===mode)||TOOLS[0];
   const welcomePrompts=[
     {label:'اكتب منشورًا جذابًا',mode:'write',text:'اكتب منشورًا جذابًا عن فكرة جديدة لمشاركتها على مواقع التواصل.'},
@@ -508,7 +519,7 @@ export default function AIPlatform() {
             <label className="nx-ai-model"><Icon name="spark" size={16}/><select value={model} onChange={e=>setModel(e.target.value)} aria-label="النموذج"><option value="gpt-5-mini">تلقائي · أفضل مزوّد متاح</option><option value="gpt-5.1">GPT-5.1 (OpenAI)</option><option value="gpt-5-nano">GPT-5 nano (OpenAI)</option></select></label><button type="button" className="nx-ai-icon-button" onClick={()=>{const cur=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=cur;localStorage.setItem('nx_theme',cur);setThemeTick(t=>t+1)}} title="الوضع الفاتح/الداكن" aria-label="تبديل السمة">{document.documentElement.dataset.theme==='light'?'☾':'☀'}</button><span className="nx-ai-avatar top-avatar">{(me.fullName||me.username||'N').slice(0,1).toUpperCase()}</span></div></header>
         <section className={'nx-ai-content '+(messages.length?'has-messages':'')}>
           {!messages.length?<div className="nx-ai-welcome">
-            <div className="nx-ai-hero-art"><img src="/mascot.png" alt="NEXORA AI" width={176} height={176}/><i className="orb-star one">✦</i><i className="orb-star two">✧</i><i className="orb-star three">✳</i></div>
+            <div className="nx-ai-hero-art"><img src="/mascot-ui.webp" alt="NEXORA AI" width={176} height={176} fetchPriority="high" decoding="async"/><i className="orb-star one">✦</i><i className="orb-star two">✧</i><i className="orb-star three">✳</i></div>
             <div className="nx-ai-eyebrow"><Icon name="spark" size={14}/> الجيل الجديد من الذكاء الاصطناعي</div>
             <h1>أهلاً بك في <span>NEXORA AI</span></h1><p className="nx-ai-subtitle">ماذا تريد أن تصنع اليوم؟<br/>أفكارك تبدأ من هنا.</p>
             <div className="nx-ai-tools">{TOOLS.map(t=><button key={t.id} className={'nx-ai-tool '+t.color} onClick={()=>{setMode(t.id);field.current?.focus()}}><span className="nx-ai-tool-icon">{t.icon}</span><b>{t.title}</b><small>{t.sub}</small><span className="nx-ai-arrow"><Icon name="chevron" size={15}/></span></button>)}</div>
@@ -517,7 +528,7 @@ export default function AIPlatform() {
           </div>:<div className="nx-ai-conversation">
             <div className="nx-ai-conversation-head"><div><span className={'nx-ai-mode-icon '+active.color}>{active.icon}</span><div><b>{active.title}</b><small>{MODEL_NAMES[model]} · محادثة خاصة</small></div></div><button className="nx-ai-icon-button" onClick={newChat} title="محادثة جديدة"><Icon name="plus"/></button></div>
             <AdSlot name="chat" className="chat"/>
-            {messages.map((m,i)=><div key={i} className={'nx-ai-message '+(m.role==='user'?'user':m.role==='error'?'error':'assistant')}>{m.role!=='user'&&<span className="nx-ai-message-avatar"><img className="nx-ai-mascot" src="/mascot-avatar.png" alt="NEXORA AI"/></span>}<div className="nx-ai-message-body">{m.role!=='user'&&<b className="nx-ai-message-label">{m.role==='error'?'تنبيه':'NEXORA AI'}{m.role==='model'&&m.provider&&<small className={'nx-ai-provider-badge'+(m.provider==='openai'?' openai':'')}>{m.providerLabel||m.provider}{m.provider!=='openai'?' · بديل':''}</small>}</b>}{m.trace&&<p className="nx-ai-trace" dir="ltr">trace: {m.trace}</p>}{m.text&&(m.role==='user'?<p dir="auto">{m.text}</p>:<Markdown text={m.text}/>)}
+            {messages.map((m,i)=><div key={i} className={'nx-ai-message '+(m.role==='user'?'user':m.role==='error'?'error':'assistant')}>{m.role!=='user'&&<span className="nx-ai-message-avatar"><img className="nx-ai-mascot" src="/mascot-avatar.webp" alt="NEXORA AI"/></span>}<div className="nx-ai-message-body">{m.role!=='user'&&<b className="nx-ai-message-label">{m.role==='error'?'تنبيه':'NEXORA AI'}{m.role==='model'&&m.provider&&<small className={'nx-ai-provider-badge'+(m.provider==='openai'?' openai':'')}>{m.providerLabel||m.provider}{m.provider!=='openai'?' · بديل':''}</small>}</b>}{m.trace&&<p className="nx-ai-trace" dir="ltr">trace: {m.trace}</p>}{m.text&&(m.role==='user'?<p dir="auto">{m.text}</p>:<Suspense fallback={<p dir="auto">{m.text}</p>}><Markdown text={m.text}/></Suspense>)}
               {m.role==='model'&&m.streaming&&<span className="nx-ai-cursor" aria-label="يكتب"/>}
               {m.attachments&&m.attachments.length>0&&<span className="nx-ai-attach-chips">{m.attachments.map((n,ix)=><i key={ix}>📎 {n}</i>)}</span>}
               {m.role==='model'&&m.text&&!m.streaming&&<div className="nx-ai-msg-actions">
@@ -532,7 +543,7 @@ export default function AIPlatform() {
               </div>}
               {m.sources&&m.sources.length>0&&<div className="nx-ai-sources"><b>المصادر ({m.sources.length})</b>{m.sources.map((sc,si)=><a key={si} href={sc.url} target="_blank" rel="noopener noreferrer" className={sc.ok===false?'dead':''}>{si+1}. {sc.title||sc.url}{sc.ok===false?' — تعذر التحقق من الرابط':''}</a>)}</div>}
               {m.stopped&&<span className="nx-ai-stopped">تم إيقاف التوليد — ما ظهر أعلاه هو ما وصل قبل الإيقاف.</span>}{m.role==='error'&&m.retry&&<button type="button" className="nx-ai-retry" disabled={busy} onClick={()=>runPrompt(m.retry)}><Icon name="spark" size={13}/> أعد المحاولة</button>}{m.image&&<img className="nx-ai-generated-image" src={m.image} alt="الصورة المولدة" loading="lazy" onError={e=>{e.currentTarget.alt='تعذر تحميل الصورة من مزود التوليد'}}/>}</div></div>)}
-            {busy&&!messages.some(m=>m.streaming)&&<div className="nx-ai-message assistant"><span className="nx-ai-message-avatar"><img className="nx-ai-mascot" src="/mascot-avatar.png" alt="NEXORA AI"/></span><div className="nx-ai-message-body"><b className="nx-ai-message-label">NEXORA AI</b><div className="nx-ai-typing"><i/><i/><i/><span>{mode==='image'?'يجري إنشاء الصورة…':'يفكر الآن…'}</span></div></div></div>}<div ref={bottom}/>
+            {busy&&!messages.some(m=>m.streaming)&&<div className="nx-ai-message assistant"><span className="nx-ai-message-avatar"><img className="nx-ai-mascot" src="/mascot-avatar.webp" alt="NEXORA AI"/></span><div className="nx-ai-message-body"><b className="nx-ai-message-label">NEXORA AI</b><div className="nx-ai-typing"><i/><i/><i/><span>{mode==='image'?'يجري إنشاء الصورة…':'يفكر الآن…'}</span></div></div></div>}<div ref={bottom}/>
           </div>}
         </section>
         <footer className="nx-ai-composer-wrap"><form className="nx-ai-composer" onSubmit={send}><textarea ref={field} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send(e)}}} placeholder={mode==='image'?'صف الصورة التي تريد إنشاءها…':'اكتب رسالتك إلى NEXORA AI…'} rows={1} maxLength={4000} dir="auto" aria-label="رسالتك"/>{attach.length>0&&<div className="nx-ai-attach-row">{attach.map(a=><span key={a.id} className={'nx-ai-attach-chip '+(a.kind==='image'?'img':'doc')}>{a.kind==='image'?'🖼️':'📄'} {a.name}<button type="button" onClick={()=>setAttach(x=>x.filter(y=>y.id!==a.id))} aria-label="إزالة">✕</button></span>)}{fileBusy&&<span className="nx-ai-attach-chip loading">جارٍ الرفع…</span>}</div>}
@@ -548,7 +559,7 @@ export default function AIPlatform() {
         {sheet&&<div className="nx-ai-sheetwrap" onClick={()=>setSheet(null)}>
           <div className="nx-ai-sheet" onClick={e=>e.stopPropagation()}>
             <div className="nx-ai-sheet-head"><b>{sheet==='revenue'?'لوحة الإيرادات (المالك)':'الحساب والأمان'}</b><button onClick={()=>setSheet(null)} aria-label="إغلاق">✕</button></div>
-            {sheet==='revenue'&&<div className="nx-ai-sheet-body"><AdminRevenue onClose={()=>setSheet(null)} toast={toast}/></div>}
+            {sheet==='revenue'&&<div className="nx-ai-sheet-body"><Suspense fallback={<p>جارٍ تحميل اللوحة…</p>}><AdminRevenue onClose={()=>setSheet(null)} toast={toast}/></Suspense></div>}
             {sheet==='account'&&<div className="nx-ai-sheet-body">
               <div className="nx-ai-acc-list">
                 {(accounts.length?accounts:[me&&{id:me.id,username:me.username,fullName:me.fullName,token:getToken()}]).filter(Boolean).map(a=><button key={a.id} className={'nx-ai-acc'+(a.id===me?.id?' here':'')} onClick={async()=>{
