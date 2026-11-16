@@ -3,9 +3,12 @@
    - الوحدة الفعلية من حسابك: 1971049956 (in-feed / fluid)
    - لا تظهر أبداً داخل تطبيق أندرويد (سياسة Google تمنع AdSense في WebView)
    - "home" و"chat" عرضان متبادلان (واحد فقط يُرسم في كل لحظة) فلا تتكرر الوحدة في الصفحة
+   - إيقاع الظهور: انطباع واحد كل 30 دقيقة على مستوى الموقع كله،
+     يظهر ثم يختفي تلقائيًا بعد 15 ثانية (بوابة webAdGate المشتركة مع Adsterra)
    ============================================================ */
 import { useEffect, useRef, useState } from 'react';
 import { watchAdSlot } from './adSlotVisibility.js';
+import { webAdClaim, WEB_AD_HIDE_MS } from './webAdGate.js';
 
 export const AD_CLIENT = 'ca-pub-6858364141205978';
 
@@ -29,12 +32,24 @@ export function adsAllowed() {
 export default function AdSlot({ name, className = '' }) {
   const wrap = useRef(null);
   const [adState, setAdState] = useState('pending');
+  /* بوابة الثلاثين دقيقة: أول خانة تركب تطالب بالنافذة وتحجزها، والبقية لا تُرسم */
+  const [gate, setGate] = useState(false);
+  const [visible, setVisible] = useState(true);
   const cfg = AD_SLOTS[name] || null;
   const slot = cfg && String(cfg.id || '').trim();
   const live = Boolean(slot) && adsAllowed();
 
   useEffect(() => {
-    if (!live || !wrap.current) return;
+    if (!live) return;
+    if (!webAdClaim()) return;
+    setGate(true);
+    /* الإعلان يختفي بعد 15 ثانية ثم لا يعود قبل 30 دقيقة */
+    const hide = setTimeout(() => setVisible(false), WEB_AD_HIDE_MS);
+    return () => clearTimeout(hide);
+  }, [live, slot]);
+
+  useEffect(() => {
+    if (!live || !gate || !visible || !wrap.current) return;
     const ins = wrap.current.querySelector('ins.adsbygoogle');
     if (!ins) return;
     // Keep the ad request measurable; collapse only after a confirmed no-fill
@@ -52,9 +67,9 @@ export default function AdSlot({ name, className = '' }) {
     if (ins.getAttribute('data-adsbygoogle-status') || ins.dataset.adsbygoogleStatus === 'done') return stopWatching;
     try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) { /* best effort */ }
     return stopWatching;
-  }, [live, slot]);
+  }, [live, gate, visible, slot]);
 
-  if (!live) return null;
+  if (!live || !gate || !visible) return null;
 
   const fluid = cfg.format === 'fluid';
   return (

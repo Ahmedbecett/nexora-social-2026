@@ -10,6 +10,18 @@
   const scriptId = 'nx-adsterra-native-script';
   let lastContainer = null;
 
+  /* إيقاع المالك: انطباع واحد كل 30 دقيقة ثم يختفي بعد 15 ثانية.
+     النافذة مشتركة مع AdSense (نفس المفتاح) فلا يتكدس إعلانان في نافذة واحدة. */
+  const GATE_KEY = 'nx_web_ad_last';
+  const WINDOW_MS = 30 * 60 * 1000;
+  const HIDE_MS = 15000;
+  function gateOpen() {
+    try { return Date.now() - Number(localStorage.getItem(GATE_KEY) || 0) >= WINDOW_MS; } catch { return true; }
+  }
+  function markShown() {
+    try { localStorage.setItem(GATE_KEY, String(Date.now())); } catch { /* بيئات مقيدة */ }
+  }
+
   function allowed() {
     if (location.protocol !== 'https:' || location.hostname !== host) return false;
     if (navigator.globalPrivacyControl === true) return false;
@@ -24,6 +36,8 @@
   function attach() {
     const container = document.getElementById(containerId);
     if (!container || container === lastContainer || !container.parentNode) return;
+    if (!gateOpen()) return;               // نافذة الثلاثين دقيقة مغلقة
+    markShown();                           // حجز النافذة لإظهار واحد فقط
     // The SPA replaces its auth view on sign-in. Request the new real view only
     // when its container changes, never on chat updates or every DOM mutation.
     document.getElementById(scriptId)?.remove();
@@ -35,6 +49,14 @@
     script.referrerPolicy = 'strict-origin-when-cross-origin';
     lastContainer = container;
     container.parentNode.insertBefore(script, container);
+    /* الإعلان يختفي بعد 15 ثانية، وتُعاد هيئة "لم يظهر بعد" للسماح بالظهور القادم */
+    if (typeof setTimeout === 'function') {
+      setTimeout(() => {
+        document.getElementById(scriptId)?.remove();
+        if (container.parentNode) container.textContent = '';
+        lastContainer = null;
+      }, HIDE_MS);
+    }
   }
 
   function start() {

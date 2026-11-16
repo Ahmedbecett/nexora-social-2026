@@ -1417,49 +1417,105 @@ export function aiFreeProviderStatus() {
   return AI_FREE_PROVIDERS.map((p) => ({ id: p.id, label: p.label, env: p.env, configured: !!process.env[p.env], model: p.model() }));
 }
 
+/* بث آمن للمزوّدين: AbortSignal.timeout() يقتل الجواب في منتصفه لأن مؤقته يغطي
+   كامل مدة البث لا وقت الاتصال فقط. هنا ننفصل المهلات: نافذة اتصال حتى أول بايت،
+   ثم نافذة خمول تُصفَّر مع كل مقطع يصل من المزوّد، وسقف كريم للبث كله — فالإجابة
+   الطويلة لا تُقطع بعد ثوانٍ، والاتصال الميت لا يعلّق الطلب أبدًا.
+   (مُصدَّرة لاختبارات البث الحقيقية في tests/ai-stream-open.test.mjs) */
+export async function aiStreamOpen(url, { headers = {}, payload, connectMs = 10000, idleMs = 20000, hardCapMs = 75000 } = {}) {
+  const ctrl = new AbortController();
+  /* أسباب مُسمّاة كي تصل للسجلات باسم واضح (ConnectAbort/IdleAbort/HardCapAbort) */
+  const abortWith = (name, message) => ctrl.abort(Object.assign(new Error(message), { name }));
+  let timer = setTimeout(() => abortWith('ConnectAbort', 'no first byte within the connect window'), connectMs);
+  const hardCap = setTimeout(() => abortWith('HardCapAbort', 'stream hard cap reached'), hardCapMs);
+  const clear = () => { clearTimeout(timer); clearTimeout(hardCap); };
+  const bump = () => { clearTimeout(timer); timer = setTimeout(() => abortWith('IdleAbort', 'stream went silent mid-answer'), idleMs); };
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(headers || {}) },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    });
+    if (!res.ok || !res.body) { clear(); return { res, chunks: null, stop: clear }; }
+    const body = res.body;
+    async function* chunks() {
+      try {
+        const reader = body.getReader();
+        const dec = new TextDecoder();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) return;
+          bump();
+          yield dec.decode(value, { stream: true });
+        }
+      } finally { clear(); }
+    }
+    return { res, chunks: chunks(), stop: clear };
+  } catch (e) {
+    clear();
+    throw e;
+  }
+}
+
 /* مزوّد متوافق مع OpenAI: بث SSE حقيقي + إعادة محاولة واحدة عند حدود المعدل */
 async function aiAskOpenAICompat({ provider, instructions, history, message, timeoutMs, onDelta }) {
   const key = process.env[provider.env];
   if (!key) return aiFail('no_key', provider.id + ':no_key');
   const messages = [{ role: 'system', content: instructions }, ...history.map((m) => ({ role: m.role, content: m.content })), { role: 'user', content: message }];
   const streaming = typeof onDelta === 'function';
-  const call = async (signal) => fetch(provider.url, {
-    method: 'POST', signal,
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key, ...(provider.id === 'github' ? { Accept: 'application/json' } : {}) },
-    body: JSON.stringify({ model: provider.model(), max_tokens: 1200, messages, ...(streaming ? { stream: true } : {}) }),
+  const headers = { Authorization: 'Bearer ' + key, ...(provider.id === 'github' ? { Accept: 'application/json' } : {}) };
+  const call = () => aiStreamOpen(provider.url, {
+    headers,
+    payload: { model: provider.model(), max_tokens: 1200, messages, ...(streaming ? { stream: true } : {}) },
+    connectMs: Math.min(10000, timeoutMs || 15000),
+    idleMs: 20000,
+    hardCapMs: Math.max(10000, Math.min(75000, (timeoutMs || 15000) * 5)),
   });
+  let acc = '';
   try {
-    let res = await call(AbortSignal.timeout(timeoutMs || 15000));
-    if ([429, 500, 502, 503].includes(res.status)) { await new Promise((r) => setTimeout(r, 1200)); res = await call(AbortSignal.timeout(timeoutMs || 15000)); }
-    if (!res.ok) {
-      const code = aiCode((await res.text().catch(() => '')).slice(0, 60)) || '';
-      return aiFail(res.status === 429 ? 'rate_limited' : (res.status === 401 || res.status === 403 ? 'auth' : 'provider'), provider.id + ':' + res.status + ':' + code);
-    }
-    if (streaming && res.body) {
-      const reader = res.body.getReader(); const dec = new TextDecoder();
-      let buf = '', acc = '', model = provider.model();
-      for (;;) {
-        const { done, value } = await reader.read(); if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split('\n'); buf = lines.pop() || '';
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const raw = line.slice(6).trim(); if (!raw || raw === '[DONE]') continue;
-          try { const j = JSON.parse(raw); if (j.model) model = j.model;
-            const piece = j.choices?.[0]?.delta?.content;
-            if (piece) { acc += piece; onDelta(aiStripThinking(acc) || acc); }
-          } catch { /* سطر جزئي */ }
-        }
+    let opened = await call();
+    try {
+      if ([429, 500, 502, 503].includes(opened.res.status)) {
+        try { await opened.res.body?.cancel(); } catch { /* نُفرغ الجسم قبل الإعادة */ }
+        await new Promise((r) => setTimeout(r, 1200));
+        opened.stop();
+        opened = await call();
       }
-      const out = aiStripThinking(acc);
-      return out ? { ok: true, answer: out, model: aiCode(model, 32) || provider.id, provider: provider.id, streamed: true }
-                 : aiFail('empty', provider.id + ':empty_response');
+      const res = opened.res;
+      if (!res.ok) {
+        const code = aiCode((await res.text().catch(() => '')).slice(0, 60)) || '';
+        return aiFail(res.status === 429 ? 'rate_limited' : (res.status === 401 || res.status === 403 ? 'auth' : 'provider'), provider.id + ':' + res.status + ':' + code);
+      }
+      if (streaming && opened.chunks) {
+        let buf = '', model = provider.model();
+        for await (const text of opened.chunks) {
+          buf += text;
+          const lines = buf.split('\n'); buf = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const raw = line.slice(6).trim(); if (!raw || raw === '[DONE]') continue;
+            try { const j = JSON.parse(raw); if (j.model) model = j.model;
+              const piece = j.choices?.[0]?.delta?.content;
+              if (piece) { acc += piece; onDelta(aiStripThinking(acc) || acc); }
+            } catch { /* سطر جزئي */ }
+          }
+        }
+        const out = aiStripThinking(acc);
+        return out ? { ok: true, answer: out, model: aiCode(model, 32) || provider.id, provider: provider.id, streamed: true }
+                   : aiFail('empty', provider.id + ':empty_response');
+      }
+      const data = await res.json().catch(() => ({}));
+      const answer = aiStripThinking(data?.choices?.[0]?.message?.content);
+      return answer ? { ok: true, answer, model: aiCode(data?.model || provider.model(), 32) || provider.id, provider: provider.id }
+                    : aiFail('empty', provider.id + ':empty_response');
+    } finally {
+      opened.stop();
     }
-    const data = await res.json().catch(() => ({}));
-    const answer = aiStripThinking(data?.choices?.[0]?.message?.content);
-    return answer ? { ok: true, answer, model: aiCode(data?.model || provider.model(), 32) || provider.id, provider: provider.id }
-                  : aiFail('empty', provider.id + ':empty_response');
   } catch (e) {
+    /* انقطع البث وقد وصل نص؟ الجواب الجزئي أفضل من رمي ما رآه المستخدم */
+    const partial = aiStripThinking(acc);
+    if (partial && partial.length >= 4) return { ok: true, answer: partial, model: provider.model(), provider: provider.id, streamed: true };
     return aiFail(e?.name === 'TimeoutError' ? 'timeout' : 'network', provider.id + ':' + aiCode(e?.name || 'error'));
   }
 }
@@ -1475,7 +1531,8 @@ function aiStripThinking(text) {
    (extra key, free models) → Pollinations / llm7.io (keyless, free). A dead key, an empty credit
    balance or a rate limit can never take the page down: the next credential/provider answers. */
 const AI_PROVIDER_TIMEOUT = { openai: 14000, gemini: 6000, openrouter: 16000, pollinations: 15000 };
-const AI_TOTAL_BUDGET_MS = 26000;
+const AI_TOTAL_BUDGET_MS = 26000;    /* المسار المتزامن /api/ai/chat كما كان */
+const AI_STREAM_BUDGET_MS = 95000;   /* مسار البث: الإجابات الطويلة تحتاج عمرًا أطول (maxDuration 300) */
 const aiBudget = (ms, deadline) => Math.max(1500, Math.min(ms, deadline - Date.now()));
 /* Out-of-credit or rejected credentials are parked for a few minutes so replies stay fast.
    The state lives in Postgres (serverless instances do not share memory) with a 30s local cache. */
@@ -1631,28 +1688,82 @@ async function aiRequest(url, { headers, payload, timeoutMs, method = 'POST' }) 
   return { res, data, raw };
 }
 
-async function aiAskOpenAI({ apiKey, model, instructions, history, message, timeoutMs }) {
-  const { res, data } = await aiRequest('https://api.openai.com/v1/responses', {
-    headers: { Authorization: 'Bearer ' + apiKey },
-    timeoutMs,
-    payload: { model, instructions, input: [...history, { role: 'user', content: message }], max_output_tokens: 1200 }
-  });
-  if (!res.ok) {
-    const code = aiProviderCode(data) || ('http_' + res.status);
-    const billing = /quota|billing|insufficient|credit|balance|exhaust|spend/.test(code);
-    const kind = (res.status === 401 || code.includes('invalid_api_key')) ? 'auth'
-      : billing ? 'billing'
-        : res.status === 403 ? 'billing'
-          : res.status === 404 ? 'model'
-            : res.status === 429 ? 'rate_limited'
-              : 'provider';
-    return aiFail(kind, 'openai:' + res.status + ':' + code);
-  }
-  const answer = (typeof data?.output_text === 'string' ? data.output_text : (data?.output || [])
+/* استخراج النص من كائن Responses API (المباشر أو داخل حدث response.completed) */
+function aiOpenAIOutputText(data) {
+  return (typeof data?.output_text === 'string' ? data.output_text : (data?.output || [])
     .flatMap((item) => item.content || [])
     .filter((part) => part.type === 'output_text' && typeof part.text === 'string')
     .map((part) => part.text).join('\n')).trim();
-  const clean = aiStripThinking(answer);
+}
+function aiOpenAIFail(status, data) {
+  const code = aiProviderCode(data) || ('http_' + status);
+  const billing = /quota|billing|insufficient|credit|balance|exhaust|spend/.test(code);
+  const kind = (status === 401 || code.includes('invalid_api_key')) ? 'auth'
+    : billing ? 'billing'
+      : status === 403 ? 'billing'
+        : status === 404 ? 'model'
+          : status === 429 ? 'rate_limited'
+            : 'provider';
+  return aiFail(kind, 'openai:' + status + ':' + code);
+}
+async function aiAskOpenAI({ apiKey, model, instructions, history, message, timeoutMs, onDelta }) {
+  /* نماذج الاستدلال (gpt-5*) تنفق جزءًا من السقف على تفكيرها الداخلي؛ 1200 كانت
+     تجوّع النص الظاهر فتعود الإجابة فارغة. 4000 تعطي النص مجالًا للتنفس. */
+  const maxOutputTokens = 4000;
+  const input = [...history, { role: 'user', content: message }];
+  if (typeof onDelta === 'function') {
+    let acc = '';
+    try {
+      const { res, chunks } = await aiStreamOpen('https://api.openai.com/v1/responses', {
+        headers: { Authorization: 'Bearer ' + apiKey },
+        payload: { model, instructions, input, max_output_tokens: maxOutputTokens, stream: true },
+        connectMs: Math.max(4000, Math.min(12000, timeoutMs || 12000)),
+        idleMs: 25000,
+        hardCapMs: 75000,
+      });
+      if (!res.ok || !chunks) {
+        const raw = await res.text().catch(() => '');
+        let data = null; try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+        return aiOpenAIFail(res.status, data);
+      }
+      let buf = '', finalText = '';
+      for await (const text of chunks) {
+        buf += text;
+        const lines = buf.split('\n'); buf = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6).trim();
+          if (!raw || raw === '[DONE]') continue;
+          try {
+            const j = JSON.parse(raw);
+            if (j.type === 'response.output_text.delta' && typeof j.delta === 'string') {
+              acc += j.delta;
+              onDelta(aiStripThinking(acc) || acc);
+            } else if (j.type === 'response.completed' && j.response) {
+              const full = aiOpenAIOutputText(j.response);
+              if (full) finalText = full;
+            } else if (j.type === 'error' || j.type === 'response.failed') {
+              throw Object.assign(new Error('openai_stream_error'), { streamEvent: j });
+            }
+          } catch (e) { if (e && e.message === 'openai_stream_error') throw e; /* سطر جزئي */ }
+        }
+      }
+      const clean = aiStripThinking(finalText || acc);
+      if (clean) return { ok: true, answer: clean, model, provider: 'openai', streamed: true };
+      return aiFail('empty', 'openai:empty_response');
+    } catch (e) {
+      const partial = aiStripThinking(acc);
+      if (partial && partial.length >= 4) return { ok: true, answer: partial, model, provider: 'openai', streamed: true };
+      return aiFail(e?.name === 'TimeoutError' ? 'timeout' : 'network', 'openai:stream:' + aiCode(e?.name || 'error'));
+    }
+  }
+  const { res, data } = await aiRequest('https://api.openai.com/v1/responses', {
+    headers: { Authorization: 'Bearer ' + apiKey },
+    timeoutMs,
+    payload: { model, instructions, input, max_output_tokens: maxOutputTokens }
+  });
+  if (!res.ok) return aiOpenAIFail(res.status, data);
+  const clean = aiStripThinking(aiOpenAIOutputText(data));
   if (!clean) return aiFail('empty', 'openai:empty_response');
   return { ok: true, answer: clean, model, provider: 'openai' };
 }
@@ -1767,22 +1878,26 @@ async function aiVertexModelCandidates(key, timeoutMs = 6000) {
 async function aiGeminiStreamOnce({ key, model, payload, deadline, onDelta }) {
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model)
     + ':streamGenerateContent?alt=sse&key=' + encodeURIComponent(key);
+  let acc = '';
   try {
-    const res = await fetch(url, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(aiBudget(AI_PROVIDER_TIMEOUT.gemini, deadline)),
+    /* مهلة الاتصال فقط هي المقيّدة بالوقت المتبقي؛ البث نفسه يعيش بمنطق aiStreamOpen
+       (خمول 20 ث بين المقاطع) فلا يُقطع جواب طويل في منتصفه كما كان مع timeout(6000) */
+    const remaining = Math.max(2500, deadline - Date.now());
+    const { res, chunks } = await aiStreamOpen(url, {
+      payload,
+      connectMs: Math.min(9000, remaining),
+      idleMs: 20000,
+      hardCapMs: Math.min(60000, remaining),
     });
-    if (!res.ok || !res.body) {
+    if (!res.ok || !chunks) {
       const raw = await res.text().catch(() => '');
       let msg = '';
       try { msg = String(JSON.parse(raw)?.error?.message || ''); } catch { /* non-json */ }
       return { ok: false, reason: 'gemini:stream:http_' + res.status + (msg ? ': ' + msg.slice(0, 60) : '') };
     }
-    const decoder = new TextDecoder();
-    let buf = '', acc = '';
-    for await (const chunk of res.body) {
-      buf += decoder.decode(chunk, { stream: true });
+    let buf = '';
+    for await (const text of chunks) {
+      buf += text;
       const lines = buf.split('\n');
       buf = lines.pop() || '';
       for (const line of lines) {
@@ -1802,6 +1917,9 @@ async function aiGeminiStreamOnce({ key, model, payload, deadline, onDelta }) {
     if (acc) return { ok: true, answer: acc };
     return { ok: false, reason: 'gemini:stream:empty' };
   } catch (e) {
+    /* انقطع البث وقد ظهر نص؟ نُسلّم الجزئي بدل رميه والبدء من الصفر */
+    const partial = aiStripThinking(acc);
+    if (partial && partial.length >= 4) return { ok: true, answer: partial };
     return { ok: false, reason: 'gemini:stream:' + aiCode(e?.name || 'error', 40) };
   }
 }
@@ -2031,30 +2149,29 @@ async function aiAskOpenRouter({ apiKey, models, instructions, history, message,
 /* Second keyless free provider: when Pollinations is rate limited, llm7.io answers. */
 async function aiAskLlm7({ instructions, history, message, timeoutMs, onDelta }) {
   /* مسار البث الحقيقي: llm7 متوافق مع OpenAI ويدعم stream=true (مقاطع SSE فعلية) */
+  let acc = '';
   if (typeof onDelta === 'function') {
     try {
-      const res = await fetch('https://api.llm7.io/v1/chat/completions', {
-        method: 'POST',
-        signal: AbortSignal.timeout(timeoutMs || 30000),
-        headers: { 'Content-Type': 'application/json', 'User-Agent': 'NEXORA-AI/1.0' },
-        body: JSON.stringify({
+      const { res, chunks } = await aiStreamOpen('https://api.llm7.io/v1/chat/completions', {
+        headers: { 'User-Agent': 'NEXORA-AI/1.0' },
+        payload: {
           model: 'default', max_tokens: 1200, stream: true,
           messages: [{ role: 'system', content: instructions }, ...history.map((m) => ({ role: m.role, content: m.content })), { role: 'user', content: message }],
-        }),
+        },
+        connectMs: Math.min(10000, timeoutMs || 15000),
+        idleMs: 20000,
+        hardCapMs: Math.max(10000, Math.min(60000, (timeoutMs || 15000) * 4)),
       });
       if ([429, 500, 502, 503].includes(res.status)) {
+        try { await res.body?.cancel(); } catch { /* نُفرغ الجسم قبل التهدئة */ }
         // حدّ المعدل قصير المدى: مهلة تهدئة ثم محاولة واحدة أخيرة
         await new Promise((r) => setTimeout(r, 1600));
         return aiAskLlm7({ instructions, history, message, timeoutMs, onDelta: null });
       }
-      if (res.ok && res.body) {
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        let buf = '', acc = '', seen = 'llm7';
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += dec.decode(value, { stream: true });
+      if (res.ok && chunks) {
+        let buf = '', seen = 'llm7';
+        for await (const text of chunks) {
+          buf += text;
           const lines = buf.split('\n');
           buf = lines.pop() || '';
           for (const line of lines) {
@@ -2075,6 +2192,8 @@ async function aiAskLlm7({ instructions, history, message, timeoutMs, onDelta })
       }
       return aiFail(res.status === 429 ? 'rate_limited' : 'provider', 'llm7:' + res.status + ':stream');
     } catch (e) {
+      const partial = aiStripThinking(acc);
+      if (partial && partial.length >= 4) return { ok: true, answer: partial, model: 'llm7', provider: 'llm7', streamed: true };
       return aiFail(e?.name === 'TimeoutError' ? 'timeout' : 'network', 'llm7:stream:' + aiCode(e?.name || 'error'));
     }
   }
@@ -2436,7 +2555,7 @@ route('POST', 'ai/voice', async ({ req, body }) => {
 /* قلب المحادثة: سلسلة المزوّدين الحقيقية (OpenAI → OpenRouter → Gemini → المجانيان).
    لا يخصم نقاطًا ولا يحفظ رسائل — الطبقة العامة أعلاه/أدناه تتولى ذلك بعد النجاح فقط. */
 async function aiChatCore({ message, model, history, instructions, onDelta }) {
-  const deadline = Date.now() + AI_TOTAL_BUDGET_MS;
+  const deadline = Date.now() + (typeof onDelta === 'function' ? AI_STREAM_BUDGET_MS : AI_TOTAL_BUDGET_MS);
   const failures = [];
   const keys = await aiKeys();
   const done = (r) => ({
@@ -2456,7 +2575,7 @@ async function aiChatCore({ message, model, history, instructions, onDelta }) {
       const chain = [...new Set([model, 'gpt-4o-mini'])];
       let r = null;
       for (const m of chain) {
-        r = await aiAskOpenAI({ apiKey: keys.openai[0].key, model: m, instructions, history, message, timeoutMs: aiBudget(AI_PROVIDER_TIMEOUT.openai, deadline) });
+        r = await aiAskOpenAI({ apiKey: keys.openai[0].key, model: m, instructions, history, message, timeoutMs: aiBudget(AI_PROVIDER_TIMEOUT.openai, deadline), onDelta });
         if (r.ok) break;
         failures.push(r);
         if (r.kind !== 'model') break;
@@ -2495,8 +2614,9 @@ async function aiChatCore({ message, model, history, instructions, onDelta }) {
   else {
     try {
       /* Gemini gets a hard slice of the clock: a key that is out of quota must never delay the
-         keyless providers that can answer immediately. */
-      const geminiDeadline = Math.min(deadline, Date.now() + 8000);
+         keyless providers that can answer immediately. Streaming answers get a wider slice —
+         the old 8s cap is what cut replies mid-sentence. */
+      const geminiDeadline = Math.min(deadline, Date.now() + (onDelta ? 45000 : 8000));
       const r = await aiAskGemini({ keys: keys.gemini, instructions, history, message, deadline: geminiDeadline, onDelta, onFail: (reason) => failures.push(aiFail('tried', reason)) });
       if (r.ok) return await done(r);
       failures.push(r);

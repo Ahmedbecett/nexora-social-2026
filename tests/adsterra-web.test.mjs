@@ -11,7 +11,7 @@ const tag = '<script src="/adsterra-web.js" defer></script>';
 
 function runLoader({ host = 'nexora-social-2026.vercel.app', protocol = 'https:', userAgent = '',
   gpc = false, capacitor = false, capacitorThrows = false, nativeClass = false,
-  app = true, container = true, readyState = 'complete' } = {}) {
+  app = true, container = true, readyState = 'complete', storage = null, captureTimers = null } = {}) {
   const nodes = new Map();
   const scripts = [];
   const observers = [];
@@ -58,6 +58,8 @@ function runLoader({ host = 'nexora-social-2026.vercel.app', protocol = 'https:'
       : undefined },
     document,
     MutationObserver: Observer,
+    ...(storage ? { localStorage: storage } : {}),
+    ...(captureTimers ? { setTimeout: (fn, ms) => { captureTimers.push({ fn, ms }); return captureTimers.length; } } : {}),
   };
   const execute = () => runInNewContext(loader, context, { filename: 'adsterra-web.js' });
   execute();
@@ -142,6 +144,32 @@ test('no Adsterra vendor request on native Android, local/preview hosts, HTTP or
     assert.equal(page.scripts.length, 0, JSON.stringify(options));
     assert.equal(page.observers.length, 0, JSON.stringify(options));
   }
+});
+
+test('بوابة الثلاثين دقيقة: لا تحميل داخل النافذة، وظهور واحد يُخفى تلقائيًا بعد 15 ثانية', () => {
+  const mkStorage = (last) => ({
+    map: {},
+    getItem(k) { return Object.prototype.hasOwnProperty.call(this.map, k) ? this.map[k] : (last == null ? null : String(last)); },
+    setItem(k, v) { this.map[k] = String(v); },
+  });
+  /* ظهر إعلان قبل 5 دقائق: النافذة مغلقة ولا يُحمَّل سكربت إضافي */
+  const closed = runLoader({ storage: mkStorage(Date.now() - 5 * 60 * 1000) });
+  assert.equal(closed.scripts.length, 0);
+  /* آخر ظهور قبل 31 دقيقة: النافذة مفتوحة */
+  const storage = mkStorage(Date.now() - 31 * 60 * 1000);
+  const timers = [];
+  const page = runLoader({ storage, captureTimers: timers });
+  assert.equal(page.scripts.length, 1);
+  assert.ok(Number(storage.map.nx_web_ad_last) > 0, 'حُجزت النافذة لحظة الظهور');
+  const hide = timers.find((t) => t.ms === 15000);
+  assert.ok(hide, 'يُخبأ الإعلان بعد 15 ثانية');
+  /* الإخفاء: يُزال السكربت وتُفرَّغ الحاوية وتُعاد الهيئة للظهور القادم */
+  hide.fn();
+  assert.equal(page.scripts[0].removed, true);
+  assert.equal(page.nodes.get(containerId).textContent, '');
+  /* وبعد الإخفاء، أي حركة SPA داخل النافذة نفسها لا تعيد التحميل */
+  page.observers[0].notify();
+  assert.equal(page.scripts.length, 1);
 });
 
 test('React banner is separate from retained AdSense and privacy notices cover both networks', () => {
