@@ -41,3 +41,5 @@ export const IconCopy = (p) => <S {...p}><rect x="9" y="9" width="11" height="11
 export const IconMenu = (p) => <S {...p}><path d="M4 7h16M4 12h16M4 17h16" /></S>;
 export const IconLaptop = IconMonitor;
 export const IconPencil = (p) => <S {...p}><path d="M4 20h4l10-10-4-4L4 16v4Z" /><path d="m14 6 4 4" /></S>;
+export const IconUser = (p) => <S {...p}><circle cx="12" cy="8" r="3.4" /><path d="M4.5 20a7.5 7.5 0 0 1 15 0" /></S>;
+export const IconLink = (p) => <S {...p}><path d="M10 13a4 4 0 0 0 5.7.4l2.6-2.6a4 4 0 0 0-5.7-5.7l-1.3 1.3" /><path d="M14 11a4 4 0 0 0-5.7-.4L5.7 13.2a4 4 0 0 0 5.7 5.7l1.3-1.3" /></S>;

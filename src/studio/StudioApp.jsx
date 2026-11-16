@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StudioProvider, useStudio } from './state.jsx';
-import { loginWithPassword } from './api.js';
+import { signInToAccount, registerAccount } from './api.js';
+import { t } from '../i18n.js';
 import ProjectsPanel from './ProjectsPanel.jsx';
 import ChatPanel from './ChatPanel.jsx';
 import Workspace from './Workspace.jsx';
@@ -9,62 +10,183 @@ import SettingsPanel from './SettingsPanel.jsx';
 import {
   IconPlus, IconGear, IconSearch, IconSpark, IconSave, IconRocket, IconCommand,
   IconEye, IconCode, IconTerminal, IconPlay, IconLayers, IconWarn, IconRefresh,
+  IconUser, IconLink, IconX,
 } from './icons.jsx';
 import './studio.css';
 
 const STACK_LABEL = { static: 'HTML/CSS/JS', 'vite-react': 'React', node: 'Node', next: 'Next.js' };
 
-/* --------------------------------- gate ---------------------------------- */
-function AuthGate() {
-  const { boot } = useStudio();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+/* ---------------------------- account linking ---------------------------- */
+const AUTH_ERRORS = {
+  invalid_credentials: 'Wrong username or password.',
+  missing_credentials: 'Enter your username and password.',
+  use_phone_login: 'This account signs in with a phone number.',
+  weak_password: 'The password must be at least 6 characters.',
+  username_taken: 'That username is taken.',
+  email_taken: 'That email is already registered.',
+  invalid_username: 'Usernames use letters, numbers, dots and underscores (3–30).',
+  invalid_contact: 'Enter a valid email address.',
+  network: 'Could not reach the server. Check your connection.',
+  account_required: 'Sign in with a NEXORA account to link this workspace.',
+  guest_already_claimed: 'This guest workspace is already linked to another account.',
+  no_guest_session: 'There is no guest workspace to link.',
+};
+
+/**
+ * Linking a guest workspace to a NEXORA account.
+ * The visitor signs in (or creates an account) and the server moves every
+ * guest-owned project, message, revision, run, deployment and key to it.
+ */
+function AccountLink({ onClose }) {
+  const { claimWorkspace, notify, session } = useStudio();
+  const [tab, setTab] = useState('login');
+  const [form, setForm] = useState({ identifier: '', password: '', fullName: '', username: '', email: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true); setError(null);
     try {
-      await loginWithPassword(username.trim(), password);
-      await boot();
+      const res = tab === 'login'
+        ? await signInToAccount(form.identifier.trim(), form.password)
+        : await registerAccount({
+          fullName: form.fullName.trim(),
+          username: form.username.trim().replace(/^@/, ''),
+          email: form.email.trim(),
+          password: form.password,
+        });
+      if (!res?.token) throw Object.assign(new Error('no token'), { code: 'sign_in_failed' });
+      const result = await claimWorkspace(res.token, res.user);
+      const moved = result?.moved?.projects || 0;
+      notify(
+        moved
+          ? `${moved} project${moved === 1 ? '' : 's'} moved to @${res.user?.username || 'your account'}`
+          : `Signed in as @${res.user?.username || 'your account'}`,
+        'ok',
+      );
+      onClose();
     } catch (err) {
-      setError(err.code === 'invalid_credentials' ? 'Wrong username or password.' : (err.detail || err.code || 'Sign-in failed'));
+      setError(AUTH_ERRORS[err?.code] || err?.detail || err?.message || 'Sign-in failed');
+    } finally { setBusy(false); }
+  };
+
+  const useLocalAccount = async () => {
+    setBusy(true); setError(null);
+    try {
+      const result = await claimWorkspace('dev-account', { id: 'dev-account', username: 'local-preview', fullName: 'Local preview' });
+      const moved = result?.moved?.projects || 0;
+      notify(moved ? `${moved} project${moved === 1 ? '' : 's'} moved to the local account` : 'Local account linked', 'ok');
+      onClose();
+    } catch (err) {
+      setError(AUTH_ERRORS[err?.code] || err?.detail || err?.message || 'Could not link the workspace');
     } finally { setBusy(false); }
   };
 
   return (
-    <div className="nxs">
-      <div className="nxs-auth">
-        <form className="nxs-auth-card" onSubmit={submit}>
-          <div className="nxs-brand" style={{ marginBottom: 16 }}>
-            <span className="nxs-mark">N</span>
-            <div><b>NEXORA Studio</b><small>AI APP BUILDER</small></div>
+    <div className="nxs-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="nxs-modal nxs-link-modal">
+        <div className="nxs-modal-head">
+          <h3><IconLink size={13} /> {t('studioLinkTitle')}</h3>
+          <button className="nxs-btn icon ghost" onClick={onClose} aria-label="Close"><IconX size={13} /></button>
+        </div>
+
+        <div className="nxs-modal-body">
+          <p className="nxs-muted" style={{ fontSize: 12.5, lineHeight: 1.7, marginTop: 0 }}>
+            {t('studioLinkIntro')}
+          </p>
+
+          <div className="nxs-seg" style={{ marginBottom: 12 }}>
+            <button type="button" className={tab === 'login' ? 'on' : ''} onClick={() => setTab('login')}>{t('studioLinkSignIn')}</button>
+            <button type="button" className={tab === 'signup' ? 'on' : ''} onClick={() => setTab('signup')}>{t('studioLinkSignUp')}</button>
           </div>
-          <h2>Sign in to build</h2>
-          <p>Your projects, keys and deployments are tied to your NEXORA account.</p>
+
           {error && <div className="nxs-error-box">{error}</div>}
-          <div className="field">
-            <label htmlFor="nxs-user">Username</label>
-            <input id="nxs-user" className="nxs-input" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
-          </div>
-          <div className="field">
-            <label htmlFor="nxs-pass">Password</label>
-            <input id="nxs-pass" className="nxs-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
-          </div>
-          <button className="nxs-btn primary" style={{ width: '100%', marginTop: 6 }} disabled={busy || !username || !password}>
-            {busy ? 'Signing in…' : 'Sign in'}
-          </button>
+
+          <form onSubmit={submit}>
+            {tab === 'signup' && (
+              <>
+                <div className="field">
+                  <label htmlFor="nxs-link-name">{t('studioLinkFullName')}</label>
+                  <input id="nxs-link-name" className="nxs-input" value={form.fullName} onChange={set('fullName')} autoComplete="name" />
+                </div>
+                <div className="field">
+                  <label htmlFor="nxs-link-user">{t('studioLinkUsername')}</label>
+                  <input id="nxs-link-user" className="nxs-input" value={form.username} onChange={set('username')} autoComplete="username" spellCheck={false} />
+                </div>
+                <div className="field">
+                  <label htmlFor="nxs-link-mail">{t('studioLinkEmail')}</label>
+                  <input id="nxs-link-mail" className="nxs-input" type="email" value={form.email} onChange={set('email')} autoComplete="email" />
+                </div>
+              </>
+            )}
+            {tab === 'login' && (
+              <div className="field">
+                <label htmlFor="nxs-link-id">{t('studioLinkIdentifier')}</label>
+                <input id="nxs-link-id" className="nxs-input" value={form.identifier} onChange={set('identifier')} autoComplete="username" spellCheck={false} />
+              </div>
+            )}
+            <div className="field">
+              <label htmlFor="nxs-link-pass">{t('studioLinkPassword')}</label>
+              <input id="nxs-link-pass" className="nxs-input" type="password" value={form.password} onChange={set('password')} autoComplete={tab === 'login' ? 'current-password' : 'new-password'} />
+            </div>
+            <button className="nxs-btn primary" style={{ width: '100%', marginTop: 6 }} disabled={busy || !form.password || (tab === 'login' ? !form.identifier : !(form.fullName && form.username && form.email))}>
+              {busy ? t('studioLinkWorking') : (tab === 'login' ? t('studioLinkSubmit') : t('studioLinkSubmitNew'))}
+            </button>
+          </form>
+
+          {session?.devAccounts && (
+            <>
+              <div className="nxs-faint" style={{ fontSize: 11.5, margin: '12px 0 8px' }}>{t('studioLinkLocal')}</div>
+              <button className="nxs-btn" style={{ width: '100%' }} disabled={busy} onClick={useLocalAccount}>
+                {t('studioLinkLocalAction')}
+              </button>
+            </>
+          )}
+
           <button
             type="button"
             className="nxs-btn ghost"
             style={{ width: '100%', marginTop: 8 }}
-            onClick={() => window.dispatchEvent(new CustomEvent('nxs-open-chat'))}
+            onClick={() => { onClose(); window.dispatchEvent(new CustomEvent('nxs-open-chat')); }}
           >
-            Create an account / other sign-in options
+            {t('studioLinkOther')}
           </button>
-        </form>
+        </div>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------ guest banner ----------------------------- */
+function GuestBar({ onLink }) {
+  const { session, guestLink, projects } = useStudio();
+  const [dismissed, setDismissed] = useState(false);
+  const guest = Boolean(session?.guest);
+  const pending = guestLink?.projects || 0;
+  if (dismissed) return null;
+  if (!guest && !pending) return null;
+
+  return (
+    <div className="nxs-guestbar">
+      <IconUser size={13} />
+      {guest ? (
+        <span className="nxs-guestbar-text">
+          <b>{t('studioGuestWorkspace')}</b> — {projects.length === 1 ? t('studioGuestOne') : t('studioGuestMany', { n: projects.length || 0 })}.{' '}
+          {t('studioGuestHint')}
+        </span>
+      ) : (
+        <span className="nxs-guestbar-text">
+          <b>{pending === 1 ? t('studioGuestPendingOne') : t('studioGuestPendingMany', { n: pending })}</b>
+        </span>
+      )}
+      <button className="nxs-btn sm primary" onClick={onLink}>
+        <IconLink size={12} /> {t('studioGuestLink')}
+      </button>
+      <button className="nxs-btn icon ghost sm" onClick={() => setDismissed(true)} aria-label={t('studioGuestDismiss')}>
+        <IconX size={12} />
+      </button>
     </div>
   );
 }
@@ -156,7 +278,7 @@ function Palette() {
 }
 
 /* ------------------------------- topbar ---------------------------------- */
-function TopBar({ onOpenProjects }) {
+function TopBar({ onOpenProjects, onLinkAccount }) {
   const { project, renameProject, createProject, setSettingsOpen, session, dirty, saving } = useStudio();
   const [name, setName] = useState(project?.name || '');
   useEffect(() => { setName(project?.name || ''); }, [project?.id, project?.name]);
@@ -165,6 +287,8 @@ function TopBar({ onOpenProjects }) {
     const next = name.trim();
     if (project && next && next !== project.name) renameProject(project.id, next);
   };
+
+  const guest = Boolean(session?.guest);
 
   return (
     <header className="nxs-top">
@@ -198,6 +322,13 @@ function TopBar({ onOpenProjects }) {
         <button className="nxs-btn sm" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))} title="Command palette (Ctrl+K)">
           <IconCommand size={13} />
         </button>
+        {guest ? (
+          <button className="nxs-btn sm" onClick={onLinkAccount} title="Link a NEXORA account to this guest workspace">
+            <IconUser size={12} /> Guest
+          </button>
+        ) : session?.user ? (
+          <span className="nxs-chip hide-sm" title={session.user.username}>@{session.user.username}</span>
+        ) : null}
         <span className="nxs-avatar" title={session?.user?.username || 'workspace'}>
           {session?.user?.avatarUrl
             ? <img src={session.user.avatarUrl} alt="" />
@@ -216,6 +347,7 @@ function Shell() {
   } = useStudio();
   const [mobile, setMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 980 : false));
   const [mobileView, setMobileView] = useState('chat');
+  const [linkOpen, setLinkOpen] = useState(false);
 
   useEffect(() => {
     const onResize = () => setMobile(window.innerWidth <= 980);
@@ -252,7 +384,22 @@ function Shell() {
     );
   }
 
-  if (bootError?.code === 'unauthorized') return <AuthGate />;
+  if (bootError?.code === 'unauthorized') {
+    return (
+      <div className="nxs">
+        <div className="nxs-auth">
+          <div className="nxs-auth-card">
+            <h2>Studio could not start</h2>
+            <p>The Studio API did not open a guest session. Retry — no account is needed to build.</p>
+            {bootError.detail && <div className="nxs-error-box">{bootError.detail}</div>}
+            <button className="nxs-btn primary" onClick={() => boot()} style={{ width: '100%' }}>
+              <IconRefresh size={13} /> Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (bootError) {
     return (
@@ -275,7 +422,8 @@ function Shell() {
 
   return (
     <div className="nxs">
-      <TopBar onOpenProjects={() => setSidebarOpen(!sidebarOpen)} />
+      <TopBar onOpenProjects={() => setSidebarOpen(!sidebarOpen)} onLinkAccount={() => setLinkOpen(true)} />
+      <GuestBar onLink={() => setLinkOpen(true)} />
       <div
         className={`nxs-body ${sidebarOpen ? '' : 'no-sidebar'} ${project ? '' : 'no-project'}`}
         data-mobile={mobileView}
@@ -302,6 +450,7 @@ function Shell() {
       <AgentWindow />
       {settingsOpen && <SettingsPanel />}
       <Palette />
+      {linkOpen && <AccountLink onClose={() => setLinkOpen(false)} />}
       {toast && <div className={`nxs-toast ${toast.tone}`}>{toast.text}</div>}
     </div>
   );

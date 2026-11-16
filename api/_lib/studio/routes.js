@@ -24,9 +24,16 @@ import * as exec from './exec.js';
 import * as deploy from './deploy.js';
 import * as google from './google.js';
 import { startSSE } from './stream.js';
+import {
+  GUEST_TTL_MS, issueGuestSession, signGuestToken, verifyGuestToken, guestIdentity, guestOwner,
+} from './guest.js';
+import { claimGuestWorkspace, guestClaimedBy } from './claim.js';
 
 let deps = {};
 const DEV_USER = { id: 'dev', username: 'studio-dev', full_name: 'Local Studio' };
+/* a stand-in account used only by the local preview server (dev auth) so the
+   guest → account link can be exercised without a real NEXORA account */
+const DEV_ACCOUNT = { id: 'dev-account', username: 'local-preview', full_name: 'Local preview account' };
 
 export function devAuthEnabled() {
   if (String(process.env.STUDIO_DEV_AUTH || '') !== '1') return false;
@@ -34,15 +41,87 @@ export function devAuthEnabled() {
   return true;
 }
 
+const headerOf = (req, name) => {
+  const headers = req?.headers || {};
+  const direct = headers[name];
+  if (direct) return String(direct).trim();
+  const lower = name.toLowerCase();
+  for (const [k, v] of Object.entries(headers)) {
+    if (String(k).toLowerCase() === lower && v) return String(v).trim();
+  }
+  return '';
+};
+
+/** Does this request ask for a guest session? */
+export function guestRequested(req) {
+  if (headerOf(req, 'x-studio-mode').toLowerCase() === 'guest') return true;
+  return Boolean(headerOf(req, 'x-studio-guest'));
+}
+
+/**
+ * The stand-in account of the local preview server (`npm run studio`).
+ * It only exists while STUDIO_DEV_AUTH is on, which is never the case on a
+ * real deployment unless it is explicitly allowed.
+ */
+function devAccountFor(bearer) {
+  if (!devAuthEnabled()) return null;
+  if (!/^bearer\s+dev-account$/i.test(String(bearer || ''))) return null;
+  return DEV_ACCOUNT;
+}
+
+/**
+ * Identify the caller.
+ *
+ * A guest credential (X-Studio-Guest) is recognized BEFORE the account bearer
+ * token, because a visitor who is building as a guest may also have an account
+ * session open in the same browser. The two never mix: the guest header owns
+ * the workspace, the bearer token owns the account.
+ */
 export async function studioAuth(req) {
-  const header = req?.headers?.authorization || req?.headers?.Authorization || '';
-  if (header && deps.authUser) {
-    try { return await deps.authUser(req); }
-    catch (e) { if (!devAuthEnabled()) throw e; }
+  const guestToken = headerOf(req, 'x-studio-guest');
+  const mode = headerOf(req, 'x-studio-mode').toLowerCase();
+  const bearer = headerOf(req, 'authorization');
+
+  if (mode === 'guest' || guestToken) {
+    if (guestToken) {
+      const guest = verifyGuestToken(guestToken);
+      if (guest) return guestIdentity(guest.gid, guest.expiresAt);
+    }
+    /* the guest credential is missing, forged or expired — an account session
+       may still be present and is the better answer */
+    if (bearer && deps.authUser) {
+      try { return await deps.authUser(req); } catch { /* fall through */ }
+    }
+    throw new StudioError(401, guestToken ? 'guest_expired' : 'guest_required');
+  }
+
+  if (bearer) {
+    const dev = devAccountFor(bearer);
+    if (dev) return dev;
+    if (deps.authUser) {
+      try { return await deps.authUser(req); }
+      catch (e) { if (!devAuthEnabled()) throw e; }
+    } else if (!devAuthEnabled()) {
+      throw new StudioError(401, 'unauthorized');
+    }
   } else if (!devAuthEnabled()) {
     throw new StudioError(401, 'unauthorized');
   }
   return DEV_USER;
+}
+
+/**
+ * The account behind a request — required to link a guest workspace.
+ * A guest may never claim a workspace, only an authenticated account can.
+ */
+async function requireAccount(req) {
+  const bearer = headerOf(req, 'authorization');
+  if (!bearer) throw new StudioError(401, 'account_required', 'sign in with a NEXORA account to link this workspace');
+  const dev = devAccountFor(bearer);
+  if (dev) return dev;
+  if (!deps.authUser) throw new StudioError(401, 'account_required', 'this deployment cannot verify accounts');
+  try { return await deps.authUser(req); }
+  catch { throw new StudioError(401, 'account_required', 'sign in with a NEXORA account to link this workspace'); }
 }
 
 const ownerOf = (user) => String(user?.id ?? 'dev');
@@ -366,17 +445,45 @@ export function registerStudioRoutes({ route, authUser }) {
   /* ------------------------------- session ------------------------------- */
   route('GET', 'studio/session', async ({ req }) => {
     const health = await studioHealth();
-    let user = null;
-    let dev = false;
+    let identity = null;
+    let guestToken = null;
+    let guestExpiresAt = 0;
+    let guestExpired = false;
+
     try {
-      const u = await studioAuth(req);
-      dev = u.id === 'dev';
-      user = { id: String(u.id), username: u.username, fullName: u.full_name || u.username, avatarUrl: u.avatar_url || null };
+      identity = await studioAuth(req);
     } catch (e) {
-      return { authenticated: false, user: null, storage: health, reason: e.code || 'unauthorized' };
+      /* No account and no usable guest credential: open a guest workspace so
+         the visitor can start building straight away. */
+      if (!guestRequested(req)) {
+        return { authenticated: false, user: null, storage: health, reason: e.code || 'unauthorized' };
+      }
+      const issued = issueGuestSession();
+      identity = guestIdentity(issued.guestId, issued.expiresAt);
+      guestToken = issued.token;
+      guestExpiresAt = issued.expiresAt;
+      guestExpired = e.code === 'guest_expired';
     }
+
+    if (identity.guest) {
+      /* keep the guest workspace alive: hand out a fresh credential */
+      guestToken = signGuestToken(identity.guestId, GUEST_TTL_MS);
+      guestExpiresAt = Date.now() + GUEST_TTL_MS;
+    }
+
+    const user = {
+      id: String(identity.id),
+      username: identity.username,
+      fullName: identity.full_name || identity.username,
+      avatarUrl: identity.avatar_url || null,
+    };
+    const dev = identity.id === 'dev';
+
     if (!health.ok) {
-      return { authenticated: true, user, dev, storage: health, error: 'storage_unavailable' };
+      return {
+        authenticated: true, user, dev, guest: Boolean(identity.guest),
+        guestToken, guestExpiresAt, guestExpired, storage: health, error: 'storage_unavailable',
+      };
     }
     const providers = await ai.providerStatus(user.id);
     const primary = await ai.primaryProvider(user.id);
@@ -384,6 +491,13 @@ export function registerStudioRoutes({ route, authUser }) {
       authenticated: true,
       user,
       dev,
+      guest: Boolean(identity.guest),
+      guestId: identity.guestId || null,
+      guestToken,
+      guestExpiresAt,
+      guestExpired,
+      guestClaimed: identity.guest ? await guestClaimedBy(user.id).catch(() => null) : null,
+      devAccounts: devAuthEnabled(),
       storage: health,
       runtime: exec.execCapabilities(),
       ai: { providers, primary, configured: providers.some((p) => p.configured) },
@@ -391,6 +505,45 @@ export function registerStudioRoutes({ route, authUser }) {
         github: await deploy.githubStatus(user.id).catch(() => ({ connected: false })),
         vercel: await deploy.vercelStatus(user.id).catch(() => ({ connected: false })),
       },
+    };
+  });
+
+  /* ---------------------------- guest sessions ---------------------------- */
+  /* Mint a guest workspace on demand (the boot flow uses it, and a client can
+     ask for a fresh one to start from a clean slate). */
+  route('POST', 'studio/guest', async () => {
+    const issued = issueGuestSession();
+    return { token: issued.token, guestId: issued.guestId, expiresAt: issued.expiresAt };
+  });
+
+  /* Has this guest workspace already been linked to an account? */
+  route('GET', 'studio/guest/claim', async ({ req }) => {
+    const token = headerOf(req, 'x-studio-guest');
+    const guest = verifyGuestToken(token);
+    if (!guest) throw new StudioError(401, 'guest_expired', 'this guest session is no longer valid');
+    const claim = await guestClaimedBy(guestOwner(guest.gid));
+    return { guestId: guest.gid, claimed: Boolean(claim), accountId: claim?.accountId || null, claimedAt: claim?.claimedAt || null };
+  });
+
+  /* ------------------------------- claiming ------------------------------- */
+  /* Link a guest workspace to the signed-in account. Everything the guest owns
+     moves to the account in one transaction. */
+  route('POST', 'studio/claim', async ({ req, body }) => {
+    const account = await requireAccount(req);
+    const token = headerOf(req, 'x-studio-guest') || String(body?.guestToken || '').trim();
+    const guest = verifyGuestToken(token);
+    if (!guest) throw new StudioError(400, 'invalid_guest_session', 'this guest session is no longer valid');
+    const owner = String(account.id ?? '');
+    if (!owner) throw new StudioError(401, 'account_required', 'this account cannot own a workspace');
+    const result = await claimGuestWorkspace(guestOwner(guest.gid), owner);
+    return {
+      claimed: true,
+      owner,
+      guestId: guest.gid,
+      moved: result.moved,
+      keptKeys: result.keptKeys,
+      alreadyClaimed: result.alreadyClaimed,
+      claimedAt: result.claimedAt,
     };
   });
 

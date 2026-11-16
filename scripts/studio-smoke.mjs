@@ -92,10 +92,10 @@ async function waitForApi() {
   throw new Error('the API did not start\n' + apiLog);
 }
 
-async function apiCall(path, { method = 'GET', body } = {}) {
+async function apiCall(path, { method = 'GET', body, headers = {} } = {}) {
   const r = await fetch(`${base}/api/${path}`, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : {},
+    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await r.json().catch(() => ({}));
@@ -188,6 +188,35 @@ try {
   const runtime = await apiCall('studio/runtime');
   ok('runtime reported', `${runtime.engine} · dev ${runtime.canDevServer ? 'yes' : 'no'}`);
   if (!runtime.canRun) fail('local runner available');
+
+  /* --------------------- guest session and account claim -------------------- */
+  const guestSession = await apiCall('studio/session', { headers: { 'X-Studio-Mode': 'guest' } });
+  const guestToken = guestSession.guestToken;
+  if (guestSession.guest && guestToken) ok('guest session opened', `as ${guestSession.user.username}`);
+  else fail('guest session opened', JSON.stringify(guestSession).slice(0, 120));
+
+  const otherSession = await apiCall('studio/session', { headers: { 'X-Studio-Mode': 'guest' } });
+  const guestHeaders = { 'X-Studio-Mode': 'guest', 'X-Studio-Guest': guestToken };
+  const guestProject = await apiCall('studio/projects', { method: 'POST', headers: guestHeaders, body: { name: 'Guest project' } });
+  const guestList = await apiCall('studio/projects', { headers: guestHeaders });
+  const otherList = await apiCall('studio/projects', { headers: { 'X-Studio-Mode': 'guest', 'X-Studio-Guest': otherSession.guestToken } });
+  if (guestList.projects.some((p) => p.id === guestProject.project.id)
+    && !otherList.projects.some((p) => p.id === guestProject.project.id)) {
+    ok('guest workspaces are isolated', `${guestList.projects.length} project(s) for the owner, ${otherList.projects.length} for the other visitor`);
+  } else fail('guest workspaces are isolated', `${guestList.projects.length}/${otherList.projects.length}`);
+
+  const claim = await apiCall('studio/claim', {
+    method: 'POST',
+    headers: { ...guestHeaders, Authorization: 'Bearer dev-account' },
+    body: {},
+  });
+  const accountList = await apiCall('studio/projects', { headers: { Authorization: 'Bearer dev-account' } });
+  const afterClaim = await apiCall('studio/projects', { headers: guestHeaders });
+  if (claim.claimed && claim.moved.projects >= 1
+    && accountList.projects.some((p) => p.id === guestProject.project.id)
+    && !afterClaim.projects.some((p) => p.id === guestProject.project.id)) {
+    ok('guest workspace claimed by the account', `${claim.moved.projects} project(s) moved`);
+  } else fail('guest workspace claimed by the account', JSON.stringify(claim.moved));
 
   const deleted = await apiCall(`studio/projects/${projectId}`, { method: 'DELETE' });
   projectId = null;

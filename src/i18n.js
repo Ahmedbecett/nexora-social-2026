@@ -314,7 +314,10 @@ export const LANGUAGES = [
   ['az', 'Azərbaycan', 'Azerbaijani'], ['kk', 'Қазақ', 'Kazakh'], ['uz', 'Oʻzbek', 'Uzbek'], ['ber', 'ⵜⴰⵎⴰⵣⵉⵖⵜ', 'Tamazight'],
 ];
 const RTL = new Set(['ar', 'fa', 'ur', 'ps', 'he']);
-const loaders = import.meta.glob('./locales/*.json');
+/* Vite replaces the glob call at build time. Other bundlers (the Studio test
+   bundle) have no glob loader — the catalogue then simply stays ar/en. */
+let loaders = {};
+try { loaders = import.meta.glob('./locales/*.json'); } catch { loaders = {}; }
 export const dicts = { ar, en };
 
 function initialLang() {

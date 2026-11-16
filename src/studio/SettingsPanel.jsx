@@ -103,7 +103,7 @@ export default function SettingsPanel() {
             <>
               <p className="nxs-muted" style={{ fontSize: 12.5, lineHeight: 1.7, marginTop: 0 }}>
                 The Studio talks to the model provider you connect here. Server keys (set on the deployment)
-                are used automatically; a key saved here belongs to your account only, encrypted at rest.
+                are used automatically; a key saved here belongs to your workspace only, encrypted at rest.
                 Order is OpenAI → Anthropic → Gemini → OpenRouter → the other providers → the free
                 fallback, and every failure is reported as it happens.
               </p>
@@ -201,6 +201,9 @@ export default function SettingsPanel() {
                 </div>
                 <p style={{ marginTop: 8, marginBottom: 0 }}>
                   Projects, chat history, revisions and runs are stored server-side and reload with the project.
+                  {session?.guest
+                    ? ' This is a guest workspace: it belongs to this browser until you link a NEXORA account.'
+                    : ''}
                 </p>
               </div>
               <div className="nxs-card">

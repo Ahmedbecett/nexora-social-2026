@@ -86,6 +86,19 @@ function prepareSqlite(text, params = []) {
   return { sql, params: bound };
 }
 
+/* ---------------------------------------------------------------------------
+   Serialised SQLite access
+   ---------------------------------------------------------------------------
+   node:sqlite is synchronous, so a transaction would happily let another
+   request's statement slip in between BEGIN and COMMIT. Every statement goes
+   through this tiny queue: a transaction owns the database until it ends. */
+let _sqliteQueue = Promise.resolve();
+function withSqliteLock(fn) {
+  const run = _sqliteQueue.then(fn, fn);
+  _sqliteQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
 /**
  * Run one parameterised statement. Always resolve to an array of plain rows.
  */
@@ -96,16 +109,64 @@ export async function studioQuery(text, params = []) {
     const rows = await _pg.query(text, params.map((v) => (v === undefined ? null : typeof v === 'object' && v !== null ? JSON.stringify(v) : v)));
     return rows.map((r) => normalizeRow(r));
   }
-  const db = await openSqlite();
-  const bound = prepareSqlite(text, params);
-  const stmt = db.prepare(bound.sql);
-  const out = stmt.all(...bound.params);
-  return out.map((r) => normalizeRow(r));
+  return withSqliteLock(async () => {
+    const db = await openSqlite();
+    const bound = prepareSqlite(text, params);
+    const stmt = db.prepare(bound.sql);
+    const out = stmt.all(...bound.params);
+    return out.map((r) => normalizeRow(r));
+  });
 }
 
 export async function studioOne(text, params = []) {
   const rows = await studioQuery(text, params);
   return rows[0] || null;
+}
+
+/**
+ * Run a set of statements atomically.
+ *
+ * `fn` receives { query, one } bound to the running transaction, so it must
+ * use those instead of the module-level helpers. On Postgres the Neon
+ * transaction API keeps the statements in one server-side transaction; on
+ * SQLite the whole block owns the (serialised) database until it commits.
+ */
+export async function studioTransaction(fn) {
+  await studioEnsure();
+  if (studioDriver() === 'postgres') {
+    if (!_pg) _pg = neon(PG_URL());
+    const encode = (v) => (v === undefined ? null : (typeof v === 'object' && v !== null ? JSON.stringify(v) : v));
+    const tx = _pg;
+    if (typeof tx.transaction !== 'function') {
+      /* the driver has no transaction support — run the block as it is */
+      const query = async (text, params = []) => (await studioQuery(text, params)).map(normalizeRow);
+      return await fn({ query, one: async (t, p) => (await query(t, p))[0] || null });
+    }
+    return await tx.transaction(async (inner) => {
+      const query = async (text, params = []) => {
+        const rows = await inner.query(text, params.map(encode));
+        return rows.map(normalizeRow);
+      };
+      return await fn({ query, one: async (t, p) => (await query(t, p))[0] || null });
+    });
+  }
+  return withSqliteLock(async () => {
+    const db = await openSqlite();
+    const query = async (text, params = []) => {
+      const bound = prepareSqlite(text, params);
+      const stmt = db.prepare(bound.sql);
+      return stmt.all(...bound.params).map(normalizeRow);
+    };
+    db.exec('begin immediate');
+    try {
+      const out = await fn({ query, one: async (t, p) => (await query(t, p))[0] || null });
+      db.exec('commit');
+      return out;
+    } catch (e) {
+      try { db.exec('rollback'); } catch { /* the transaction was already closed */ }
+      throw e;
+    }
+  });
 }
 
 function normalizeRow(row) {
@@ -192,6 +253,11 @@ create table if not exists studio_keys (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists studio_keys_owner_provider_idx on studio_keys(owner_id, provider);
+create table if not exists studio_guest_claims (
+  guest_id text primary key,
+  account_id text not null,
+  claimed_at timestamptz not null default now()
+);
 `;
 
 const SQLITE_DDL = `
@@ -266,6 +332,11 @@ create table if not exists studio_keys (
   updated_at text not null
 );
 create unique index if not exists studio_keys_owner_provider_idx on studio_keys(owner_id, provider);
+create table if not exists studio_guest_claims (
+  guest_id text primary key,
+  account_id text not null,
+  claimed_at text not null
+);
 `;
 
 export async function studioEnsure() {

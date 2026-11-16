@@ -97,8 +97,10 @@ function installDom() {
 
 const requests = [];
 const bodies = [];
+const sentHeaders = [];
 let mode = 'existing';
 let createAttempts = 0;
+let claimed = false;
 
 function sseStream(frames, delay = 110) {
   const encoder = new TextEncoder();
@@ -129,8 +131,49 @@ function installFetch() {
     const url = String(typeof input === 'string' ? input : input.url);
     const method = (init.method || 'GET').toUpperCase();
     requests.push(`${method} ${url}`);
+    sentHeaders.push(init.headers || {});
     try { bodies.push({ url, body: init.body ? JSON.parse(init.body) : null }); } catch { bodies.push({ url, body: null }); }
+    if (url.includes('/api/auth/login')) {
+      return jsonResponse({ token: 'account-token', user: { id: 1, username: 'ada', fullName: 'Ada Lovelace' } });
+    }
+    if (url.includes('/api/studio/claim')) {
+      claimed = true;
+      return jsonResponse({
+        claimed: true,
+        owner: '1',
+        guestId: 'abc',
+        moved: { projects: 1, messages: 0, revisions: 0, runs: 0, deployments: 0, keys: 0 },
+        keptKeys: [],
+      });
+    }
     if (url.includes('/api/studio/session')) {
+      if (claimed) {
+        return jsonResponse({
+          authenticated: true,
+          guest: false,
+          user: { id: '1', username: 'ada', fullName: 'Ada Lovelace' },
+          dev: false,
+          storage: { ok: true, driver: 'sqlite', label: 'SQLite (local)' },
+          runtime: { engine: 'local', label: 'Local runner', canRun: true, canDevServer: true, note: 'local' },
+          ai: { configured: true, primary: { id: 'openai', label: 'OpenAI', model: 'gpt-4.1-mini', source: 'server' }, providers: [] },
+          integrations: { github: { connected: false }, vercel: { connected: false } },
+        });
+      }
+      if (mode === 'guest') {
+        return jsonResponse({
+          authenticated: true,
+          guest: true,
+          guestId: 'abc',
+          guestToken: 'nxg1.test.token',
+          guestExpiresAt: Date.now() + 86_400_000,
+          user: { id: 'guest:abc', username: 'guest', fullName: 'Guest' },
+          dev: false,
+          storage: { ok: true, driver: 'sqlite', label: 'SQLite (local)' },
+          runtime: { engine: 'local', label: 'Local runner', canRun: true, canDevServer: true, note: 'local' },
+          ai: { configured: true, primary: { id: 'openai', label: 'OpenAI', model: 'gpt-4.1-mini', source: 'server' }, providers: [] },
+          integrations: { github: { connected: false }, vercel: { connected: false } },
+        });
+      }
       return jsonResponse({
         authenticated: true,
         user: { id: 'dev', username: 'studio-dev', fullName: 'Local Studio' },
@@ -744,6 +787,65 @@ test('a Google Doc becomes build context and the project can be saved back to Dr
     assert.ok(await until(() => /Saved to Drive|Counter demo\.txt/i.test(document.body.textContent)), 'the save is reported');
     assert.deepEqual(errors, [], 'no React or runtime errors were reported');
   } finally {
+    root.unmount();
+  }
+});
+
+/* ---------------------------------------------------------------------------
+   Guest sessions: the Studio opens without an account and the workspace can be
+   linked to one later.
+   --------------------------------------------------------------------------- */
+test('the Studio opens as a guest and links the workspace to an account', async () => {
+  mode = 'guest';
+  claimed = false;
+  errors.length = 0;
+  requests.length = 0;
+  sentHeaders.length = 0;
+  const window = installDom();
+  installFetch();
+  const { StudioApp } = await bundleApp();
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+
+  const root = createRoot(document.getElementById('root'));
+  const origError = console.error;
+  console.error = (...args) => { errors.push(args.map(String).join(' ')); origError(...args); };
+  try {
+    root.render(React.createElement(StudioApp));
+
+    /* the visitor builds right away — no sign-in wall */
+    assert.ok(await until(() => document.body.textContent.includes('Guest workspace')), 'the guest bar explains the workspace');
+    assert.ok(!document.body.textContent.includes('Sign in to build'), 'the Studio is not behind a login');
+
+    /* the guest credential travels with every request */
+    assert.ok(sentHeaders.some((h) => h['X-Studio-Guest'] === 'nxg1.test.token'), 'requests carry the guest credential');
+    assert.ok(sentHeaders.some((h) => h['X-Studio-Mode'] === 'guest'), 'requests ask for the guest workspace');
+
+    /* open the account link */
+    const linkBtn = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Link account'));
+    assert.ok(linkBtn, 'the link button is offered');
+    linkBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    assert.ok(await until(() => document.body.textContent.includes('Link a NEXORA account')), 'the link dialog opens');
+
+    const setInput = (el, value) => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      setter.call(el, value);
+      el.dispatchEvent(new window.Event('input', { bubbles: true }));
+    };
+    setInput(document.getElementById('nxs-link-id'), 'ada');
+    setInput(document.getElementById('nxs-link-pass'), 'secret123');
+
+    const form = document.querySelector('.nxs-link-modal form');
+    assert.ok(form, 'the sign-in form is there');
+    form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+
+    assert.ok(await until(() => requests.some((r) => r.includes('/api/auth/login'))), 'the account sign-in is called');
+    assert.ok(await until(() => requests.some((r) => r.includes('/api/studio/claim'))), 'the workspace is claimed');
+    assert.ok(await until(() => !document.body.textContent.includes('Guest workspace')), 'the Studio continues as the account');
+    assert.ok(await until(() => document.body.textContent.includes('@ada')), 'the account name is shown');
+    assert.deepEqual(errors, [], 'no React or runtime errors were reported');
+  } finally {
+    console.error = origError;
     root.unmount();
   }
 });

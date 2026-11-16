@@ -7,7 +7,11 @@
    ============================================================================ */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { request, streamRequest, studioSession, StudioApiError } from './api.js';
+import {
+  request, streamRequest, studioSession, StudioApiError,
+  claimGuestSession, guestWorkspaceSummary, getGuestToken, setGuestToken, setStudioMode,
+} from './api.js';
+import { setToken } from '../api.js';
 
 const StudioCtx = createContext(null);
 export const useStudio = () => useContext(StudioCtx);
@@ -78,6 +82,7 @@ export function StudioProvider({ children }) {
 
   const abortRef = useRef(null);
   const saveTimer = useRef(null);
+  const bootRef = useRef(null);
   const stateRef = useRef({});
   stateRef.current = { session, projects, project, messages, files, activeFile, dirty, agent, terminal, tab, previewMode, devServer, buildMode };
 
@@ -101,7 +106,13 @@ export function StudioProvider({ children }) {
       setProjects(data.projects || []);
       return data.projects || [];
     } catch (e) {
-      if (e.status === 401) setBootError({ code: 'unauthorized' });
+      if (e.status === 401) {
+        /* the guest credential is gone (expired or cleared): open a fresh
+           session instead of blocking the workspace */
+        setGuestToken('');
+        setStudioMode('guest');
+        bootRef.current?.();
+      }
       return [];
     }
   }, []);
@@ -145,9 +156,19 @@ export function StudioProvider({ children }) {
     setBooting(true);
     setBootError(null);
     try {
-      const s = await studioSession();
+      let s = await studioSession();
+      if (!s?.authenticated) {
+        /* the API did not open a guest session: ask for one explicitly so the
+           visitor is never blocked by a sign-in wall */
+        const issued = await request('studio/guest', { method: 'POST', timeout: 20_000 }).catch(() => null);
+        if (issued?.token) {
+          setGuestToken(issued.token);
+          setStudioMode('guest');
+          s = await studioSession();
+        }
+      }
       setSession(s);
-      if (!s.authenticated) { setBootError({ code: 'unauthorized' }); return; }
+      if (!s?.authenticated) { setBootError({ code: 'unauthorized' }); return; }
       if (s.error === 'storage_unavailable') { setBootError({ code: 'storage_unavailable', detail: s.storage?.error }); return; }
       loadAccounts().catch(() => {});
       const list = await loadProjects();
@@ -161,12 +182,55 @@ export function StudioProvider({ children }) {
     }
   }, [loadAccounts, loadProjects, openProject]);
 
+  useEffect(() => { bootRef.current = boot; });
   useEffect(() => { boot(); }, [boot]);
 
   /* --------------------------- server-side keepers ------------------------ */
   const refreshSession = useCallback(async () => {
     try { setSession(await studioSession()); } catch { /* keep old */ }
   }, []);
+
+  /* ---------------------------- guest workspace ---------------------------- */
+  /* What the leftover guest workspace holds, shown when an account session is
+     already open: the visitor can still link it to the account. */
+  const [guestLink, setGuestLink] = useState(null);
+
+  useEffect(() => {
+    if (!session || session.guest) { setGuestLink(null); return undefined; }
+    let alive = true;
+    (async () => {
+      if (!getGuestToken()) { setGuestLink(null); return; }
+      const summary = await guestWorkspaceSummary().catch(() => null);
+      if (!alive) return;
+      const list = summary?.projects || [];
+      setGuestLink({ projects: list.length, names: list.slice(0, 3).map((p) => p.name) });
+    })();
+    return () => { alive = false; };
+  }, [session]);
+
+  /**
+   * Link the guest workspace to a NEXORA account.
+   * The server moves every guest-owned project, message, revision, run,
+   * deployment and key to the account in one transaction; the Studio then
+   * continues in the account.
+   */
+  const claimWorkspace = useCallback(async (accountToken, user) => {
+    if (!getGuestToken()) {
+      /* no guest workspace to move: just continue in the account */
+      setToken(accountToken);
+      setStudioMode('account');
+      try { if (user) localStorage.setItem('nx_me', JSON.stringify(user)); } catch { /* private mode */ }
+      await boot();
+      return { moved: { projects: 0, messages: 0, revisions: 0, runs: 0, deployments: 0, keys: 0 }, keptKeys: [] };
+    }
+    const result = await claimGuestSession(accountToken);
+    setToken(accountToken);
+    setGuestToken('');
+    setStudioMode('account');
+    try { if (user) localStorage.setItem('nx_me', JSON.stringify(user)); } catch { /* private mode */ }
+    await boot();
+    return result;
+  }, [boot]);
 
   const createProject = useCallback(async ({ name, description, stack, prompt, keepAgent = false } = {}) => {
     const data = await request('studio/projects', {
@@ -949,13 +1013,16 @@ export function StudioProvider({ children }) {
   }, [saveNow]);
 
   useEffect(() => {
-    const handler = () => setBootError({ code: 'unauthorized' });
+    /* the account session expired somewhere else: re-open the workspace
+       (a guest session is used when no account is available) */
+    const handler = () => { boot(); };
     window.addEventListener('nxs-unauthorized', handler);
     return () => window.removeEventListener('nxs-unauthorized', handler);
-  }, []);
+  }, [boot]);
 
   const value = useMemo(() => ({
     session, booting, bootError, boot, refreshSession,
+    guestLink, claimWorkspace,
     projects, project, messages, revisions, deployments, files,
     openFiles, setOpenFiles, activeFile, setActiveFile, dirty, saving, savedAt,
     tab, setTab, device, setDevice, settingsOpen, setSettingsOpen, sidebarOpen, setSidebarOpen, paletteOpen, setPaletteOpen,
@@ -970,7 +1037,8 @@ export function StudioProvider({ children }) {
     importRepo, pushBranch, followVercelProject, readDriveDoc, exportToDrive,
     deployVercel, pushGithub, saveKey, removeKey, testModel, connectIntegration, disconnectIntegration,
   }), [
-    session, booting, bootError, boot, refreshSession, projects, project, messages, revisions, deployments, files,
+    session, booting, bootError, boot, refreshSession, guestLink, claimWorkspace,
+    projects, project, messages, revisions, deployments, files,
     openFiles, activeFile, dirty, saving, savedAt, tab, device, settingsOpen, sidebarOpen, paletteOpen, agent, terminal, toast, notify,
     previewMode, switchPreview, devServer, startDev, stopDev, previewNonce, consoleEntries, logConsole,
     createProject, openProject, deleteProject, renameProject, loadProjects, writeFile, addFile, removeFile, renameFile,
