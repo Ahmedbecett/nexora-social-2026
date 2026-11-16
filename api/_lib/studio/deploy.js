@@ -10,6 +10,7 @@
 import { StudioError } from './db.js';
 import { getIntegrationSecret } from './ai.js';
 import { sanitizeFiles } from './files.js';
+import { unpackTokenBundle } from './oauth.js';
 
 const GH_API = 'https://api.github.com';
 const VERCEL_API = 'https://api.vercel.com';
@@ -39,7 +40,10 @@ async function gh(token, path, { method = 'GET', body } = {}) {
 
 export async function githubToken(ownerId) {
   const mine = await getIntegrationSecret(ownerId, 'github').catch(() => null);
-  if (mine?.key) return { token: mine.key, source: 'account' };
+  if (mine?.key) {
+    const { token } = unpackTokenBundle(mine.key);
+    if (token) return { token, source: mine.meta?.method === 'oauth' ? 'oauth' : 'account' };
+  }
   const env = process.env.GITHUB_STUDIO_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
   if (env) return { token: env, source: 'server' };
   return null;
@@ -128,8 +132,8 @@ export async function pushToGitHub(ownerId, { files, repoName, isPrivate = true,
 }
 
 /* -------------------------------- Vercel --------------------------------- */
-async function vc(token, path, { method = 'GET', body } = {}) {
-  const teamId = process.env.VERCEL_TEAM_ID || '';
+async function vc(token, path, { method = 'GET', body, teamId: explicitTeam = '' } = {}) {
+  const teamId = explicitTeam || process.env.VERCEL_TEAM_ID || '';
   const team = teamId ? `${path.includes('?') ? '&' : '?'}teamId=${encodeURIComponent(teamId)}` : '';
   const first = await vcOnce(token, path + team, { method, body });
   /* a personal token is not necessarily scoped to the team id we were handed:
@@ -155,9 +159,12 @@ async function vcOnce(token, path, { method = 'GET', body } = {}) {
 
 export async function vercelToken(ownerId) {
   const mine = await getIntegrationSecret(ownerId, 'vercel').catch(() => null);
-  if (mine?.key) return { token: mine.key, source: 'account' };
+  if (mine?.key) {
+    const { token, teamId } = unpackTokenBundle(mine.key);
+    if (token) return { token, teamId, source: mine.meta?.method === 'oauth' ? 'oauth' : 'account' };
+  }
   const env = process.env.VERCEL_STUDIO_TOKEN || process.env.VERCEL_TOKEN || process.env.VERCEL_API_TOKEN;
-  if (env) return { token: env, source: 'server' };
+  if (env) return { token: env, teamId: '', source: 'server' };
   return null;
 }
 
@@ -475,7 +482,7 @@ export async function githubImport(ownerId, { repo, ref } = {}) {
  * Commit the project to a repository and, when asked, open a pull request —
  * the same flow a person uses: branch from base, one commit, one PR.
  */
-export async function githubPushBranch(ownerId, { repo, files, branch = '', base = '', message = 'NEXORA Studio: update project', pr = true } = {}) {
+export async function githubPushBranch(ownerId, { repo, files, deletePaths = [], branch = '', base = '', message = 'NEXORA Studio: update project', pr = true, prTitle = '', prBody = '' } = {}) {
   const auth = await githubToken(ownerId);
   if (!auth) throw new StudioError(400, 'github_not_connected', 'connect a GitHub token in Studio settings');
   const full = String(repo || '').trim();
@@ -510,6 +517,14 @@ export async function githubPushBranch(ownerId, { repo, files, branch = '', base
     if (!blob.ok) throw new StudioError(502, 'github_blob_failed', `${path}: ${blob.data?.message || blob.status}`);
     tree.push({ path, mode: '100644', type: 'blob', sha: blob.data.sha });
   }
+  if (Array.isArray(deletePaths) && parentSha) {
+    for (const rawPath of deletePaths.slice(0, 40)) {
+      const p = String(rawPath || '').trim().replace(/^\/+/, '');
+      if (p && !p.includes('..') && !(p in safeFiles)) {
+        tree.push({ path: p, mode: '100644', type: 'blob', sha: null });
+      }
+    }
+  }
 
   const newTree = await gh(auth.token, `/repos/${full}/git/trees`, { method: 'POST', body: { tree, ...(parentSha ? { base_tree: parentSha } : {}) } });
   if (!newTree.ok) throw new StudioError(502, 'github_tree_failed', newTree.data?.message || String(newTree.status));
@@ -530,10 +545,10 @@ export async function githubPushBranch(ownerId, { repo, files, branch = '', base
     const open = await gh(auth.token, `/repos/${full}/pulls`, {
       method: 'POST',
       body: {
-        title: message.slice(0, 120),
+        title: String(prTitle || message).slice(0, 120),
         head,
         base: baseBranch,
-        body: 'Generated from NEXORA Studio.',
+        body: String(prBody || 'Generated from NEXORA Studio.').slice(0, 4000),
       },
     });
     if (open.ok) pull = { number: open.data.number, url: open.data.html_url };
@@ -550,6 +565,169 @@ export async function githubPushBranch(ownerId, { repo, files, branch = '', base
     commitUrl: commit.data.html_url,
     url: `https://github.com/${full}`,
     pull,
-    files: tree.length,
+    files: paths.length,
+  };
+}
+
+/** List branches of a connected GitHub repository for the branch selector. */
+export async function githubBranches(ownerId, { repo } = {}) {
+  const auth = await githubToken(ownerId);
+  if (!auth) throw new StudioError(400, 'github_not_connected', 'connect GitHub first');
+  const full = String(repo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '');
+  if (!/^[\w.-]+\/[\w.-]+$/.test(full)) throw new StudioError(400, 'github_repo_invalid', 'choose a repository as owner/name');
+  const [info, list] = await Promise.all([
+    gh(auth.token, `/repos/${full}`),
+    gh(auth.token, `/repos/${full}/branches?per_page=100`),
+  ]);
+  if (!info.ok) throw new StudioError(info.status === 404 ? 404 : 502, 'github_repo_failed', info.data?.message || `HTTP ${info.status}`);
+  const branches = (list.ok && Array.isArray(list.data) ? list.data : []).map((b) => ({
+    name: b.name,
+    sha: b.commit?.sha || '',
+    protected: Boolean(b.protected),
+  }));
+  const defaultBranch = info.data?.default_branch || 'main';
+  return {
+    repo: full,
+    defaultBranch,
+    private: Boolean(info.data?.private),
+    canPush: info.data?.permissions ? Boolean(info.data.permissions.push) : true,
+    branches,
+  };
+}
+
+/** Create a new branch from an existing ref on GitHub. */
+export async function githubCreateBranch(ownerId, { repo, branch, from = '' } = {}) {
+  const auth = await githubToken(ownerId);
+  if (!auth) throw new StudioError(400, 'github_not_connected', 'connect GitHub first');
+  const full = String(repo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '');
+  if (!/^[\w.-]+\/[\w.-]+$/.test(full)) throw new StudioError(400, 'github_repo_invalid', 'choose a repository as owner/name');
+  const next = String(branch || '').trim().replace(/^refs\/heads\//, '');
+  if (!/^[\w./-]{1,100}$/.test(next) || next.includes('..') || next.startsWith('/') || next.endsWith('/')) {
+    throw new StudioError(400, 'github_branch_invalid', 'enter a valid git branch name');
+  }
+  let baseName = String(from || '').trim();
+  if (!baseName) {
+    const info = await gh(auth.token, `/repos/${full}`);
+    if (!info.ok) throw new StudioError(404, 'github_repo_failed', info.data?.message || `HTTP ${info.status}`);
+    baseName = info.data?.default_branch || 'main';
+  }
+  const baseRef = await gh(auth.token, `/repos/${full}/git/ref/heads/${baseName}`);
+  if (!baseRef.ok || !baseRef.data?.object?.sha) {
+    throw new StudioError(404, 'github_ref_failed', baseRef.data?.message || `base branch ${baseName} not found`);
+  }
+  const created = await gh(auth.token, `/repos/${full}/git/refs`, {
+    method: 'POST',
+    body: { ref: `refs/heads/${next}`, sha: baseRef.data.object.sha },
+  });
+  if (!created.ok) {
+    throw new StudioError(created.status === 422 ? 409 : 502, 'github_branch_failed', created.data?.message || `HTTP ${created.status}`);
+  }
+  return {
+    repo: full,
+    branch: next,
+    base: baseName,
+    sha: baseRef.data.object.sha,
+    url: `https://github.com/${full}/tree/${encodeURIComponent(next)}`,
+  };
+}
+
+/** Read one file directly from a GitHub repository + branch. */
+export async function githubReadFile(ownerId, { repo, path, ref = '' } = {}) {
+  const auth = await githubToken(ownerId);
+  if (!auth) throw new StudioError(400, 'github_not_connected', 'connect GitHub first');
+  const full = String(repo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '');
+  if (!/^[\w.-]+\/[\w.-]+$/.test(full)) throw new StudioError(400, 'github_repo_invalid', 'choose a repository as owner/name');
+  const cleanPath = String(path || '').trim().replace(/^\/+/, '');
+  if (!cleanPath || cleanPath.includes('..')) throw new StudioError(400, 'github_path_invalid', 'provide a file path');
+  const encodedPath = cleanPath.split('/').map(encodeURIComponent).join('/');
+  const qs = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+  const res = await gh(auth.token, `/repos/${full}/contents/${encodedPath}${qs}`);
+  if (!res.ok) throw new StudioError(res.status === 404 ? 404 : 502, 'github_file_failed', res.data?.message || `HTTP ${res.status}`);
+  if (Array.isArray(res.data)) {
+    return {
+      repo: full,
+      path: cleanPath,
+      type: 'dir',
+      entries: res.data.map((e) => ({ name: e.name, path: e.path, type: e.type, size: e.size || 0, sha: e.sha })),
+    };
+  }
+  const content = res.data?.encoding === 'base64'
+    ? Buffer.from(String(res.data.content || '').replace(/\s+/g, ''), 'base64').toString('utf8')
+    : String(res.data?.content || '');
+  return {
+    repo: full,
+    path: res.data.path || cleanPath,
+    type: 'file',
+    sha: res.data.sha,
+    size: Number(res.data.size || content.length),
+    content,
+    url: res.data.html_url || `https://github.com/${full}/blob/${encodeURIComponent(ref || 'main')}/${cleanPath}`,
+  };
+}
+
+/** Save / commit a single file directly to a GitHub branch via the Contents API. */
+export async function githubSaveFile(ownerId, { repo, path, content, branch = '', message = '', sha = '' } = {}) {
+  const auth = await githubToken(ownerId);
+  if (!auth) throw new StudioError(400, 'github_not_connected', 'connect GitHub first');
+  const full = String(repo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '');
+  if (!/^[\w.-]+\/[\w.-]+$/.test(full)) throw new StudioError(400, 'github_repo_invalid', 'choose a repository as owner/name');
+  const cleanPath = String(path || '').trim().replace(/^\/+/, '');
+  if (!cleanPath || cleanPath.includes('..')) throw new StudioError(400, 'github_path_invalid', 'provide a file path');
+  if (typeof content !== 'string') throw new StudioError(400, 'content_required', 'file content is required');
+  const encodedPath = cleanPath.split('/').map(encodeURIComponent).join('/');
+  let fileSha = String(sha || '').trim();
+  if (!fileSha) {
+    const qs = branch ? `?ref=${encodeURIComponent(branch)}` : '';
+    const existing = await gh(auth.token, `/repos/${full}/contents/${encodedPath}${qs}`);
+    if (existing.ok && existing.data?.sha) fileSha = existing.data.sha;
+  }
+  const body = {
+    message: String(message || `Update ${cleanPath}`).slice(0, 200),
+    content: Buffer.from(content, 'utf8').toString('base64'),
+    ...(fileSha ? { sha: fileSha } : {}),
+    ...(branch ? { branch } : {}),
+  };
+  const res = await gh(auth.token, `/repos/${full}/contents/${encodedPath}`, { method: 'PUT', body });
+  if (!res.ok) throw new StudioError(502, 'github_save_failed', res.data?.message || `HTTP ${res.status}`);
+  return {
+    repo: full,
+    path: cleanPath,
+    branch: branch || null,
+    sha: res.data?.content?.sha || null,
+    commitSha: res.data?.commit?.sha || null,
+    commitUrl: res.data?.commit?.html_url || null,
+    url: res.data?.content?.html_url || null,
+  };
+}
+
+/** Recent Vercel deployments for live deployment tracking. */
+export async function vercelDeployments(ownerId, { id = '', name = '', limit = 10 } = {}) {
+  const auth = await vercelToken(ownerId);
+  if (!auth) throw new StudioError(400, 'vercel_not_connected', 'connect Vercel first');
+  let projectId = String(id || '').trim();
+  if (!projectId && name) {
+    const proj = await vc(auth.token, `/v9/projects/${encodeURIComponent(name)}`, { teamId: auth.teamId });
+    if (proj.ok) projectId = proj.data.id;
+  }
+  const lim = Math.max(1, Math.min(25, Number(limit) || 10));
+  const qs = projectId
+    ? `/v6/deployments?projectId=${encodeURIComponent(projectId)}&limit=${lim}`
+    : `/v6/deployments?limit=${lim}`;
+  const res = await vc(auth.token, qs, { teamId: auth.teamId });
+  if (!res.ok) throw new StudioError(502, 'vercel_query_failed', res.data?.error?.message || `HTTP ${res.status}`);
+  const list = Array.isArray(res.data?.deployments) ? res.data.deployments : [];
+  return {
+    deployments: list.map((d) => ({
+      id: d.uid || d.id,
+      name: d.name || '',
+      state: d.readyState || d.state || 'UNKNOWN',
+      url: d.url ? `https://${d.url}` : null,
+      inspectorUrl: d.inspectorUrl || null,
+      target: d.target || 'preview',
+      branch: d.meta?.githubCommitRef || null,
+      commitMessage: d.meta?.githubCommitMessage || null,
+      createdAt: d.created ? new Date(d.created).toISOString() : null,
+      readyAt: d.ready ? new Date(d.ready).toISOString() : null,
+    })),
   };
 }

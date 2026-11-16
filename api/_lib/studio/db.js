@@ -131,6 +131,7 @@ create table if not exists studio_projects (
   entry text not null default 'index.html',
   files jsonb not null default '{}'::jsonb,
   plan jsonb,
+  meta jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -192,6 +193,21 @@ create table if not exists studio_keys (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists studio_keys_owner_provider_idx on studio_keys(owner_id, provider);
+create table if not exists studio_model_events (
+  id bigserial primary key,
+  owner_id text not null,
+  project_id bigint,
+  message_id bigint,
+  provider text not null,
+  model text not null,
+  mode text not null default 'agent',
+  duration_ms integer not null default 0,
+  files_changed integer not null default 0,
+  ok integer not null default 1,
+  vote integer not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists studio_model_events_idx on studio_model_events(provider, model, created_at desc);
 `;
 
 const SQLITE_DDL = `
@@ -205,6 +221,7 @@ create table if not exists studio_projects (
   entry text not null default 'index.html',
   files text not null default '{}',
   plan text,
+  meta text not null default '{}',
   created_at text not null,
   updated_at text not null
 );
@@ -266,6 +283,21 @@ create table if not exists studio_keys (
   updated_at text not null
 );
 create unique index if not exists studio_keys_owner_provider_idx on studio_keys(owner_id, provider);
+create table if not exists studio_model_events (
+  id integer primary key autoincrement,
+  owner_id text not null,
+  project_id integer,
+  message_id integer,
+  provider text not null,
+  model text not null,
+  mode text not null default 'agent',
+  duration_ms integer not null default 0,
+  files_changed integer not null default 0,
+  ok integer not null default 1,
+  vote integer not null default 0,
+  created_at text not null
+);
+create index if not exists studio_model_events_idx on studio_model_events(provider, model, created_at desc);
 `;
 
 export async function studioEnsure() {
@@ -277,9 +309,16 @@ export async function studioEnsure() {
       for (const stmt of ddl.split(';').map((s) => s.trim()).filter(Boolean)) {
         await _pg.query(stmt, []);
       }
+      await _pg.query("alter table studio_projects add column if not exists meta jsonb not null default '{}'::jsonb", []);
     } else {
       const db = await openSqlite();
       db.exec(ddl);
+      try {
+        const cols = db.prepare('PRAGMA table_info(studio_projects)').all();
+        if (!cols.some((c) => c.name === 'meta')) {
+          db.exec("alter table studio_projects add column meta text not null default '{}'");
+        }
+      } catch { /* column already present */ }
     }
     return true;
   })().catch((e) => {

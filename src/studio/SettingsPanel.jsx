@@ -1,58 +1,108 @@
-import { useState } from 'react';
-import { useStudio } from './state.jsx';
-import { IconX, IconCheck, IconPlug, IconGear, IconWarn, IconSpark } from './icons.jsx';
+/* ============================================================================
+   NEXORA — Account, Models, Integrations (OAuth + Token) & Runtime Settings
+   ============================================================================ */
 
-function ProviderRow({ p, onSave, onRemove, onTest }) {
+import { useState } from 'react';
+import { setToken } from '../api.js';
+import { useStudio } from './state.jsx';
+import {
+  IconX, IconCheck, IconGitHub, IconVercel, IconDrive, IconDoc,
+  IconSun, IconMoon, IconLogout, IconRefresh, IconSpark,
+} from './icons.jsx';
+
+function ProviderRow({ p, active, onSelect, onSave, onRemove, onTest }) {
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
 
   const test = async () => {
-    setBusy(true); setResult(null);
-    try { setResult(await onTest(p.id, undefined, p.models?.[0])); }
-    catch (e) { setResult({ ok: false, detail: e.detail || e.code }); }
+    setBusy(true);
+    setResult(null);
+    try { setResult(await onTest(p.id, undefined, p.defaultModel || p.models?.[0])); }
+    catch (e) { setResult({ ok: false, error: e.detail || e.code }); }
     finally { setBusy(false); }
   };
 
-  const save = async () => {
-    setBusy(true); setResult(null);
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setResult(null);
     try {
       const r = await onSave(p.id, key.trim());
       setResult(r.test);
       if (r.test?.ok) { setKey(''); setOpen(false); }
-    } catch (e) { setResult({ ok: false, detail: e.detail || e.code }); }
-    finally { setBusy(false); }
+    } catch (err) {
+      setResult({ ok: false, error: err.detail || err.code });
+    } finally {
+      setBusy(false);
+    }
   };
 
+  const latency = result?.latency ?? result?.latencyMs;
+
   return (
-    <div className="nxs-provider" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span className={`nxs-dot ${p.configured ? 'ok' : ''}`} />
-        <div className="info">
-          <b>{p.label}{p.keyless && <span className="nxs-chip" style={{ marginInlineStart: 6 }}>free</span>}</b>
+    <div className={`nxs-provider${active ? ' active' : ''}`}>
+      <div className="nxs-provider-main">
+        <span className={`nxs-status-dot ${p.configured ? 'on' : ''}`} />
+        <div className="nxs-provider-info">
+          <div className="nxs-provider-title">
+            <b>{p.label}</b>
+            {(p.free || p.keyless) && <span className="nxs-tag">free</span>}
+            {p.vision && <span className="nxs-tag">vision</span>}
+            {active && <span className="nxs-status-pill ok">Selected</span>}
+          </div>
           <small>
-            {(p.models || []).join(' · ')}
-            {p.source === 'account' && ' · your key'}
-            {p.source === 'server' && ' · server key'}
-            {p.last4 && ` · ••••${p.last4}`}
+            {(p.models || []).slice(0, 3).join(' · ')}
+            {p.source === 'account' ? ' · your encrypted key' : p.source === 'server' ? ' · server key' : ''}
+            {p.last4 ? ` (••••${p.last4})` : ''}
           </small>
         </div>
-        <button className="nxs-btn sm" onClick={() => setOpen((v) => !v)}>{open ? 'Cancel' : p.configured ? 'Replace key' : 'Add key'}</button>
-        {p.configured && <button className="nxs-btn sm" onClick={test} disabled={busy}>{busy ? '…' : 'Test'}</button>}
-        {p.source === 'account' && <button className="nxs-btn sm danger" onClick={() => onRemove(p.id)}>Remove</button>}
-      </div>
-      {open && (
-        <div className="nxs-key-form">
-          <input className="nxs-input" type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder={`${p.label} API key`} spellCheck={false} />
-          <button className="nxs-btn sm primary" onClick={save} disabled={busy || key.trim().length < 8}>{busy ? 'Checking…' : 'Save & test'}</button>
+        <div className="nxs-provider-acts">
+          {p.configured && !active && (
+            <button type="button" className="nxs-mini-btn primary" onClick={() => onSelect(p)}>
+              Use
+            </button>
+          )}
+          {p.configured && (
+            <button type="button" className="nxs-mini-btn" onClick={test} disabled={busy}>
+              {busy ? '…' : 'Test'}
+            </button>
+          )}
+          {!p.free && !p.keyless && (
+            <button type="button" className="nxs-mini-btn" onClick={() => setOpen((v) => !v)}>
+              {open ? 'Cancel' : p.configured ? 'Key' : 'Add Key'}
+            </button>
+          )}
+          {p.source === 'account' && (
+            <button type="button" className="nxs-mini-btn danger" onClick={() => onRemove(p.id)}>
+              Remove
+            </button>
+          )}
         </div>
+      </div>
+
+      {open && (
+        <form className="nxs-key-form" onSubmit={save}>
+          <input
+            className="nxs-input"
+            type="password"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            placeholder={`Paste ${p.label} API key...`}
+            spellCheck={false}
+          />
+          <button type="submit" className="nxs-btn sm primary" disabled={busy || key.trim().length < 8}>
+            {busy ? 'Verifying…' : 'Save & Verify'}
+          </button>
+        </form>
       )}
+
       {result && (
-        <div style={{ marginTop: 7, fontSize: 11.5, color: result.ok ? 'var(--green)' : 'var(--red)' }}>
+        <div className={`nxs-probe-msg ${result.ok ? 'ok' : 'err'}`}>
           {result.ok
-            ? `✓ ${result.provider} answered with ${result.model} in ${result.latencyMs} ms`
-            : `✗ ${result.kind || 'failed'}: ${result.detail || 'no answer'}`}
+            ? `Verified · ${result.model || p.label}${latency ? ` (${latency}ms)` : ''}`
+            : `Failed · ${result.error || result.detail || result.kind || 'no response'}`}
         </div>
       )}
     </div>
@@ -61,171 +111,350 @@ function ProviderRow({ p, onSave, onRemove, onTest }) {
 
 export default function SettingsPanel() {
   const {
-    settingsOpen, setSettingsOpen, session, saveKey, removeKey, testModel,
-    connectIntegration, disconnectIntegration, notify, accounts, loadAccounts,
+    settingsOpen, setSettingsOpen, settingsTab, setSettingsTab,
+    session, boot, theme, setTheme,
+    modelPref, setModelPref,
+    saveKey, removeKey, testModel,
+    accounts, loadAccounts,
+    connectIntegration, connectOAuth, disconnectIntegration,
+    openDocsModal, notify,
   } = useStudio();
-  const [tab, setTab] = useState('models');
-  const [tokens, setTokens] = useState({ github: '', vercel: '' });
+
+  const [tokens, setTokens] = useState({ github: '', vercel: '', google: '' });
   const [busy, setBusy] = useState(null);
 
   if (!settingsOpen) return null;
+
+  const user = session?.user;
   const providers = session?.ai?.providers || [];
   const runtime = session?.runtime;
   const storage = session?.storage;
+  const oauth = session?.oauth || {};
 
-  const connect = async (provider) => {
+  const handleConnectToken = async (provider) => {
+    const val = String(tokens[provider] || '').trim();
+    if (val.length < 10) return;
     setBusy(provider);
     try {
-      await connectIntegration(provider, tokens[provider].trim());
+      await connectIntegration(provider, val);
       setTokens((t) => ({ ...t, [provider]: '' }));
-      notify(`${provider} connected`);
-    } catch (e) { notify(`${provider}: ${e.detail || e.code}`, 'error'); }
-    finally { setBusy(null); }
+      notify(`Connected ${provider}`, 'ok');
+    } catch (e) {
+      notify(`${provider}: ${e.detail || e.code}`, 'error');
+    } finally {
+      setBusy(null);
+    }
   };
 
-  return (
-    <div className="nxs-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setSettingsOpen(false); }}>
-      <div className="nxs-modal" role="dialog" aria-modal="true" aria-label="Studio settings">
-        <div className="nxs-modal-head">
-          <IconGear size={16} />
-          <b>Studio settings</b>
-          <button className="nxs-btn icon sm" onClick={() => setSettingsOpen(false)}><IconX size={14} /></button>
-        </div>
+  const handleOAuth = async (provider) => {
+    setBusy(`oauth:${provider}`);
+    try {
+      await connectOAuth(provider);
+    } catch (e) {
+      notify(e.detail || e.code || 'OAuth could not start', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
 
-        <div className="nxs-tabs" style={{ background: 'transparent', borderBottom: '1px solid var(--line)' }}>
-          {[['models', 'Models'], ['integrations', 'Integrations'], ['runtime', 'Runtime']].map(([id, label]) => (
-            <button key={id} className={`nxs-tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{label}</button>
+  const handleSignOut = () => {
+    setToken(null);
+    try { localStorage.removeItem('nx_me'); } catch { /* ignore */ }
+    setSettingsOpen(false);
+    boot();
+  };
+
+  const integrationCards = [
+    {
+      id: 'github',
+      title: 'GitHub',
+      icon: <IconGitHub size={16} />,
+      desc: 'Connect repositories, switch and create branches, read & commit files, and open pull requests.',
+      placeholder: 'GitHub Personal Access Token (ghp_... with repo scope)',
+      status: accounts?.github || session?.integrations?.github || { connected: false },
+      who: accounts?.github?.login ? `@${accounts.github.login}` : '',
+      oauthCfg: oauth.github,
+    },
+    {
+      id: 'google',
+      title: 'Google Drive & Google Docs',
+      icon: <span className="nxs-dual-ico"><IconDrive size={15} /><IconDoc size={15} /></span>,
+      desc: 'Browse and manage Google Drive files, read, create & edit real Google Docs, and export projects.',
+      placeholder: 'Google OAuth Access Token (drive & documents scopes)',
+      status: accounts?.google || { connected: false },
+      who: accounts?.google?.email || accounts?.google?.name || '',
+      oauthCfg: oauth.google,
+      extraAction: accounts?.google?.connected ? () => { setSettingsOpen(false); openDocsModal({ mode: 'docs' }); } : null,
+      extraLabel: 'Open Docs & Drive',
+    },
+    {
+      id: 'vercel',
+      title: 'Vercel',
+      icon: <IconVercel size={14} />,
+      desc: 'Deploy web projects to production or preview URLs and monitor real-time deployment status.',
+      placeholder: 'Vercel Access Token (vercel.com/account/tokens)',
+      status: accounts?.vercel || session?.integrations?.vercel || { connected: false },
+      who: accounts?.vercel?.username || '',
+      oauthCfg: oauth.vercel,
+    },
+  ];
+
+  return (
+    <div
+      className="nxs-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Settings"
+      onClick={() => setSettingsOpen(false)}
+    >
+      <div className="nxs-modal wide" onClick={(e) => e.stopPropagation()}>
+        <header className="nxs-modal-head">
+          <h2 className="nxs-serif">Settings</h2>
+          <button type="button" className="nxs-icon-btn" aria-label="Close settings" onClick={() => setSettingsOpen(false)}>
+            <IconX size={17} />
+          </button>
+        </header>
+
+        <div className="nxs-modal-tabs" role="tablist">
+          {[
+            ['account', 'Account'],
+            ['integrations', 'Integrations'],
+            ['models', 'Models'],
+            ['runtime', 'Runtime'],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={settingsTab === id}
+              className={`nxs-modal-tab${settingsTab === id ? ' active' : ''}`}
+              onClick={() => setSettingsTab(id)}
+            >
+              {label}
+            </button>
           ))}
         </div>
 
         <div className="nxs-modal-body">
-          {tab === 'models' && (
-            <>
-              <p className="nxs-muted" style={{ fontSize: 12.5, lineHeight: 1.7, marginTop: 0 }}>
-                The Studio talks to the model provider you connect here. Server keys (set on the deployment)
-                are used automatically; a key saved here belongs to your account only, encrypted at rest.
-                Order is OpenAI → Anthropic → Gemini → OpenRouter → the other providers → the free
-                fallback, and every failure is reported as it happens.
-              </p>
-              {providers.map((p) => (
-                <ProviderRow key={p.id} p={p} onSave={saveKey} onRemove={removeKey} onTest={testModel} />
-              ))}
-              <div className="nxs-card" style={{ marginTop: 12 }}>
-                <h4><IconSpark size={13} /> Custom gateway</h4>
-                <p style={{ margin: 0 }}>
-                  Point the Studio at any OpenAI-compatible server (Ollama, vLLM, LiteLLM) by setting
-                  <code className="nxs-mono"> STUDIO_AI_BASE_URL</code>,
-                  <code className="nxs-mono"> STUDIO_AI_KEY</code> and
-                  <code className="nxs-mono"> STUDIO_AI_MODEL</code> on the deployment.
-                </p>
+          {/* =========================== ACCOUNT TAB ========================= */}
+          {settingsTab === 'account' && (
+            <div className="nxs-settings-stack">
+              <div className="nxs-card">
+                <div className="nxs-account-card">
+                  <div className="nxs-account-avatar">
+                    {user?.avatarUrl
+                      ? <img src={user.avatarUrl} alt="" />
+                      : String(user?.fullName || user?.username || 'N').charAt(0).toUpperCase()}
+                  </div>
+                  <div className="nxs-account-meta">
+                    <strong>{user?.fullName || user?.username || 'NEXORA User'}</strong>
+                    <span>@{user?.username || 'user'}{session?.dev ? ' · Local Studio Workspace' : ''}</span>
+                  </div>
+                  {!session?.dev && (
+                    <button type="button" className="nxs-btn sm" onClick={handleSignOut}>
+                      <IconLogout size={13} /> Sign out
+                    </button>
+                  )}
+                </div>
               </div>
-            </>
+
+              <div className="nxs-card">
+                <h4>Appearance</h4>
+                <p>Choose NEXORA’s signature warm cream editorial canvas or low-light dark theme.</p>
+                <div className="nxs-theme-switch">
+                  <button
+                    type="button"
+                    className={`nxs-theme-opt${theme === 'cream' ? ' active' : ''}`}
+                    onClick={() => setTheme('cream')}
+                  >
+                    <IconSun size={15} />
+                    <span>Warm Cream</span>
+                    {theme === 'cream' && <IconCheck size={14} />}
+                  </button>
+                  <button
+                    type="button"
+                    className={`nxs-theme-opt${theme === 'dark' ? ' active' : ''}`}
+                    onClick={() => setTheme('dark')}
+                  >
+                    <IconMoon size={15} />
+                    <span>Warm Dark</span>
+                    {theme === 'dark' && <IconCheck size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="nxs-card">
+                <h4><IconSpark size={14} /> NEXORA Classic Assistant</h4>
+                <p>Switch to the classic NEXORA multi-tool assistant (voice, translation, image prompts) anytime.</p>
+                <button
+                  type="button"
+                  className="nxs-btn sm"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    window.dispatchEvent(new Event('nxs-open-chat'));
+                  }}
+                >
+                  Open Classic Assistant
+                </button>
+              </div>
+            </div>
           )}
 
-          {tab === 'integrations' && (
-            <>
-              {['github', 'vercel'].map((provider) => {
-                const st = accounts[provider] || session?.integrations?.[provider] || { connected: false };
+          {/* ======================== INTEGRATIONS TAB ======================= */}
+          {settingsTab === 'integrations' && (
+            <div className="nxs-settings-stack">
+              {integrationCards.map((c) => {
+                const isConn = Boolean(c.status?.connected);
+                const oauthOn = Boolean(c.oauthCfg?.configured);
                 return (
-                  <div className="nxs-card" key={provider}>
-                    <h4>
-                      <IconPlug size={13} /> {provider === 'github' ? 'GitHub' : 'Vercel'}
-                      <span className={`nxs-chip ${st.connected ? 'ok' : 'warn'}`} style={{ marginInlineStart: 'auto' }}>
-                        {st.connected
-                          ? `connected · ${st.login || st.username || 'account'}${st.source === 'server' ? ' (deployment key)' : ''}`
-                          : (st.error || 'not connected')}
+                  <div key={c.id} className="nxs-card">
+                    <div className="nxs-card-head">
+                      <h4>{c.icon} {c.title}</h4>
+                      <span className={`nxs-status-pill ${isConn ? 'ok' : 'off'}`}>
+                        {isConn ? `Connected${c.who ? ` · ${c.who}` : ''}` : 'Not connected'}
                       </span>
-                    </h4>
-                    <p>
-                      {provider === 'github'
-                        ? 'Used to create repositories and push commits from the Publish tab.'
-                        : 'Used to deploy the project and return a live URL.'}
-                    </p>
-                    {st.connected ? (
-                      <div className="row">
-                        <button className="nxs-btn sm" onClick={() => loadAccounts().then(() => notify('Connection verified', 'ok')).catch((e) => notify(e.detail || e.code, 'error'))}>
-                          Verify now
-                        </button>
-                        <button className="nxs-btn ghost sm" onClick={() => disconnectIntegration(provider)}>Disconnect</button>
-                        {provider === 'github' && Array.isArray(st.repos) && (
-                          <span className="nxs-faint" style={{ fontSize: 11 }}>{st.repos.length} recent repos reachable</span>
+                    </div>
+                    <p>{c.desc}</p>
+
+                    {isConn ? (
+                      <div className="nxs-row-gap wrap">
+                        {c.extraAction && (
+                          <button type="button" className="nxs-btn primary sm" onClick={c.extraAction}>
+                            {c.extraLabel}
+                          </button>
                         )}
-                        {provider === 'vercel' && Array.isArray(st.projects) && (
-                          <span className="nxs-faint" style={{ fontSize: 11 }}>{st.projects.length} projects reachable</span>
+                        <button
+                          type="button"
+                          className="nxs-btn sm"
+                          onClick={() => loadAccounts()
+                            .then(() => notify(`${c.title} verified`, 'ok'))
+                            .catch((e) => notify(e.detail || e.code, 'error'))}
+                        >
+                          <IconRefresh size={12} /> Verify
+                        </button>
+                        {c.status?.source !== 'server' && (
+                          <button type="button" className="nxs-btn sm ghost" onClick={() => disconnectIntegration(c.id)}>
+                            Disconnect
+                          </button>
                         )}
                       </div>
                     ) : (
-                      <div className="nxs-key-form">
-                        <input
-                          className="nxs-input"
-                          type="password"
-                          value={tokens[provider]}
-                          onChange={(e) => setTokens((t) => ({ ...t, [provider]: e.target.value }))}
-                          placeholder={provider === 'github' ? 'GitHub token (repo scope)' : 'Vercel access token'}
-                          spellCheck={false}
-                        />
-                        <button
-                          className="nxs-btn sm primary"
-                          disabled={busy === provider || tokens[provider].trim().length < 10}
-                          onClick={() => connect(provider)}
+                      <div className="nxs-connect-box">
+                        {oauthOn && (
+                          <button
+                            type="button"
+                            className="nxs-btn primary sm"
+                            disabled={busy === `oauth:${c.id}`}
+                            onClick={() => handleOAuth(c.id)}
+                          >
+                            {busy === `oauth:${c.id}` ? 'Opening OAuth…' : `Sign in with ${c.title} (OAuth)`}
+                          </button>
+                        )}
+                        <form
+                          className="nxs-key-form"
+                          onSubmit={(e) => { e.preventDefault(); handleConnectToken(c.id); }}
                         >
-                          {busy === provider ? 'Checking…' : 'Connect'}
-                        </button>
+                          <input
+                            className="nxs-input"
+                            type="password"
+                            value={tokens[c.id] || ''}
+                            onChange={(e) => setTokens((t) => ({ ...t, [c.id]: e.target.value }))}
+                            placeholder={c.placeholder}
+                            spellCheck={false}
+                          />
+                          <button
+                            type="submit"
+                            className={`nxs-btn sm${oauthOn ? '' : ' primary'}`}
+                            disabled={busy === c.id || (tokens[c.id] || '').trim().length < 10}
+                          >
+                            {busy === c.id ? 'Checking…' : 'Connect'}
+                          </button>
+                        </form>
+                        {!oauthOn && c.oauthCfg?.callbackUrl && (
+                          <details className="nxs-oauth-hint">
+                            <summary>Configure one-click OAuth app</summary>
+                            <div>
+                              Set <code className="mono">{c.oauthCfg.envHint}</code> on the server with callback URL{' '}
+                              <code className="mono">{c.oauthCfg.callbackUrl}</code>.
+                            </div>
+                          </details>
+                        )}
                       </div>
                     )}
                   </div>
                 );
               })}
-              <p className="nxs-faint" style={{ fontSize: 11.5, lineHeight: 1.7 }}>
-                Tokens are verified with a real API call before they are stored, and encrypted with the
-                deployment secret. They are never sent back to the browser.
+              <p className="nxs-footnote">
+                Every OAuth token and API key is verified against the real provider API, encrypted with AES-256-GCM at rest, and never returned to the browser.
               </p>
-            </>
+            </div>
           )}
 
-          {tab === 'runtime' && (
-            <>
-              <div className="nxs-card">
-                <h4><IconCheck size={13} /> Execution</h4>
-                <p style={{ marginBottom: 6 }}>{runtime?.note || 'Runtime information unavailable.'}</p>
-                <div className="nxs-result">
-                  engine: {runtime?.engine} · dev servers: {runtime?.canDevServer ? 'yes' : 'no'}
-                  {runtime?.workdir && <><br />workdir: {runtime.workdir}</>}
-                </div>
-              </div>
-              <div className="nxs-card">
-                <h4><IconCheck size={13} /> Storage</h4>
-                <div className="nxs-result">
-                  {storage?.label || 'unknown'} · {storage?.ok ? 'connected' : 'unavailable'}
-                  {storage?.error && <><br />{storage.error}</>}
-                </div>
-                <p style={{ marginTop: 8, marginBottom: 0 }}>
-                  Projects, chat history, revisions and runs are stored server-side and reload with the project.
+          {/* ============================ MODELS TAB ========================= */}
+          {settingsTab === 'models' && (
+            <div className="nxs-settings-stack">
+              <div className="nxs-models-intro">
+                <p>
+                  Connect API keys for your preferred AI models. Keys are encrypted per account and verified with a live probe.
                 </p>
+                {modelPref?.provider && (
+                  <button
+                    type="button"
+                    className="nxs-mini-btn"
+                    onClick={() => { setModelPref({ provider: '', model: '' }); notify('Using automatic model selection'); }}
+                  >
+                    Auto-select
+                  </button>
+                )}
               </div>
-              <div className="nxs-card">
-                <h4><IconSpark size={13} /> NEXORA assistant</h4>
-                <p style={{ marginBottom: 8 }}>The general NEXORA chat (writing, research, documents) is one click away.</p>
-                <button className="nxs-btn sm" onClick={() => { setSettingsOpen(false); window.dispatchEvent(new Event('nxs-open-chat')); }}>
-                  Open NEXORA Chat
-                </button>
-              </div>
-              {session?.dev && (
-                <div className="nxs-card" style={{ borderColor: 'rgba(251,191,36,.3)' }}>
-                  <h4><IconWarn size={13} /> Local workspace</h4>
-                  <p style={{ margin: 0 }}>
-                    This is the local Studio server (<code className="nxs-mono">npm run studio</code>): a single-user
-                    workspace with SQLite storage and the local executor. Sign in with a NEXORA account to use the
-                    deployed instance instead.
-                  </p>
-                </div>
-              )}
-            </>
+              {providers.map((p) => (
+                <ProviderRow
+                  key={p.id}
+                  p={p}
+                  active={modelPref?.provider === p.id}
+                  onSelect={(chosen) => {
+                    setModelPref({ provider: chosen.id, model: chosen.defaultModel || chosen.models?.[0] || '' });
+                    notify(`Selected ${chosen.label}`, 'ok');
+                  }}
+                  onSave={saveKey}
+                  onRemove={removeKey}
+                  onTest={testModel}
+                />
+              ))}
+            </div>
           )}
-        </div>
 
-        <div className="nxs-modal-foot">
-          <button className="nxs-btn" onClick={() => setSettingsOpen(false)}>Done</button>
+          {/* =========================== RUNTIME TAB ========================= */}
+          {settingsTab === 'runtime' && (
+            <div className="nxs-settings-stack">
+              <div className="nxs-card">
+                <div className="nxs-card-head">
+                  <h4>Code Execution Sandbox</h4>
+                  <span className={`nxs-status-pill ${runtime?.ready ? 'ok' : 'off'}`}>
+                    {runtime?.engine || 'preview-only'}
+                  </span>
+                </div>
+                <p>{runtime?.note || 'In-browser esbuild bundler handles instant React/HTML/CSS previews.'}</p>
+                <div className="nxs-result mono">
+                  Engine: {runtime?.engine || 'none'} · Dev server: {runtime?.canDevServer ? 'enabled' : 'browser preview'}
+                  {runtime?.workdir ? ` · ${runtime.workdir}` : ''}
+                </div>
+              </div>
+
+              <div className="nxs-card">
+                <div className="nxs-card-head">
+                  <h4>Database Storage</h4>
+                  <span className={`nxs-status-pill ${storage?.ok ? 'ok' : 'err'}`}>
+                    {storage?.ok ? 'Connected' : 'Error'}
+                  </span>
+                </div>
+                <p>All conversations, projects, archived chats, revisions, deployments, and model metrics persist server-side.</p>
+                <div className="nxs-result mono">
+                  {storage?.label || 'Storage'}{storage?.hint ? ` — ${storage.hint}` : ''}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
