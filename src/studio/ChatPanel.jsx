@@ -3,19 +3,13 @@ import Markdown from '../ai/Markdown.jsx';
 import { useStudio } from './state.jsx';
 import { IconSend, IconStop, IconSpark, IconFile, IconLayers, IconWarn, IconPlus, IconX } from './icons.jsx';
 import { ACCEPTED, IMAGE_ERRORS, MAX_IMAGES, prepareImage } from './images.js';
+import AgentWindow from './AgentWindow.jsx';
 
 const IDEAS = [
   { title: 'Personal dashboard', prompt: 'Build a personal finance dashboard: monthly balance cards, a bar chart of spending by category, and a transactions table with filters. Dark theme, Arabic RTL.' },
   { title: 'Landing page', prompt: 'Build a landing page for a SaaS product called Nova with hero, features grid, pricing table and a footer. Modern, responsive, smooth scroll animations.' },
   { title: 'Todo + kanban', prompt: 'Build a kanban task board with three columns, drag and drop, local persistence, task creation and inline editing.' },
   { title: 'React app', prompt: 'Build a React notes app with search, tags, and markdown preview. Use React with src/App.jsx and clean CSS.' },
-];
-
-const STEPS = [
-  { id: 'plan', label: 'Plan' },
-  { id: 'create', label: 'Create' },
-  { id: 'edit', label: 'Edit' },
-  { id: 'fix', label: 'Fix' },
 ];
 
 function FileChip({ path, op, onOpen }) {
@@ -39,6 +33,7 @@ export default function ChatPanel() {
   const [picking, setPicking] = useState(false);
   const [docs, setDocs] = useState([]);
   const [driveOpen, setDriveOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [driveBusy, setDriveBusy] = useState(false);
   const drive = accounts?.google;
   const driveFiles = Array.isArray(drive?.files) ? drive.files : [];
@@ -102,16 +97,13 @@ export default function ChatPanel() {
   const hasMessages = messages.length > 0 || agent.running || agent.error;
   const primary = session?.ai?.primary;
   const aiConfigured = session?.ai?.configured;
-  const activeSteps = agent.running
-    ? (agent.step === 'create' || agent.step === 'continue' ? ['plan', 'create', 'continue'] : [agent.step || 'plan'])
-    : [];
 
   return (
     <section className="nxs-pane nxs-chat" aria-label="Chat">
       <div className="nxs-chat-scroll" ref={scrollRef}>
         <div className="nxs-chat-inner">
           {!hasMessages && (
-            <div className="nxs-hero" style={{ flex: 'none' }}>
+            <div className="nxs-hero">
               <div className="nxs-hero-inner">
                 <h1>What do you want to <span>build</span>?</h1>
                 <p>
@@ -143,13 +135,16 @@ export default function ChatPanel() {
             const ops = Array.isArray(m.meta?.ops) ? m.meta.ops : [];
             return (
               <article key={m.id} className={`nxs-msg ${role}`}>
-                <span className="who">{role === 'agent' ? 'N' : role === 'user' ? 'You' : '!'}</span>
+                {role !== 'user' && (
+                  <span className="who" aria-hidden="true">{role === 'agent' ? 'N' : '!'}</span>
+                )}
                 <div className="bubble">
-                  <div className="role">
-                    <span>{role === 'agent' ? 'NEXORA' : role === 'user' ? 'You' : 'Error'}</span>
-                    {m.meta?.provider && <span className="nxs-chip">{m.meta.provider}{m.meta.model ? ` · ${String(m.meta.model).slice(0, 22)}` : ''}</span>}
-                    {m.createdAt && <span className="nxs-faint" style={{ fontSize: 10 }}>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
-                  </div>
+                  {role === 'agent' && (
+                    <div className="role">
+                      <span>NEXORA</span>
+                      {m.meta?.provider && <span className="nxs-chip">{m.meta.provider}{m.meta.model ? ` · ${String(m.meta.model).slice(0, 22)}` : ''}</span>}
+                    </div>
+                  )}
                   {role === 'user'
                     ? (
                       <div className="text">
@@ -179,45 +174,16 @@ export default function ChatPanel() {
                       {ops.map((p) => <FileChip key={p} path={p} op="write" onOpen={openFile} />)}
                     </div>
                   )}
+                  {role === 'agent' && m.createdAt && (
+                    <div className="nxs-msg-foot">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                  )}
                 </div>
               </article>
             );
           })}
 
-          {agent.running && (
-            <article className="nxs-msg agent">
-              <span className="who">N</span>
-              <div className="bubble">
-                <div className="role"><span>NEXORA</span><span className={`nxs-chip ${agent.step === 'fix' ? 'warn' : 'violet'}`}>{agent.step || 'working'}</span></div>
-                <div className="nxs-live">
-                  <div className="nxs-live-head">
-                    <span className="spin" />
-                    <span>{
-                      agent.step === 'plan' ? 'Planning the build…'
-                        : agent.step === 'create' || agent.step === 'continue'
-                          ? `${agent.step === 'continue' ? 'Continuing the build' : 'Writing files'}${agent.round ? ` · round ${agent.round}` : ''}…`
-                          : agent.step === 'edit' ? 'Editing your project…' : 'Investigating the failure…'
-                    }</span>
-                  </div>
-                  <div className="nxs-live-steps">
-                    {STEPS.map((s) => (
-                      <span key={s.id} className={`nxs-step ${activeSteps.includes(s.id) ? 'active' : ''}`}>{s.label}</span>
-                    ))}
-                  </div>
-                  {agent.activity.length > 0 && (
-                    <div className="nxs-live-files">
-                      {agent.activity.slice(-10).map((a, i) => (
-                        a.kind === 'file' || a.kind === 'delete'
-                          ? <FileChip key={`${a.path}-${i}`} path={a.path} op={a.kind} onOpen={openFile} />
-                          : <span key={`${a.kind}-${i}`} className="nxs-chip">{a.kind === 'plan' ? `plan: ${a.title || 'ready'}` : a.text || a.kind}</span>
-                      ))}
-                    </div>
-                  )}
-                  {agent.prose && <div className="nxs-live-prose">{agent.prose.slice(-600)}</div>}
-                </div>
-              </div>
-            </article>
-          )}
+          {/* the run, inline in the conversation — exactly what is happening, no floating window */}
+          <AgentWindow />
 
           {!agent.running && (agent.interrupted || agent.pending > 0) && (
             <article className="nxs-msg agent">
@@ -270,6 +236,7 @@ export default function ChatPanel() {
             onChange={(e) => { addShots(e.target.files); e.target.value = ''; }}
             aria-label="Attach images"
           />
+
           {(shots.length > 0 || docs.length > 0) && (
             <div className="nxs-attach-row">
               {docs.map((doc) => (
@@ -301,10 +268,11 @@ export default function ChatPanel() {
               ))}
             </div>
           )}
+
           <textarea
             ref={areaRef}
             value={text}
-            placeholder={project ? 'Ask for a change, a fix, or the next feature…' : 'Describe the app you want to build…'}
+            placeholder={project ? 'Ask for a change, a new feature, or a fix…' : 'Describe the app you want to build…'}
             onChange={(e) => setText(e.target.value)}
             onFocus={() => setFocus(true)}
             onBlur={() => setFocus(false)}
@@ -314,12 +282,13 @@ export default function ChatPanel() {
             rows={1}
             aria-label="Message NEXORA Studio"
           />
+
           {driveOpen && drive?.connected && (
             <div className="nxs-drive-pop" role="dialog" aria-label="Google Drive documents">
               <div className="nxs-drive-head">
                 <b>Google Drive</b>
                 <span className="nxs-faint">{drive.email || drive.name || 'connected'}</span>
-                <button className="nxs-btn ghost sm" onClick={() => setDriveOpen(false)} aria-label="Close Drive picker"><IconX size={10} /></button>
+                <button className="nxs-icon-btn" onClick={() => setDriveOpen(false)} aria-label="Close Drive picker"><IconX size={12} /></button>
               </div>
               {driveFiles.length === 0 && <p className="nxs-faint" style={{ margin: '6px 2px' }}>No documents were listed for this account.</p>}
               {driveFiles.map((f) => (
@@ -348,35 +317,43 @@ export default function ChatPanel() {
               ))}
             </div>
           )}
+
           <div className="nxs-composer-bar">
-            {primary ? (
-              <span className="nxs-chip violet" title={primary.source === 'account' ? 'from your account key' : 'from the server environment'}>
-                <IconSpark size={11} /> {primary.label} · {String(primary.model || '').slice(0, 24)}
-              </span>
-            ) : (
-              <button className="nxs-chip warn" onClick={() => setSettingsOpen(true)} title="Connect a model provider">
-                <IconWarn size={11} /> no model connected
+            <div className="nxs-add">
+              <button
+                type="button"
+                className={`nxs-icon-btn ${menuOpen ? 'on' : ''}`}
+                aria-label="Add context"
+                aria-expanded={menuOpen ? 'true' : 'false'}
+                title="Add a screenshot or a document"
+                onClick={() => setMenuOpen((v) => !v)}
+                disabled={agent.running}
+              >
+                <IconPlus size={16} />
               </button>
-            )}
-            <button
-              type="button"
-              className="nxs-chip"
-              onClick={() => fileRef.current && fileRef.current.click()}
-              disabled={agent.running || shots.length >= MAX_IMAGES}
-              title="Attach a screenshot or design"
-            >
-              <IconPlus size={11} /> {picking ? 'reading…' : 'image'}
-            </button>
-            <button
-              type="button"
-              className="nxs-chip"
-              aria-label="Attach a Drive document"
-              onClick={() => setDriveOpen((v) => !v)}
-              disabled={agent.running || !drive?.connected || docs.length >= 3}
-              title={drive?.connected ? 'Use a Google Doc as context' : 'Connect Google Drive in Publish → Settings'}
-            >
-              <IconFile size={11} /> {driveBusy ? 'reading…' : 'Drive'}
-            </button>
+              {menuOpen && !agent.running && (
+                <div className="nxs-add-menu" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setMenuOpen(false); if (fileRef.current) fileRef.current.click(); }}
+                    disabled={shots.length >= MAX_IMAGES}
+                  >
+                    <IconPlus size={12} /> Image or screenshot
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-label="Attach a Drive document"
+                    onClick={() => { setMenuOpen(false); setDriveOpen(true); }}
+                    disabled={!drive?.connected || docs.length >= 3}
+                  >
+                    <IconFile size={12} /> Google Drive document
+                  </button>
+                </div>
+              )}
+            </div>
+
             <label className="nxs-mode" title="Build mode — it really changes how the agent works">
               <IconSpark size={11} />
               <select
@@ -389,19 +366,32 @@ export default function ChatPanel() {
                 ))}
               </select>
             </label>
-            {project && (
-              <span className="nxs-chip"><IconLayers size={11} /> {Object.keys(project.files || {}).length} files</span>
+
+            <span className="hint">Enter to send · Shift+Enter for a new line</span>
+
+            {primary && (
+              <span className="nxs-chip violet nxs-model-chip" title={primary.source === 'account' ? 'from your account key' : 'from the server environment'}>
+                <IconSpark size={11} /> {String(primary.model || primary.label || '').slice(0, 22)}
+              </span>
             )}
-            {!agent.running && agent.pending > 0 && (
-              <button className="nxs-chip warn" onClick={() => resumeBuild()} title="Continue the interrupted build">
-                <IconWarn size={11} /> {agent.pending} pending · continue
+            {!primary && !booting && (
+              <button className="nxs-chip warn" onClick={() => setSettingsOpen(true)} title="Connect a model provider">
+                <IconWarn size={11} /> no model
               </button>
             )}
-            <span className="hint">Enter to send · Shift+Enter newline</span>
+
             {agent.running ? (
-              <button className="nxs-send stop" onClick={stopAgent} title="Stop"><IconStop size={14} /></button>
+              <button className="nxs-send stop" onClick={stopAgent} title="Stop" aria-label="Stop"><IconStop size={14} /></button>
             ) : (
-              <button className="nxs-send" onClick={() => submit()} disabled={!text.trim() && !shots.length && !docs.length} title="Send"><IconSend size={15} /></button>
+              <button
+                className="nxs-send"
+                onClick={() => submit()}
+                disabled={!text.trim() && !shots.length && !docs.length}
+                title="Send"
+                aria-label="Send"
+              >
+                <IconSend size={15} />
+              </button>
             )}
           </div>
         </div>

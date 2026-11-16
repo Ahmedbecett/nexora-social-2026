@@ -51,10 +51,21 @@ export function StudioProvider({ children }) {
   const [savedAt, setSavedAt] = useState(null);
 
   /* --------------------------------- ui ---------------------------------- */
-  const [tab, setTab] = useState('preview');
+  const [tab, setTabState] = useState('preview');
+  /* the build surfaces (code, preview, terminal, publish) live in one sheet that
+     opens over the conversation — never a permanent column */
+  const [panelOpen, setPanelOpen] = useState(false);
+  const closePanel = useCallback(() => setPanelOpen(false), []);
+  const setTab = useCallback((id) => {
+    if (typeof id === 'function') { setTabState(id); return; }
+    if (!id || id === 'chat') { setPanelOpen(false); return; }
+    setTabState(id);
+    setPanelOpen(true);
+  }, []);
   const [device, setDevice] = useState('responsive');
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  /* the project list is a sidebar on a wide screen and a drawer on a phone */
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1280);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -378,8 +389,8 @@ export function StudioProvider({ children }) {
         break;
       case 'done':
         if (data.project && !data.failed) {
-          /* like Arena: the moment the build lands, the live preview takes over */
-          setTab((t) => (t === 'chat' ? 'preview' : t));
+          /* like Arena: the moment the build lands, the live result opens */
+          setTab('preview');
         }
         if (data.project) {
           setProject((prev) => ({ ...(prev || {}), ...data.project }));
@@ -958,7 +969,8 @@ export function StudioProvider({ children }) {
     session, booting, bootError, boot, refreshSession,
     projects, project, messages, revisions, deployments, files,
     openFiles, setOpenFiles, activeFile, setActiveFile, dirty, saving, savedAt,
-    tab, setTab, device, setDevice, settingsOpen, setSettingsOpen, sidebarOpen, setSidebarOpen, paletteOpen, setPaletteOpen,
+    tab, setTab, panelOpen, setPanelOpen, closePanel,
+    device, setDevice, settingsOpen, setSettingsOpen, sidebarOpen, setSidebarOpen, paletteOpen, setPaletteOpen,
     agent, terminal, toast, notify,
     previewMode, switchPreview, devServer, startDev, stopDev, previewNonce, setPreviewNonce,
     consoleEntries, logConsole,
@@ -972,6 +984,7 @@ export function StudioProvider({ children }) {
   }), [
     session, booting, bootError, boot, refreshSession, projects, project, messages, revisions, deployments, files,
     openFiles, activeFile, dirty, saving, savedAt, tab, device, settingsOpen, sidebarOpen, paletteOpen, agent, terminal, toast, notify,
+    panelOpen, setPanelOpen, closePanel,
     previewMode, switchPreview, devServer, startDev, stopDev, previewNonce, consoleEntries, logConsole,
     createProject, openProject, deleteProject, renameProject, loadProjects, writeFile, addFile, removeFile, renameFile,
     saveNow, restoreRevision, persistFiles, send, stopAgent, fixWithAI, runTerminal, clearTerminal,

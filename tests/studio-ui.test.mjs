@@ -704,10 +704,13 @@ test('a Google Doc becomes build context and the project can be saved back to Dr
     root.render(React.createElement(StudioApp));
     assert.ok(await until(() => document.body.textContent.includes('NEXORA')));
 
-    /* open the Drive picker and attach the doc */
-    const chip = await until(() => document.querySelector('button[aria-label="Attach a Drive document"]'), 6000);
-    const driveChip = document.querySelector('button[aria-label="Attach a Drive document"]');
-    assert.ok(chip && driveChip, 'the Drive chip is in the composer');
+    /* open the composer menu, then the Drive picker, and attach the doc */
+    assert.ok(await until(() => document.querySelector('button[aria-label="Add context"]'), 6000), 'the add menu is in the composer');
+    document.querySelector('button[aria-label="Add context"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    const driveChip = await until(() => document.querySelector('button[aria-label="Attach a Drive document"]'), 3000)
+      ? document.querySelector('button[aria-label="Attach a Drive document"]')
+      : null;
+    assert.ok(driveChip, 'the Drive entry is in the add menu');
     driveChip.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 
     assert.ok(await until(() => document.querySelector('.nxs-drive-pop')), 'the picker lists the account files');
@@ -742,6 +745,49 @@ test('a Google Doc becomes build context and the project can be saved back to Dr
     const exported = bodies.filter((b) => b.url.includes('/api/studio/drive/export')).pop();
     assert.equal(exported.body.as, 'doc');
     assert.ok(await until(() => /Saved to Drive|Counter demo\.txt/i.test(document.body.textContent)), 'the save is reported');
+    assert.deepEqual(errors, [], 'no React or runtime errors were reported');
+  } finally {
+    root.unmount();
+  }
+});
+
+test('the shell is a conversation: the build and the projects open over it, Escape closes them', async () => {
+  mode = 'existing';
+  errors.length = 0;
+  const window = installDom();
+  installFetch();
+  const { StudioApp } = await bundleApp();
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(document.getElementById('root'));
+  try {
+    root.render(React.createElement(StudioApp));
+    assert.ok(await until(() => document.querySelector('textarea[aria-label="Message NEXORA Studio"]')), 'the composer is up');
+
+    const sheet = await until(() => document.querySelector('.nxs-workspace'), 4000) ? document.querySelector('.nxs-workspace') : null;
+    assert.ok(sheet, 'the build surface exists');
+    assert.ok(!sheet.classList.contains('open'), 'but it does not take a permanent column');
+
+    /* the header opens it */
+    const openBuild = await until(() => document.querySelector('.nxs-artifact-btn'), 4000) ? document.querySelector('.nxs-artifact-btn') : null;
+    assert.ok(openBuild, 'the header offers the build');
+    openBuild.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    assert.ok(await until(() => document.querySelector('.nxs-workspace.open')), 'the build sheet opens over the conversation');
+    assert.ok(await until(() => document.querySelector('iframe.nxs-frame')), 'and shows the live preview');
+
+    /* Escape backs out */
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.ok(await until(() => !document.querySelector('.nxs-workspace.open')), 'Escape closes the sheet');
+
+    /* the projects drawer */
+    const menu = document.querySelector('button[aria-label="Projects"]');
+    assert.ok(menu, 'the header has a projects button');
+    assert.ok(!document.querySelector('.nxs-projects.open'), 'the drawer starts closed');
+    menu.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    assert.ok(await until(() => document.querySelector('.nxs-projects.open')), 'the drawer opens');
+    window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.ok(await until(() => !document.querySelector('.nxs-projects.open')), 'Escape closes the drawer too');
+
     assert.deepEqual(errors, [], 'no React or runtime errors were reported');
   } finally {
     root.unmount();

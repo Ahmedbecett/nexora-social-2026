@@ -7,8 +7,8 @@ import Workspace from './Workspace.jsx';
 import AgentWindow from './AgentWindow.jsx';
 import SettingsPanel from './SettingsPanel.jsx';
 import {
-  IconPlus, IconGear, IconSearch, IconSpark, IconSave, IconRocket, IconCommand,
-  IconEye, IconCode, IconTerminal, IconPlay, IconLayers, IconWarn, IconRefresh,
+  IconPlus, IconGear, IconSpark, IconSave, IconRocket, IconCommand,
+  IconEye, IconCode, IconTerminal, IconPlay, IconLayers, IconWarn, IconRefresh, IconMenu, IconX,
 } from './icons.jsx';
 import './studio.css';
 
@@ -156,8 +156,11 @@ function Palette() {
 }
 
 /* ------------------------------- topbar ---------------------------------- */
-function TopBar({ onOpenProjects }) {
-  const { project, renameProject, createProject, setSettingsOpen, session, dirty, saving } = useStudio();
+function TopBar() {
+  const {
+    project, renameProject, createProject, setSettingsOpen, session, dirty, saving,
+    sidebarOpen, setSidebarOpen, panelOpen, setPanelOpen, tab, files,
+  } = useStudio();
   const [name, setName] = useState(project?.name || '');
   useEffect(() => { setName(project?.name || ''); }, [project?.id, project?.name]);
 
@@ -166,11 +169,24 @@ function TopBar({ onOpenProjects }) {
     if (project && next && next !== project.name) renameProject(project.id, next);
   };
 
+  const fileCount = Object.keys(files || {}).length;
+  const state = saving ? 'saving' : Object.keys(dirty || {}).length ? 'editing' : 'saved';
+
   return (
     <header className="nxs-top">
-      <button className="nxs-brand" title="Projects" onClick={onOpenProjects} style={{ background: 'none' }}>
+      <button
+        className="nxs-icon-btn"
+        aria-label="Projects"
+        aria-expanded={sidebarOpen ? 'true' : 'false'}
+        title="Projects"
+        onClick={() => { setSidebarOpen(!sidebarOpen); if (!sidebarOpen) setPanelOpen(false); }}
+      >
+        <IconMenu size={15} />
+      </button>
+
+      <button className="nxs-brand" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))} title="Command palette (Ctrl/⌘ K)">
         <span className="nxs-mark">N</span>
-        <span style={{ textAlign: 'start' }}>
+        <span className="nxs-brand-text">
           <b>NEXORA</b>
           <small>STUDIO</small>
         </span>
@@ -178,25 +194,40 @@ function TopBar({ onOpenProjects }) {
 
       <div className="nxs-proj-title">
         {project ? (
-          <>
-            <input value={name} onChange={(e) => setName(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} aria-label="Project name" />
-            <span className="nxs-chip hide-sm">{STACK_LABEL[project.stack] || project.stack}</span>
-            <span className={`nxs-chip ${saving ? 'warn' : Object.keys(dirty || {}).length ? 'warn' : 'ok'} hide-sm`}>
-              {saving ? 'saving' : Object.keys(dirty || {}).length ? 'editing' : 'saved'}
-            </span>
-          </>
-        ) : <span className="nxs-chip">new workspace</span>}
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            aria-label="Project name"
+            placeholder="Project name"
+          />
+        ) : <span className="nxs-faint">New project</span>}
       </div>
 
       <div className="nxs-top-actions">
-        <button className="nxs-btn sm hide-sm" onClick={() => createProject({})} title="New project">
-          <IconPlus size={12} /> New
+        {project && (
+          <span className={`nxs-status ${state === 'saved' ? 'ok' : 'warn'}`} title={state === 'saved' ? 'Everything is saved' : 'Changes are being saved'}>
+            <span className="nxs-dot" /> <span className="nxs-status-text">{state}</span>
+          </span>
+        )}
+        {project && fileCount > 0 && (
+          <button
+            className={`nxs-artifact-btn ${panelOpen ? 'on' : ''}`}
+            onClick={() => setPanelOpen(!panelOpen)}
+            aria-expanded={panelOpen ? 'true' : 'false'}
+            title={panelOpen ? 'Back to the conversation' : 'Open the build'}
+          >
+            {tab === 'code' ? <IconCode size={13} /> : tab === 'terminal' ? <IconTerminal size={13} /> : tab === 'publish' ? <IconRocket size={13} /> : <IconEye size={13} />}
+            <span>{tab === 'code' ? 'Code' : tab === 'terminal' ? 'Terminal' : tab === 'publish' ? 'Publish' : 'Preview'}</span>
+            <span className="nxs-artifact-count">{fileCount}</span>
+          </button>
+        )}
+        <button className="nxs-icon-btn hide-mobile" onClick={() => createProject({})} title="New project" aria-label="New project">
+          <IconPlus size={15} />
         </button>
-        <button className="nxs-btn sm hide-sm" onClick={() => setSettingsOpen(true)} title="Settings">
-          <IconGear size={13} /> Settings
-        </button>
-        <button className="nxs-btn sm" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))} title="Command palette (Ctrl+K)">
-          <IconCommand size={13} />
+        <button className="nxs-icon-btn" onClick={() => setSettingsOpen(true)} title="Settings" aria-label="Settings">
+          <IconGear size={15} />
         </button>
         <span className="nxs-avatar" title={session?.user?.username || 'workspace'}>
           {session?.user?.avatarUrl
@@ -211,17 +242,20 @@ function TopBar({ onOpenProjects }) {
 /* ------------------------------- shell ----------------------------------- */
 function Shell() {
   const {
-    booting, bootError, boot, session, project, sidebarOpen, setSidebarOpen,
-    settingsOpen, toast, setSettingsOpen,
+    booting, bootError, boot, project, sidebarOpen, setSidebarOpen,
+    settingsOpen, toast, panelOpen, closePanel,
   } = useStudio();
-  const [mobile, setMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 980 : false));
-  const [mobileView, setMobileView] = useState('chat');
 
+  /* Escape backs out of whatever is open, like the assistant's panels */
   useEffect(() => {
-    const onResize = () => setMobile(window.innerWidth <= 980);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (panelOpen) closePanel();
+      else if (sidebarOpen) setSidebarOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [panelOpen, closePanel, sidebarOpen, setSidebarOpen]);
 
   /* Android and iOS do not all resize the layout viewport when the keyboard
      opens; measuring it keeps the composer above the keyboard everywhere. */
@@ -274,32 +308,26 @@ function Shell() {
   }
 
   return (
-    <div className="nxs">
-      <TopBar onOpenProjects={() => setSidebarOpen(!sidebarOpen)} />
-      <div
-        className={`nxs-body ${sidebarOpen ? '' : 'no-sidebar'} ${project ? '' : 'no-project'}`}
-        data-mobile={mobileView}
-      >
-        {sidebarOpen && <ProjectsPanel />}
+    <div className={`nxs ${panelOpen ? 'has-panel' : ''}`}>
+      <TopBar />
+      <div className="nxs-body">
         <ChatPanel />
-        {project && <Workspace onOpenSidebar={() => setSidebarOpen(!sidebarOpen)} />}
       </div>
 
-      {mobile && (
-        <div className="nxs-mobile-nav">
-          <button className={mobileView === 'chat' ? 'on' : ''} onClick={() => setMobileView('chat')}>
-            <IconSpark size={13} /> Chat
-          </button>
-          <button className={mobileView === 'workspace' ? 'on' : ''} onClick={() => setMobileView('workspace')}>
-            <IconCode size={13} /> Build
-          </button>
-          <button onClick={() => setSidebarOpen(!sidebarOpen)}>
-            <IconLayers size={13} /> Projects
-          </button>
-        </div>
-      )}
+      {project && <Workspace />}
 
-      <AgentWindow />
+      <ProjectsPanel />
+      <div
+        className={`nxs-scrim sidebar ${sidebarOpen ? 'on' : ''}`}
+        aria-hidden={sidebarOpen ? 'false' : 'true'}
+        onClick={() => setSidebarOpen(false)}
+      />
+      <div
+        className={`nxs-scrim panel ${panelOpen ? 'on' : ''}`}
+        aria-hidden={panelOpen ? 'false' : 'true'}
+        onClick={() => closePanel()}
+      />
+
       {settingsOpen && <SettingsPanel />}
       <Palette />
       {toast && <div className={`nxs-toast ${toast.tone}`}>{toast.text}</div>}

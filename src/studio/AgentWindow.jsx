@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStudio } from './state.jsx';
-import { IconCheck, IconCode, IconEye, IconFile, IconSpark, IconStop, IconWarn, IconX } from './icons.jsx';
+import { IconCheck, IconCode, IconEye, IconFile, IconSpark, IconStop, IconWarn } from './icons.jsx';
 
 /* ============================================================================
    The running window
@@ -11,8 +11,8 @@ import { IconCheck, IconCode, IconEye, IconFile, IconSpark, IconStop, IconWarn, 
    file being written (streamed by the server while the model is still typing),
    and every file as it lands.
 
-   Desktop: a floating card in the bottom-inline-end corner.
-   Phones:  a compact sheet pinned under the top bar, never over the composer.
+   It is part of the conversation — the card sits where the answer is being
+   written, collapses when the run ends, and never floats over the composer.
    ============================================================================ */
 
 const STEP_TEXT = {
@@ -25,18 +25,13 @@ const STEP_TEXT = {
 
 export default function AgentWindow() {
   const { agent, project, files, setTab, setActiveFile, stopAgent } = useStudio();
-  const [hidden, setHidden] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const codeRef = useRef(null);
 
-  /* a run opens the window; a finished run closes it after a short beat */
+  /* a new run re-opens the card, a finished one folds it down to the summary */
   useEffect(() => {
-    if (agent.running) { setHidden(false); setCollapsed(false); return undefined; }
-    if (!agent.started) return undefined;
-    const hold = agent.error || agent.interrupted || agent.pending > 0 ? 60_000 : 4_500;
-    const t = setTimeout(() => setHidden(true), hold);
-    return () => clearTimeout(t);
-  }, [agent.running, agent.started, agent.error, agent.interrupted, agent.pending]);
+    if (agent.running) setCollapsed(false);
+  }, [agent.running, agent.started]);
 
   /* keep the streamed code in view */
   useEffect(() => {
@@ -56,7 +51,7 @@ export default function AgentWindow() {
   const typing = agent.typing;
   const pct = planned ? Math.min(100, Math.round((plannedWritten / planned) * 100)) : null;
 
-  if (hidden) return null;
+  if (!agent.started && !agent.running) return null;
 
   const title = agent.running
     ? (STEP_TEXT[agent.step] || 'Working')
@@ -83,10 +78,9 @@ export default function AgentWindow() {
         {!agent.running && !agent.error && (
           <span className="nxs-chip ok"><IconCheck size={10} /> {written.length} files</span>
         )}
-        <button className="nxs-btn ghost sm" onClick={() => setCollapsed((v) => !v)} title={collapsed ? 'Expand' : 'Collapse'}>
-          {collapsed ? '▴' : '▾'}
+        <button className="nxs-icon-btn" onClick={() => setCollapsed((v) => !v)} title={collapsed ? 'Show the details' : 'Hide the details'} aria-label={collapsed ? 'Expand activity' : 'Collapse activity'}>
+          <span className="nxs-caret">{collapsed ? '▸' : '▾'}</span>
         </button>
-        <button className="nxs-btn ghost sm" onClick={() => setHidden(true)} title="Hide"><IconX size={12} /></button>
       </header>
 
       {!collapsed && (
@@ -98,7 +92,7 @@ export default function AgentWindow() {
           )}
 
           <div className="nxs-aw-body">
-            {typing ? (
+            {typing && (
               <div className="nxs-aw-code">
                 <div className="nxs-aw-code-head">
                   <IconFile size={11} /> <code>{typing.path}</code>
@@ -106,15 +100,16 @@ export default function AgentWindow() {
                 </div>
                 <pre ref={codeRef}>{typing.text}</pre>
               </div>
-            ) : written.length ? (
+            )}
+            {written.length ? (
               <div className="nxs-aw-files">
                 {written.slice(-8).reverse().map((a) => (
                   <button key={`${a.path}-${a.at}`} className="nxs-aw-file" onClick={() => openFile(a.path)} title="Open in the editor">
-                    <IconFile size={11} /><span>{a.path}</span>
+                    <IconCheck size={11} /><span>{a.path}</span>
                   </button>
                 ))}
               </div>
-            ) : (
+            ) : !typing && (
               <div className="nxs-aw-idle">
                 <IconSpark size={13} />
                 <span>{agent.running ? 'Reading the request and planning the files…' : 'Nothing written yet.'}</span>
