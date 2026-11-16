@@ -25,6 +25,8 @@ function cleanMeta(raw, base = {}) {
   if (typeof src.vercelProjectName === 'string') out.vercelProjectName = src.vercelProjectName.trim().slice(0, 120);
   if (typeof src.kind === 'string' && ['chat', 'project'].includes(src.kind)) out.kind = src.kind;
   if (Number.isFinite(Number(src.acceptedRevId)) && Number(src.acceptedRevId) > 0) out.acceptedRevId = Number(src.acceptedRevId);
+  /* fingerprint of the dependency set that was really npm-installed */
+  if (typeof src.deps === 'string') out.deps = src.deps.slice(0, 500);
   return out;
 }
 

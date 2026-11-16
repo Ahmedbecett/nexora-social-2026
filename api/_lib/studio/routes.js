@@ -185,7 +185,7 @@ export async function studioAgentStream(req, res, body = {}) {
     /* the build mode is what the composer selected; it decides the batch size,
        the temperature and whether long-form text is appended section by section */
     const buildMode = buildModeConfig(body.buildMode);
-    const batch = Math.max(1, Math.min(5, Number(body.batch) || buildMode.batch));
+    const batch = Math.max(1, Math.min(6, Number(body.batch) || buildMode.batch));
 
     const history = (mode === 'edit' || mode === 'chat')
       ? (await listMessages(ownerId, projectId, 40))
@@ -298,6 +298,7 @@ export async function studioAgentStream(req, res, body = {}) {
       },
       onPlan: (plan) => { livePlan = plan; sse.send('plan', { plan }); },
       onMessage: (text) => { liveMessage = text; sse.send('message', { text }); },
+      onInspect: ({ path }) => { if (!aborted) sse.send('inspect', { path }); },
     });
 
     let result;
@@ -405,10 +406,51 @@ export async function studioAgentStream(req, res, body = {}) {
     const plannedPaths = (thePlan?.files || []).map((f) => f.path);
     const missing = plannedPaths.filter((p) => !(p in nextFiles));
 
+    /* REAL dependency install: a build that declares npm dependencies gets
+       `npm install` executed in the real exec sandbox once per dependency set,
+       with the logs streamed live and the run recorded in the run history —
+       the same engine the manual Terminal uses, no simulation. */
+    let install = null;
+    if ((mode === 'create' || mode === 'continue') && nextFiles['package.json']) {
+      let fingerprint = '';
+      try {
+        const pkg = JSON.parse(nextFiles['package.json']);
+        const deps = pkg && pkg.dependencies && typeof pkg.dependencies === 'object' ? pkg.dependencies : null;
+        fingerprint = deps
+          ? Object.keys(deps).sort().map((k) => `${k}@${deps[k]}`).join(',')
+          : '';
+      } catch { /* invalid package.json — nothing to install */ }
+      if (fingerprint && project.meta?.deps !== fingerprint) {
+        try {
+          const caps = exec.execCapabilities();
+          if (caps.canRun) {
+            const command = 'npm install --no-audit --no-fund';
+            sse.send('status', { step: 'install', mode, phase: 'working', label: 'Installing dependencies', provider: null, at: nowIso() });
+            const runId = await addRun(ownerId, { projectId, kind: 'install', command, engine: caps.engine, status: 'running' });
+            const res = await exec.runCommand({
+              ownerId, projectId, files: nextFiles, command, kind: 'install', timeoutMs: 150_000,
+              onLog: (text) => sse.send('log', { text }),
+            });
+            await finishRun(ownerId, runId, {
+              status: res.exitCode === 0 ? 'success' : 'failed',
+              exitCode: res.exitCode, logs: res.logs, durationMs: res.durationMs, previewUrl: res.previewUrl,
+            });
+            install = { ran: true, exitCode: res.exitCode, engine: res.engine, durationMs: res.durationMs, deps: fingerprint.split(',').length };
+            if (res.exitCode === 0) {
+              project = await updateProject(ownerId, projectId, { meta: { ...project.meta, deps: fingerprint } });
+            }
+          }
+        } catch (e) {
+          install = install || { ran: true, exitCode: 1, engine: 'none', durationMs: 0, error: String(e?.message || e).slice(0, 300) };
+        }
+      }
+    }
+
     const notes = [];
     if (result.truncated) notes.push('the model hit its output limit — the last file may be incomplete');
     if (parsed.truncatedFiles.length) notes.push('one file block was cut off mid-write');
     if (ops.length === 0 && mode !== 'chat') notes.push('the model returned no file operations');
+    if (install && install.exitCode !== 0) notes.push('npm install failed — open the Terminal tab to see the logs');
 
     sse.send('done', {
       ok: true,
@@ -428,6 +470,8 @@ export async function studioAgentStream(req, res, body = {}) {
       model: result.model,
       latencyMs: durationMs,
       truncated: Boolean(result.truncated),
+      install,
+      inspects: parsed.inspects || [],
       notes,
       assistantMessage,
       userMessage,

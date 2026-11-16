@@ -24,7 +24,7 @@ export const PROVIDERS = [
   {
     id: 'openai', label: 'OpenAI', kind: 'openai',
     env: ['OPENAI_API_KEY'], base: () => process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-    models: () => [process.env.STUDIO_MODEL, process.env.OPENAI_MODEL, 'gpt-4.1-mini', 'gpt-4o-mini'].filter(Boolean),
+    models: () => [process.env.STUDIO_MODEL, process.env.OPENAI_MODEL, 'gpt-5.1', 'gpt-5-mini', 'gpt-4.1-mini'].filter(Boolean),
   },
   {
     id: 'anthropic', label: 'Anthropic', kind: 'anthropic',
@@ -33,19 +33,19 @@ export const PROVIDERS = [
   },
   {
     id: 'gemini', label: 'Google Gemini', kind: 'gemini',
-    env: ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_GENAI_API_KEY'], base: () => 'https://generativelanguage.googleapis.com/v1beta',
+    env: ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_GENAI_API_KEY', 'GOOGLE_AI_KEY'], base: () => 'https://generativelanguage.googleapis.com/v1beta',
     models: () => [process.env.STUDIO_MODEL, process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash'].filter(Boolean),
   },
   {
     id: 'openrouter', label: 'OpenRouter', kind: 'openai',
     env: ['OPENROUTER_API_KEY'], base: () => 'https://openrouter.ai/api/v1',
-    models: () => [process.env.STUDIO_MODEL, process.env.OPENROUTER_MODEL, 'anthropic/claude-sonnet-4.5', 'openai/gpt-4.1-mini', 'google/gemini-2.5-flash'].filter(Boolean),
+    models: () => [process.env.STUDIO_MODEL, process.env.OPENROUTER_MODEL, 'anthropic/claude-sonnet-4.5', 'openai/gpt-5-mini', 'google/gemini-2.5-flash'].filter(Boolean),
     headers: () => ({ 'HTTP-Referer': process.env.APP_ORIGIN || 'https://nexora-social-2026.vercel.app', 'X-Title': 'NEXORA Studio' }),
   },
   {
     id: 'groq', label: 'Groq', kind: 'openai',
     env: ['GROQ_API_KEY'], base: () => 'https://api.groq.com/openai/v1',
-    models: () => [process.env.STUDIO_MODEL, process.env.GROQ_MODEL, 'llama-3.3-70b-versatile'].filter(Boolean),
+    models: () => [process.env.STUDIO_MODEL, process.env.GROQ_MODEL, 'qwen/qwen3-32b', 'llama-3.3-70b-versatile'].filter(Boolean),
   },
   {
     id: 'cerebras', label: 'Cerebras', kind: 'openai',

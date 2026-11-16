@@ -93,6 +93,23 @@ test('streaming parser emits a file as soon as its closing tag arrives', () => {
   assert.ok(prose.join('').includes('Working'), 'prose outside tags reaches the UI');
 });
 
+test('inspect announcements stream live, dedupe, and stay out of prose', async () => {
+  const { parseAgentOutput, createProtocolStreamer } = await import('../api/_lib/studio/agent.js');
+  const seen = [];
+  const streamer = createProtocolStreamer({ onInspect: (i) => seen.push(i.path) });
+  streamer.push('Reading first.\n<inspect>src/App.jsx</inspect>\n<inspect path="package.json"/>\n<inspect>src/App.jsx</inspect>\n');
+  assert.deepEqual(seen, ['src/App.jsx', 'package.json'], 'each inspected file is announced once, both tag forms work');
+
+  const out = streamer.flush();
+  assert.deepEqual(out.inspects, ['src/App.jsx', 'package.json']);
+  assert.equal(out.ops.length, 0, 'inspections are never file operations');
+  assert.ok(!out.prose.includes('inspect'), 'inspect tags do not leak into the prose');
+
+  const parsed = parseAgentOutput('<inspect>index.html</inspect><file path="index.html">x</file>');
+  assert.deepEqual(parsed.inspects, ['index.html']);
+  assert.equal(parsed.ops.length, 1);
+});
+
 test('edit prompt carries the file tree and the selected file, within the context budget', () => {
   const project = {
     name: 'P', stack: 'static', entry: 'index.html',
@@ -163,7 +180,7 @@ test('build modes are a shared contract with real, bounded behaviour', async () 
   assert.deepEqual(BUILD_MODES.map((m) => m.id), ['direct', 'fast', 'precise', 'endless', 'text', 'review']);
   assert.equal(buildModeConfig('nope').id, DEFAULT_BUILD_MODE);
   for (const m of BUILD_MODES) {
-    assert.ok(m.batch >= 1 && m.batch <= 5, `${m.id}: batch is inside the server clamp`);
+    assert.ok(m.batch >= 1 && m.batch <= 6, `${m.id}: batch is inside the server clamp`);
     assert.ok(m.rounds >= 1 && m.rounds <= 40, `${m.id}: rounds are bounded`);
     assert.equal(typeof m.hint, 'string');
     assert.ok(m.hint.length > 20, `${m.id}: the hint explains the real behaviour`);
