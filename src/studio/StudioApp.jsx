@@ -1,22 +1,34 @@
+/* ============================================================================
+   NEXORA — Arena AI-Class Agent Platform Shell
+   Editorial warm cream canvas · NEXORA brand identity · Collapsible sidebar ·
+   Real-time AI Agent · Diff & Checks · GitHub, Drive, Docs & Vercel integrations ·
+   Mobile-first keyboard & drawer ergonomics.
+   ============================================================================ */
+
 import { useEffect, useMemo, useState } from 'react';
+import '@fontsource/newsreader/400.css';
+import '@fontsource/newsreader/500.css';
+import '@fontsource/newsreader/400-italic.css';
+import '@fontsource-variable/inter';
+
 import { StudioProvider, useStudio } from './state.jsx';
 import { loginWithPassword } from './api.js';
 import ProjectsPanel from './ProjectsPanel.jsx';
 import ChatPanel from './ChatPanel.jsx';
 import Workspace from './Workspace.jsx';
-import AgentWindow from './AgentWindow.jsx';
+import LeaderboardView from './LeaderboardView.jsx';
 import SettingsPanel from './SettingsPanel.jsx';
 import {
-  IconPlus, IconGear, IconSearch, IconSpark, IconSave, IconRocket, IconCommand,
-  IconEye, IconCode, IconTerminal, IconPlay, IconLayers, IconWarn, IconRefresh,
+  NexoraLogo, IconSidebar, IconFiles, IconDiff, IconShieldCheck,
+  IconSearch, IconNewChat, IconTrophy, IconCode, IconEye, IconTerminal,
+  IconRocket, IconGear, IconChat, IconFolder, IconArchive, IconDoc,
+  IconRefresh, IconX,
 } from './icons.jsx';
 import './studio.css';
 
-const STACK_LABEL = { static: 'HTML/CSS/JS', 'vite-react': 'React', node: 'Node', next: 'Next.js' };
-
-/* --------------------------------- gate ---------------------------------- */
+/* -------------------------------- Auth Gate ------------------------------- */
 function AuthGate() {
-  const { boot } = useStudio();
+  const { boot, theme } = useStudio();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -24,44 +36,69 @@ function AuthGate() {
 
   const submit = async (e) => {
     e.preventDefault();
-    setBusy(true); setError(null);
+    setBusy(true);
+    setError(null);
     try {
       await loginWithPassword(username.trim(), password);
       await boot();
     } catch (err) {
-      setError(err.code === 'invalid_credentials' ? 'Wrong username or password.' : (err.detail || err.code || 'Sign-in failed'));
-    } finally { setBusy(false); }
+      setError(err.code === 'invalid_credentials'
+        ? 'Incorrect username or password.'
+        : (err.detail || err.code || 'Sign-in failed'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <div className="nxs">
+    <div className="nxs" data-theme={theme}>
       <div className="nxs-auth">
         <form className="nxs-auth-card" onSubmit={submit}>
-          <div className="nxs-brand" style={{ marginBottom: 16 }}>
-            <span className="nxs-mark">N</span>
-            <div><b>NEXORA Studio</b><small>AI APP BUILDER</small></div>
+          <div className="nxs-auth-brand">
+            <NexoraLogo size={32} />
+            <span className="nxs-wordmark lg">NEXORA</span>
           </div>
-          <h2>Sign in to build</h2>
-          <p>Your projects, keys and deployments are tied to your NEXORA account.</p>
-          {error && <div className="nxs-error-box">{error}</div>}
-          <div className="field">
+          <h1 className="nxs-auth-title">Welcome back</h1>
+          <p className="nxs-auth-sub">
+            Sign in to access your conversations, projects, connected services, and deployments.
+          </p>
+          {error && <div className="nxs-error-box" role="alert">{error}</div>}
+          <div className="nxs-field">
             <label htmlFor="nxs-user">Username</label>
-            <input id="nxs-user" className="nxs-input" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+            <input
+              id="nxs-user"
+              className="nxs-input"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              placeholder="your_username"
+            />
           </div>
-          <div className="field">
+          <div className="nxs-field">
             <label htmlFor="nxs-pass">Password</label>
-            <input id="nxs-pass" className="nxs-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+            <input
+              id="nxs-pass"
+              className="nxs-input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              placeholder="••••••••"
+            />
           </div>
-          <button className="nxs-btn primary" style={{ width: '100%', marginTop: 6 }} disabled={busy || !username || !password}>
-            {busy ? 'Signing in…' : 'Sign in'}
+          <button
+            type="submit"
+            className="nxs-btn primary full"
+            disabled={busy || !username.trim() || !password}
+          >
+            {busy ? 'Signing in…' : 'Continue'}
           </button>
           <button
             type="button"
-            className="nxs-btn ghost"
-            style={{ width: '100%', marginTop: 8 }}
+            className="nxs-btn ghost full"
             onClick={() => window.dispatchEvent(new CustomEvent('nxs-open-chat'))}
           >
-            Create an account / other sign-in options
+            Create a NEXORA account
           </button>
         </form>
       </div>
@@ -69,184 +106,285 @@ function AuthGate() {
   );
 }
 
-/* ------------------------------- palette --------------------------------- */
-function Palette() {
+/* ------------------------ Search & Command Modal (⌘K) --------------------- */
+function SearchPalette() {
   const {
-    paletteOpen, setPaletteOpen, projects, openProject, createProject, saveNow,
-    setTab, setSettingsOpen, setActiveFile, files, startDev, fixWithAI, terminal, agent,
+    paletteOpen, setPaletteOpen,
+    projects, files, terminal, agent,
+    fixWithAI, startDev, saveNow, openProject, startNewChat,
+    setActiveView, setTab, setActiveFile,
+    openDiffView, openChecksView, openSettings, openDocsModal,
   } = useStudio();
   const [q, setQ] = useState('');
   const [index, setIndex] = useState(0);
 
-  const commands = useMemo(() => {
-    const base = [
-      { id: 'new', label: 'New project', icon: IconPlus, run: () => createProject({}) },
-      { id: 'save', label: 'Save project (restore point)', icon: IconSave, run: () => saveNow() },
-      { id: 'preview', label: 'Go to Preview', icon: IconEye, run: () => setTab('preview') },
-      { id: 'code', label: 'Go to Code', icon: IconCode, run: () => setTab('code') },
-      { id: 'terminal', label: 'Go to Terminal', icon: IconTerminal, run: () => setTab('terminal') },
-      { id: 'publish', label: 'Go to Publish', icon: IconRocket, run: () => setTab('publish') },
-      { id: 'dev', label: 'Start dev server', icon: IconPlay, run: () => startDev() },
-      { id: 'fix', label: 'Fix last failure with AI', icon: IconWarn, run: () => fixWithAI(terminal.logs), disabled: !terminal.error || agent.running },
-      { id: 'settings', label: 'Open settings', icon: IconGear, run: () => setSettingsOpen(true) },
+  const items = useMemo(() => {
+    const actions = [
+      { id: 'act:new', group: 'Actions', label: 'New Chat', icon: IconNewChat, run: () => startNewChat() },
+      { id: 'act:leaderboard', group: 'Actions', label: 'Open Leaderboard', icon: IconTrophy, run: () => setActiveView('leaderboard') },
+      { id: 'act:diff', group: 'Actions', label: 'View All Changes (Diff)', icon: IconDiff, run: () => openDiffView({ all: true }) },
+      { id: 'act:checks', group: 'Actions', label: 'Run Verification Checks', icon: IconShieldCheck, run: () => openChecksView({ run: true }) },
+      { id: 'act:preview', group: 'Actions', label: 'Open Live Preview', icon: IconEye, run: () => setTab('preview') },
+      { id: 'act:code', group: 'Actions', label: 'Open Files & Code Editor', icon: IconCode, run: () => setTab('code') },
+      { id: 'act:terminal', group: 'Actions', label: 'Open Terminal', icon: IconTerminal, run: () => setTab('terminal') },
+      { id: 'act:publish', group: 'Actions', label: 'GitHub, Vercel & Drive (Publish)', icon: IconRocket, run: () => setTab('publish') },
+      { id: 'act:docs', group: 'Actions', label: 'Google Docs & Drive Studio', icon: IconDoc, run: () => openDocsModal({ mode: 'docs' }) },
+      { id: 'act:save', group: 'Actions', label: 'Save Project Checkpoint', icon: IconFolder, run: () => saveNow() },
+      { id: 'act:dev', group: 'Actions', label: 'Start Dev Server', icon: IconRocket, run: () => startDev(), disabled: agent.running },
+      { id: 'act:fix', group: 'Actions', label: 'Fix Last Failure with AI', icon: IconShieldCheck, run: () => fixWithAI(terminal.logs), disabled: !terminal.error || agent.running },
+      { id: 'act:integrations', group: 'Actions', label: 'Connect Services (Integrations)', icon: IconGear, run: () => openSettings('integrations') },
+      { id: 'act:settings', group: 'Actions', label: 'Account & Model Settings', icon: IconGear, run: () => openSettings('account') },
     ];
-    const filesCmds = Object.keys(files || {}).map((path) => ({
-      id: `file:${path}`, label: `Open ${path}`, icon: IconCode, run: () => { setActiveFile(path); setTab('code'); },
+
+    const chatItems = (projects || []).map((p) => {
+      const archived = Boolean(p.archived || p.meta?.archived);
+      const hasFiles = (p.fileCount || 0) > 0 || Boolean(p.meta?.repo);
+      return {
+        id: `proj:${p.id}`,
+        group: archived ? 'Archived Chats' : (hasFiles ? 'Projects' : 'Recent Chats'),
+        label: p.name || 'Untitled',
+        sub: p.meta?.repo ? `${p.meta.repo}${p.meta.branch ? ` · ${p.meta.branch}` : ''}` : '',
+        icon: archived ? IconArchive : (hasFiles ? IconFolder : IconChat),
+        run: () => openProject(p.id),
+      };
+    });
+
+    const fileItems = Object.keys(files || {}).sort().map((path) => ({
+      id: `file:${path}`,
+      group: 'Files',
+      label: path,
+      icon: IconCode,
+      run: () => { setActiveFile(path); setTab('code'); },
     }));
-    const projCmds = (projects || []).map((p) => ({
-      id: `proj:${p.id}`, label: `Switch to ${p.name}`, icon: IconLayers, run: () => openProject(p.id),
-    }));
-    return [...base, ...filesCmds, ...projCmds];
-  }, [agent.running, createProject, files, fixWithAI, openProject, projects, saveNow, setActiveFile, setSettingsOpen, setTab, startDev, terminal.error, terminal.logs]);
+
+    return [...chatItems, ...fileItems, ...actions];
+  }, [
+    files, fixWithAI, openChecksView, openDiffView, openDocsModal, openProject,
+    openSettings, projects, saveNow, setActiveFile, setActiveView, setTab, startNewChat, startDev, terminal.logs, agent.running,
+  ]);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    const list = term ? commands.filter((c) => c.label.toLowerCase().includes(term)) : commands;
-    return list.slice(0, 40);
-  }, [commands, q]);
+    if (!term) return items.slice(0, 24);
+    return items
+      .filter((it) => it.label.toLowerCase().includes(term)
+        || (it.sub && it.sub.toLowerCase().includes(term))
+        || it.group.toLowerCase().includes(term))
+      .slice(0, 36);
+  }, [items, q]);
 
   useEffect(() => { setIndex(0); }, [q, paletteOpen]);
   if (!paletteOpen) return null;
 
-  const exec = (cmd) => {
-    if (!cmd || cmd.disabled) return;
+  const exec = (item) => {
+    if (!item || item.disabled) return;
     setPaletteOpen(false);
     setQ('');
-    cmd.run();
+    item.run();
   };
 
   return (
-    <div className="nxs-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setPaletteOpen(false); }}>
-      <div className="nxs-modal nxs-palette" style={{ background: 'transparent', border: 0, boxShadow: 'none' }}>
-        <input
-          className="nxs-input"
-          autoFocus
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search commands, files and projects…"
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, filtered.length - 1)); }
-            if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
-            if (e.key === 'Enter') { e.preventDefault(); exec(filtered[index]); }
-            if (e.key === 'Escape') setPaletteOpen(false);
-          }}
-        />
-        <div className="nxs-palette-list">
-          {filtered.map((c, i) => {
-            const Icon = c.icon;
-            return (
-              <button
-                key={c.id}
-                className={`nxs-palette-item ${i === index ? 'on' : ''}`}
-                onMouseEnter={() => setIndex(i)}
-                onClick={() => exec(c)}
-                disabled={c.disabled}
-              >
-                <Icon size={13} />
-                <span>{c.label}</span>
-                {i === index && <kbd>↵</kbd>}
-              </button>
-            );
-          })}
-          {filtered.length === 0 && <div className="nxs-palette-item">No match</div>}
+    <div
+      className="nxs-modal-backdrop top"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Search"
+      onClick={() => setPaletteOpen(false)}
+    >
+      <div className="nxs-palette-box" onClick={(e) => e.stopPropagation()}>
+        <div className="nxs-palette-input-row">
+          <IconSearch size={16} />
+          <input
+            type="search"
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search chats, projects, files, and actions..."
+            aria-label="Search chats, projects, files, and actions"
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => Math.min(i + 1, Math.max(0, filtered.length - 1))); }
+              else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
+              else if (e.key === 'Enter') { e.preventDefault(); exec(filtered[index]); }
+              else if (e.key === 'Escape') setPaletteOpen(false);
+            }}
+          />
+          <button type="button" className="nxs-icon-btn xs" aria-label="Close search" onClick={() => setPaletteOpen(false)}>
+            <IconX size={14} />
+          </button>
+        </div>
+
+        <div className="nxs-palette-results" role="listbox">
+          {filtered.length === 0 ? (
+            <div className="nxs-palette-empty">No matching chats, projects, or files.</div>
+          ) : (
+            filtered.map((item, i) => {
+              const Icon = item.icon;
+              const prevGroup = i > 0 ? filtered[i - 1].group : null;
+              return (
+                <div key={item.id}>
+                  {item.group !== prevGroup && (
+                    <div className="nxs-palette-group">{item.group}</div>
+                  )}
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={i === index}
+                    className={`nxs-palette-item${i === index ? ' on' : ''}`}
+                    onMouseEnter={() => setIndex(i)}
+                    onClick={() => exec(item)}
+                    disabled={Boolean(item.disabled)}
+                  >
+                    <Icon size={15} />
+                    <span className="nxs-palette-label">{item.label}</span>
+                    {item.sub && <span className="nxs-palette-sub">{item.sub}</span>}
+                  </button>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-/* ------------------------------- topbar ---------------------------------- */
-function TopBar({ onOpenProjects }) {
-  const { project, renameProject, createProject, setSettingsOpen, session, dirty, saving } = useStudio();
-  const [name, setName] = useState(project?.name || '');
-  useEffect(() => { setName(project?.name || ''); }, [project?.id, project?.name]);
+/* --------------------------- Arena Top Header Bar ------------------------- */
+function TopBar() {
+  const {
+    sidebarOpen, setSidebarOpen,
+    workspaceOpen, setWorkspaceOpen,
+    activeView, setActiveView,
+    project, messages, files, projectDiff, checks, agent,
+    startNewChat, openDiffView, openChecksView, setTab,
+  } = useStudio();
 
-  const commit = () => {
-    const next = name.trim();
-    if (project && next && next !== project.name) renameProject(project.id, next);
+  const fileCount = Object.keys(files || {}).length;
+  const diffCount = projectDiff?.count || 0;
+  const inThread = activeView === 'chat' && (messages.length > 0 || agent.running || agent.phase === 'completed');
+
+  const handleToggleFiles = () => {
+    if (activeView !== 'chat') {
+      setActiveView('chat');
+      setWorkspaceOpen(true);
+      if (!fileCount) setTab('code');
+      return;
+    }
+    if (workspaceOpen) {
+      setWorkspaceOpen(false);
+    } else {
+      setWorkspaceOpen(true);
+    }
   };
 
   return (
-    <header className="nxs-top">
-      <button className="nxs-brand" title="Projects" onClick={onOpenProjects} style={{ background: 'none' }}>
-        <span className="nxs-mark">N</span>
-        <span style={{ textAlign: 'start' }}>
-          <b>NEXORA</b>
-          <small>STUDIO</small>
-        </span>
-      </button>
+    <header className="nxs-topbar">
+      <div className="nxs-topbar-start">
+        <button
+          type="button"
+          className={`nxs-top-icon-btn${sidebarOpen ? ' active' : ''}`}
+          aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+          aria-expanded={sidebarOpen}
+          title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+          onClick={() => setSidebarOpen((v) => !v)}
+        >
+          <IconSidebar size={18} />
+        </button>
 
-      <div className="nxs-proj-title">
-        {project ? (
-          <>
-            <input value={name} onChange={(e) => setName(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} aria-label="Project name" />
-            <span className="nxs-chip hide-sm">{STACK_LABEL[project.stack] || project.stack}</span>
-            <span className={`nxs-chip ${saving ? 'warn' : Object.keys(dirty || {}).length ? 'warn' : 'ok'} hide-sm`}>
-              {saving ? 'saving' : Object.keys(dirty || {}).length ? 'editing' : 'saved'}
-            </span>
-          </>
-        ) : <span className="nxs-chip">new workspace</span>}
+        <button
+          type="button"
+          className="nxs-top-brand"
+          onClick={() => {
+            if (activeView !== 'chat') setActiveView('chat');
+            else if (inThread) startNewChat();
+          }}
+          title="NEXORA"
+        >
+          <NexoraLogo size={22} />
+          <span className="nxs-wordmark">NEXORA</span>
+        </button>
       </div>
 
-      <div className="nxs-top-actions">
-        <button className="nxs-btn sm hide-sm" onClick={() => createProject({})} title="New project">
-          <IconPlus size={12} /> New
+      {inThread && project?.name && (
+        <div className="nxs-topbar-center" title={project.name}>
+          <span className="nxs-topbar-title">{project.name}</span>
+        </div>
+      )}
+
+      <div className="nxs-topbar-end">
+        {diffCount > 0 && (
+          <button
+            type="button"
+            className="nxs-top-pill diff"
+            onClick={() => openDiffView({ all: true })}
+            title="View all AI file changes (Diff)"
+          >
+            <IconDiff size={14} />
+            <span className="nxs-diff-add">+{projectDiff.added}</span>
+            <span className="nxs-diff-del">-{projectDiff.removed}</span>
+          </button>
+        )}
+
+        {checks.summary !== 'idle' && fileCount > 0 && (
+          <button
+            type="button"
+            className={`nxs-top-pill checks ${checks.summary}`}
+            onClick={() => openChecksView()}
+            title="Open verification checks"
+            aria-label="Open checks"
+          >
+            <IconShieldCheck size={14} />
+          </button>
+        )}
+
+        <button
+          type="button"
+          className={`nxs-top-files-btn${workspaceOpen && activeView === 'chat' ? ' active' : ''}`}
+          aria-label="Toggle files and workspace"
+          aria-pressed={workspaceOpen && activeView === 'chat'}
+          onClick={handleToggleFiles}
+        >
+          <IconFiles size={16} />
+          <span className="nxs-top-files-label">Files</span>
+          {fileCount > 0 && <span className="nxs-top-files-count">{fileCount}</span>}
         </button>
-        <button className="nxs-btn sm hide-sm" onClick={() => setSettingsOpen(true)} title="Settings">
-          <IconGear size={13} /> Settings
-        </button>
-        <button className="nxs-btn sm" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))} title="Command palette (Ctrl+K)">
-          <IconCommand size={13} />
-        </button>
-        <span className="nxs-avatar" title={session?.user?.username || 'workspace'}>
-          {session?.user?.avatarUrl
-            ? <img src={session.user.avatarUrl} alt="" />
-            : (session?.user?.username || 'N').slice(0, 1).toUpperCase()}
-        </span>
       </div>
     </header>
   );
 }
 
-/* ------------------------------- shell ----------------------------------- */
+/* -------------------------------- Main Shell ------------------------------ */
 function Shell() {
   const {
-    booting, bootError, boot, session, project, sidebarOpen, setSidebarOpen,
-    settingsOpen, toast, setSettingsOpen,
+    booting, bootError, boot,
+    theme, sidebarOpen, setSidebarOpen,
+    activeView, workspaceOpen,
+    settingsOpen, toast,
   } = useStudio();
-  const [mobile, setMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 980 : false));
-  const [mobileView, setMobileView] = useState('chat');
 
+  /* Mobile virtual keyboard guard (iOS Safari + Android Chrome) */
   useEffect(() => {
-    const onResize = () => setMobile(window.innerWidth <= 980);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  /* Android and iOS do not all resize the layout viewport when the keyboard
-     opens; measuring it keeps the composer above the keyboard everywhere. */
-  useEffect(() => {
-    const vv = window.visualViewport;
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     if (!vv) return undefined;
-    const apply = () => {
+    const syncViewport = () => {
       const covered = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
       document.documentElement.style.setProperty('--nxs-kb', `${Math.round(covered)}px`);
       document.documentElement.style.setProperty('--nxs-vvh', `${Math.round(vv.height)}px`);
     };
-    apply();
-    vv.addEventListener('resize', apply);
-    vv.addEventListener('scroll', apply);
-    return () => { vv.removeEventListener('resize', apply); vv.removeEventListener('scroll', apply); };
+    syncViewport();
+    vv.addEventListener('resize', syncViewport);
+    vv.addEventListener('scroll', syncViewport);
+    return () => {
+      vv.removeEventListener('resize', syncViewport);
+      vv.removeEventListener('scroll', syncViewport);
+    };
   }, []);
 
   if (booting) {
     return (
-      <div className="nxs">
-        <div className="nxs-loading">
-          <div>
-            <div className="spin" />
-            Opening the workspace…
-          </div>
+      <div className="nxs" data-theme={theme}>
+        <div className="nxs-loading" role="status">
+          <NexoraLogo size={30} />
+          <span className="nxs-loading-text">Loading NEXORA…</span>
         </div>
       </div>
     );
@@ -256,16 +394,22 @@ function Shell() {
 
   if (bootError) {
     return (
-      <div className="nxs">
+      <div className="nxs" data-theme={theme}>
         <div className="nxs-auth">
           <div className="nxs-auth-card">
-            <h2>Studio could not start</h2>
-            <p>{bootError.code === 'storage_unavailable'
-              ? 'The project database is unavailable on this deployment.'
-              : 'The Studio API answered with an error.'}</p>
+            <div className="nxs-auth-brand">
+              <NexoraLogo size={28} />
+              <span className="nxs-wordmark">NEXORA</span>
+            </div>
+            <h1 className="nxs-auth-title">Connection unavailable</h1>
+            <p className="nxs-auth-sub">
+              {bootError.code === 'storage_unavailable'
+                ? 'The workspace database is temporarily unreachable.'
+                : 'NEXORA could not reach the backend server.'}
+            </p>
             {bootError.detail && <div className="nxs-error-box">{bootError.detail}</div>}
-            <button className="nxs-btn primary" onClick={() => boot()} style={{ width: '100%' }}>
-              <IconRefresh size={13} /> Retry
+            <button type="button" className="nxs-btn primary full" onClick={() => boot()}>
+              <IconRefresh size={14} /> Retry connection
             </button>
           </div>
         </div>
@@ -273,44 +417,58 @@ function Shell() {
     );
   }
 
-  return (
-    <div className="nxs">
-      <TopBar onOpenProjects={() => setSidebarOpen(!sidebarOpen)} />
-      <div
-        className={`nxs-body ${sidebarOpen ? '' : 'no-sidebar'} ${project ? '' : 'no-project'}`}
-        data-mobile={mobileView}
-      >
-        {sidebarOpen && <ProjectsPanel />}
-        <ChatPanel />
-        {project && <Workspace onOpenSidebar={() => setSidebarOpen(!sidebarOpen)} />}
-      </div>
+  const showWorkspace = activeView === 'chat' && workspaceOpen;
 
-      {mobile && (
-        <div className="nxs-mobile-nav">
-          <button className={mobileView === 'chat' ? 'on' : ''} onClick={() => setMobileView('chat')}>
-            <IconSpark size={13} /> Chat
-          </button>
-          <button className={mobileView === 'workspace' ? 'on' : ''} onClick={() => setMobileView('workspace')}>
-            <IconCode size={13} /> Build
-          </button>
-          <button onClick={() => setSidebarOpen(!sidebarOpen)}>
-            <IconLayers size={13} /> Projects
-          </button>
-        </div>
+  return (
+    <div
+      className={`nxs${sidebarOpen ? ' sidebar-open' : ''}${showWorkspace ? ' ws-open' : ''}`}
+      data-theme={theme}
+    >
+      {/* Collapsible Arena-style Sidebar + mobile backdrop */}
+      {sidebarOpen && (
+        <>
+          <ProjectsPanel />
+          <div
+            className="nxs-sidebar-scrim"
+            aria-hidden="true"
+            onClick={() => setSidebarOpen(false)}
+          />
+        </>
       )}
 
-      <AgentWindow />
+      {/* Main Column: Top Header + Chat/Leaderboard + Collapsible Workspace */}
+      <div className="nxs-shell-main">
+        <TopBar />
+        <div className={`nxs-stage${showWorkspace ? ' split' : ''}`}>
+          {activeView === 'leaderboard' ? (
+            <LeaderboardView />
+          ) : (
+            <>
+              <ChatPanel />
+              {showWorkspace && <Workspace />}
+            </>
+          )}
+        </div>
+      </div>
+
       {settingsOpen && <SettingsPanel />}
-      <Palette />
-      {toast && <div className={`nxs-toast ${toast.tone}`}>{toast.text}</div>}
+      <SearchPalette />
+
+      {toast && (
+        <div className={`nxs-toast ${toast.tone || 'info'}`} role="status" aria-live="polite">
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 }
 
-export default function StudioApp() {
+export function StudioApp() {
   return (
     <StudioProvider>
       <Shell />
     </StudioProvider>
   );
 }
+
+export default StudioApp;

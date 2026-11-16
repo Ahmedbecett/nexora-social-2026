@@ -503,18 +503,19 @@ export async function primaryProvider(ownerId) {
 export const encryptSecret = encrypt;
 export const decryptSecret = decrypt;
 
-/** Store a non-AI integration token (GitHub, Vercel) in the same vault. */
-export async function putIntegrationSecret(ownerId, name, value) {
+/** Store a non-AI integration token (GitHub, Vercel, Google) in the same vault. */
+export async function putIntegrationSecret(ownerId, name, value, extraMeta = {}) {
   const now = nowIso();
+  const metaObj = { ...(extraMeta && typeof extraMeta === 'object' ? extraMeta : {}), last4: String(value).slice(-4) };
   const existing = await studioOne('select id from studio_keys where owner_id=$1 and provider=$2', [String(ownerId), name]);
   if (existing) {
     await studioQuery('update studio_keys set secret=$3, meta=$4, updated_at=$5 where id=$1 and owner_id=$2',
-      [Number(existing.id), String(ownerId), encrypt(String(value)), JSON.stringify({ last4: String(value).slice(-4) }), now]);
+      [Number(existing.id), String(ownerId), encrypt(String(value)), JSON.stringify(metaObj), now]);
   } else {
     await studioQuery('insert into studio_keys (owner_id, provider, secret, meta, created_at, updated_at) values ($1,$2,$3,$4,$5,$5)',
-      [String(ownerId), name, encrypt(String(value)), JSON.stringify({ last4: String(value).slice(-4) }), now]);
+      [String(ownerId), name, encrypt(String(value)), JSON.stringify(metaObj), now]);
   }
-  return { saved: true, last4: String(value).slice(-4) };
+  return { saved: true, last4: String(value).slice(-4), method: metaObj.method || 'token' };
 }
 
 export async function getIntegrationSecret(ownerId, name) {

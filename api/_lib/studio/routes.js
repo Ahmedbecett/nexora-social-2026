@@ -10,12 +10,14 @@ import {
   addMessage, listMessages, addRevision, listRevisions, getRevision,
   addRun, finishRun, listRuns, getRun,
   addDeployment, updateDeployment, listDeployments,
+  recordModelEvent, voteMessage, listModelStats,
 } from './projects.js';
 import {
-  attachDocs, attachImages, buildPlanPrompt, buildCreatePrompt, buildEditPrompt, buildFixPrompt, buildTextPrompt,
+  attachDocs, attachImages, buildPlanPrompt, buildCreatePrompt, buildEditPrompt, buildFixPrompt, buildTextPrompt, buildChatPrompt,
   createProtocolStreamer, parseAgentOutput,
 } from './agent.js';
 import * as ai from './ai.js';
+import * as oauth from './oauth.js';
 import {
   appendPart, applyOps, detectStack, guessEntry, normalizePath, sanitizeFiles, sanitizeImages, sanitizeDocs, summarizeFiles,
 } from './files.js';
@@ -93,12 +95,49 @@ export async function studioExecStream(req, res, body = {}) {
 
 /* ================================= agent ================================= */
 const MODE_LABEL = {
-  plan: 'plan', create: 'create', continue: 'create', edit: 'edit', fix: 'fix',
+  plan: 'plan', create: 'create', continue: 'create', edit: 'edit', fix: 'fix', chat: 'chat',
 };
+const MODE_PHASE = {
+  plan: 'planning', create: 'working', continue: 'orchestrating', edit: 'working', fix: 'working', chat: 'working',
+};
+
+function quickDiffStats(before = {}, after = {}) {
+  const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+  let added = 0;
+  let removed = 0;
+  const files = [];
+  for (const path of keys) {
+    const a = before[path];
+    const b = after[path];
+    if (a === b) continue;
+    const status = a === undefined ? 'added' : b === undefined ? 'deleted' : 'modified';
+    const aLines = typeof a === 'string' && a.length ? a.split('\n') : [];
+    const bLines = typeof b === 'string' && b.length ? b.split('\n') : [];
+    let fAdd = 0;
+    let fDel = 0;
+    if (status === 'added') fAdd = bLines.length;
+    else if (status === 'deleted') fDel = aLines.length;
+    else {
+      const counts = new Map();
+      for (const l of aLines) counts.set(l, (counts.get(l) || 0) + 1);
+      for (const l of bLines) {
+        const c = counts.get(l) || 0;
+        if (c > 0) counts.set(l, c - 1);
+        else fAdd += 1;
+      }
+      for (const rem of counts.values()) fDel += rem;
+    }
+    added += fAdd;
+    removed += fDel;
+    files.push({ path, status, added: fAdd, removed: fDel });
+  }
+  return { added, removed, count: files.length, files: files.slice(0, 60) };
+}
 
 export async function studioAgentStream(req, res, body = {}) {
   const sse = startSSE(res);
   let aborted = false;
+  const startedMs = Date.now();
   const abort = new AbortController();
   const onClose = () => { aborted = true; try { abort.abort(); } catch { /* already */ } };
   if (req?.on) req.on('close', onClose);
@@ -110,8 +149,9 @@ export async function studioAgentStream(req, res, body = {}) {
     const projectId = Number(body.projectId);
     if (!projectId) throw new StudioError(400, 'project_required');
     let project = await getProject(ownerId, projectId);
+    const beforeFiles = { ...(project.files || {}) };
 
-    const mode = ['plan', 'create', 'continue', 'edit', 'fix'].includes(body.mode) ? body.mode : 'plan';
+    const mode = ['plan', 'create', 'continue', 'edit', 'fix', 'chat'].includes(body.mode) ? body.mode : 'plan';
     const message = String(body.message || '').slice(0, 8000);
     if (!message && mode !== 'continue') throw new StudioError(400, 'message_required');
 
@@ -132,16 +172,24 @@ export async function studioAgentStream(req, res, body = {}) {
       sse.send('user_message', { message: userMessage });
     }
 
-    sse.send('status', { step: mode, label: MODE_LABEL[mode], provider: null, docs: sanitizeDocs(body.docs).length, at: nowIso() });
+    sse.send('status', {
+      step: mode,
+      mode,
+      phase: MODE_PHASE[mode] || 'working',
+      label: MODE_LABEL[mode],
+      provider: null,
+      docs: sanitizeDocs(body.docs).length,
+      at: nowIso(),
+    });
 
     /* the build mode is what the composer selected; it decides the batch size,
        the temperature and whether long-form text is appended section by section */
     const buildMode = buildModeConfig(body.buildMode);
     const batch = Math.max(1, Math.min(5, Number(body.batch) || buildMode.batch));
 
-    const history = mode === 'edit'
+    const history = (mode === 'edit' || mode === 'chat')
       ? (await listMessages(ownerId, projectId, 40))
-        .filter((m) => m.kind === 'text' && m.role !== 'error')
+        .filter((m) => (m.kind === 'text' || m.kind === 'files') && m.role !== 'error')
         .slice(-8)
         .map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.text).slice(0, 3000) }))
       : [];
@@ -150,6 +198,9 @@ export async function studioAgentStream(req, res, body = {}) {
     let maxTokens = 7000;
     if (mode === 'plan') {
       prompt = buildPlanPrompt({ project, userMessage: message, history });
+    } else if (mode === 'chat') {
+      prompt = buildChatPrompt({ project, userMessage: message, selectedPath: String(body.selectedFile || ''), history });
+      maxTokens = 7000;
     } else if (mode === 'create' || mode === 'continue') {
       const plan = body.plan || project.plan || null;
       const missing = (plan?.files || []).map((f) => ({ path: f.path, purpose: f.purpose })).filter((f) => !(f.path in project.files));
@@ -267,11 +318,17 @@ export async function studioAgentStream(req, res, body = {}) {
     } catch (e) {
       await persistChain;
       const detail = e.detail || e.message || 'model call failed';
-      sse.send('error', { code: e.code || 'ai_failed', detail, status: e.status || 502 });
+      if (body.provider) {
+        recordModelEvent(ownerId, {
+          projectId, provider: body.provider, model: body.model || body.provider,
+          mode, durationMs: Date.now() - startedMs, filesChanged: 0, ok: false,
+        }).catch(() => {});
+      }
+      sse.send('error', { code: e.code || 'ai_failed', detail, status: e.status || 502, phase: 'error' });
       if (message && !body.retry) {
         await addMessage(ownerId, projectId, { role: 'error', kind: 'text', text: detail.slice(0, 2000), meta: { code: e.code || 'ai_failed' } });
       }
-      sse.send('done', { project: projectPayload(project), changed: [], failed: true });
+      sse.send('done', { project: projectPayload(project), changed: [], failed: true, phase: 'error' });
       return;
     }
 
@@ -281,35 +338,66 @@ export async function studioAgentStream(req, res, body = {}) {
     const final = parseAgentOutput(result.text);
     const ops = mergeOps(parsed.ops, final.ops, seen);
     const plan = final.plan || livePlan || parsed.plan;
-    const messageText = final.message || liveMessage || parsed.message || '';
+    const messageText = final.message || liveMessage || parsed.message
+      || ((mode === 'chat' || (mode === 'edit' && !ops.length)) ? String(final.prose || prose || '').trim() : '');
 
-    const { files: nextFiles, changed } = applyOps(project.files, ops);
+    const { files: nextFiles, changed } = applyOps(beforeFiles, ops);
+    const diff = changed.length ? quickDiffStats(beforeFiles, nextFiles) : { added: 0, removed: 0, count: 0, files: [] };
     const stack = detectStack(nextFiles);
     const patch = { files: nextFiles, stack };
     if (plan) patch.plan = plan;
-    if (!project.name || /^untitled|^new project|^مشروع جديد/i.test(project.name)) {
+    if (!project.name || /^untitled|^new (project|chat)|^مشروع جديد/i.test(project.name)) {
       if (plan?.title) patch.name = plan.title.slice(0, 80);
+      else if (mode === 'chat' && message) patch.name = message.replace(/\s+/g, ' ').trim().slice(0, 60);
     }
-    if (Object.keys(nextFiles).length) patch.status = 'ready';
+    if (Object.keys(nextFiles).length) {
+      patch.status = 'ready';
+      patch.meta = { kind: 'project' };
+    }
     project = await updateProject(ownerId, projectId, patch);
 
+    let baselineRevisionId = null;
+    let revisionId = null;
     if (changed.length) {
-      await addRevision(ownerId, projectId, nextFiles, `${mode}: ${(message || plan?.title || 'agent').slice(0, 80)}`);
+      if (Object.keys(beforeFiles).length && (mode === 'edit' || mode === 'fix' || mode === 'chat')) {
+        const baseRev = await addRevision(ownerId, projectId, beforeFiles, `before ${mode}: ${(message || 'change').slice(0, 64)}`);
+        baselineRevisionId = baseRev?.id || null;
+      }
+      const savedRev = await addRevision(ownerId, projectId, nextFiles, `${mode}: ${(message || plan?.title || 'agent').slice(0, 80)}`);
+      revisionId = savedRev?.id || null;
     }
+    const durationMs = result.latency || (Date.now() - startedMs);
     const assistantText = [messageText, plan?.summary].filter(Boolean).join('\n\n').slice(0, 20_000);
     const assistantMessage = (assistantText || (changed.length ? `${changed.length} file(s) updated` : ''))
       ? await addMessage(ownerId, projectId, {
         role: 'assistant',
-        kind: plan && !changed.length ? 'plan' : 'files',
+        kind: plan && !changed.length ? 'plan' : (changed.length ? 'files' : 'text'),
         text: assistantText || `${changed.length} file(s) updated`,
         meta: {
-          provider: result.provider, model: result.model,
+          provider: result.provider,
+          providerLabel: result.providerLabel,
+          model: result.model,
+          durationMs,
           ops: changed.map((c) => c.path).slice(0, 40),
+          diff: changed.length ? { added: diff.added, removed: diff.removed, count: diff.count, files: diff.files.slice(0, 25) } : undefined,
+          baselineRevisionId: baselineRevisionId || undefined,
+          revisionId: revisionId || undefined,
           plan: plan || undefined,
           steps: plan?.steps || undefined,
         },
       })
       : null;
+
+    recordModelEvent(ownerId, {
+      projectId,
+      messageId: assistantMessage?.id || null,
+      provider: result.provider,
+      model: result.model || result.provider,
+      mode,
+      durationMs,
+      filesChanged: changed.length,
+      ok: true,
+    }).catch(() => {});
 
     /* the plan may come from this answer or from the stored project — either
        way the "what is still missing" list must be complete */
@@ -320,12 +408,16 @@ export async function studioAgentStream(req, res, body = {}) {
     const notes = [];
     if (result.truncated) notes.push('the model hit its output limit — the last file may be incomplete');
     if (parsed.truncatedFiles.length) notes.push('one file block was cut off mid-write');
-    if (ops.length === 0) notes.push('the model returned no file operations');
+    if (ops.length === 0 && mode !== 'chat') notes.push('the model returned no file operations');
 
     sse.send('done', {
       ok: true,
+      phase: missing.length > 0 ? 'orchestrating' : 'completed',
       project: projectPayload(project),
       changed,
+      diff,
+      baselineRevisionId,
+      revisionId,
       plan: thePlan,
       missing,
       pending: missing.length,
@@ -334,7 +426,7 @@ export async function studioAgentStream(req, res, body = {}) {
       provider: result.provider,
       providerLabel: result.providerLabel,
       model: result.model,
-      latencyMs: result.latency,
+      latencyMs: durationMs,
       truncated: Boolean(result.truncated),
       notes,
       assistantMessage,
@@ -391,6 +483,7 @@ export function registerStudioRoutes({ route, authUser }) {
         github: await deploy.githubStatus(user.id).catch(() => ({ connected: false })),
         vercel: await deploy.vercelStatus(user.id).catch(() => ({ connected: false })),
       },
+      oauth: oauth.oauthProvidersStatus(req?.headers || {}),
     };
   });
 
@@ -434,6 +527,7 @@ export function registerStudioRoutes({ route, authUser }) {
       stack: body.stack,
       files: body.files || {},
       plan: body.plan || null,
+      meta: body.meta || {},
     });
     return { project: projectPayload(project) };
   });
@@ -452,7 +546,7 @@ export function registerStudioRoutes({ route, authUser }) {
   route('PATCH', 'studio/projects/:id', async ({ req, params, body }) => {
     const owner = await auth(req);
     const patch = {};
-    for (const k of ['name', 'description', 'files', 'stack', 'status', 'plan', 'entry']) {
+    for (const k of ['name', 'description', 'files', 'stack', 'status', 'plan', 'entry', 'meta', 'archived']) {
       if (body[k] !== undefined) patch[k] = body[k];
     }
     if (patch.files !== undefined) {
@@ -498,6 +592,10 @@ export function registerStudioRoutes({ route, authUser }) {
     revisions: await listRevisions(await auth(req), Number(params.id)),
   }));
 
+  route('GET', 'studio/projects/:id/revisions/:revisionId', async ({ req, params }) => ({
+    revision: await getRevision(await auth(req), Number(params.id), Number(params.revisionId)),
+  }));
+
   route('POST', 'studio/projects/:id/revisions/:revisionId/restore', async ({ req, params }) => {
     const owner = await auth(req);
     const rev = await getRevision(owner, Number(params.id), Number(params.revisionId));
@@ -516,8 +614,116 @@ export function registerStudioRoutes({ route, authUser }) {
   /* -------------------------------- models ------------------------------- */
   route('POST', 'studio/ai/test', async ({ req, body }) => {
     const owner = await auth(req);
-    return await ai.testProvider({ ownerId: owner, providerId: body.provider, key: body.key, model: body.model });
+    const res = await ai.testProvider({ ownerId: owner, providerId: body.provider, key: body.key, model: body.model });
+    recordModelEvent(owner, {
+      provider: res.provider || body.provider,
+      model: res.model || body.model || body.provider,
+      mode: 'benchmark',
+      durationMs: res.latency || 0,
+      ok: Boolean(res.ok),
+    }).catch(() => {});
+    return res;
   });
+
+  route('GET', 'studio/leaderboard', async ({ req }) => {
+    const owner = await auth(req);
+    const [providers, primary, stats] = await Promise.all([
+      ai.providerStatus(owner),
+      ai.primaryProvider(owner),
+      listModelStats(),
+    ]);
+    const byKey = new Map(stats.map((s) => [`${s.provider}::${s.model}`, s]));
+    const entries = [];
+    const seen = new Set();
+
+    for (const p of providers) {
+      const model = p.defaultModel || p.id;
+      const key = `${p.id}::${model}`;
+      seen.add(key);
+      const st = byKey.get(key);
+      entries.push({
+        provider: p.id,
+        providerLabel: p.label,
+        model,
+        models: p.models || [model],
+        configured: Boolean(p.configured),
+        source: p.source || null,
+        vision: Boolean(p.vision),
+        stream: Boolean(p.stream),
+        free: Boolean(p.free),
+        active: primary?.id === p.id,
+        runs: st?.runs || 0,
+        successful: st?.successful || 0,
+        successRate: st?.successRate ?? null,
+        benchmarks: st?.benchmarks || 0,
+        filesChanged: st?.filesChanged || 0,
+        avgLatencyMs: st?.avgLatencyMs ?? null,
+        lastLatencyMs: st?.lastLatencyMs ?? null,
+        upvotes: st?.upvotes || 0,
+        downvotes: st?.downvotes || 0,
+        netVotes: st?.netVotes || 0,
+        lastUsedAt: st?.lastUsedAt || null,
+      });
+    }
+    for (const st of stats) {
+      const key = `${st.provider}::${st.model}`;
+      if (seen.has(key)) continue;
+      const p = providers.find((x) => x.id === st.provider);
+      entries.push({
+        provider: st.provider,
+        providerLabel: p?.label || st.provider,
+        model: st.model,
+        models: p?.models || [st.model],
+        configured: Boolean(p?.configured),
+        source: p?.source || null,
+        vision: Boolean(p?.vision),
+        stream: Boolean(p?.stream),
+        free: Boolean(p?.free),
+        active: false,
+        ...st,
+      });
+    }
+    entries.sort((a, b) => {
+      if (a.configured !== b.configured) return a.configured ? -1 : 1;
+      if (b.netVotes !== a.netVotes) return b.netVotes - a.netVotes;
+      if (b.runs !== a.runs) return b.runs - a.runs;
+      if ((a.avgLatencyMs ?? Infinity) !== (b.avgLatencyMs ?? Infinity)) return (a.avgLatencyMs ?? Infinity) - (b.avgLatencyMs ?? Infinity);
+      return a.providerLabel.localeCompare(b.providerLabel);
+    });
+    return {
+      entries,
+      primary,
+      totals: {
+        configured: providers.filter((p) => p.configured).length,
+        providers: providers.length,
+        totalRuns: entries.reduce((sum, e) => sum + (e.runs || 0), 0),
+        totalVotes: entries.reduce((sum, e) => sum + (e.upvotes || 0) + (e.downvotes || 0), 0),
+      },
+    };
+  });
+
+  route('POST', 'studio/messages/:id/vote', async ({ req, params, body }) => {
+    const owner = await auth(req);
+    return await voteMessage(owner, Number(params.id), Number(body.vote || 0));
+  });
+
+  /* -------------------------------- OAuth -------------------------------- */
+  route('GET', 'studio/oauth/providers', async ({ req }) => {
+    await auth(req);
+    return { providers: oauth.oauthProvidersStatus(req?.headers || {}) };
+  });
+
+  route('POST', 'studio/oauth/:provider/start', async ({ req, params, body }) => {
+    const owner = await auth(req);
+    return oauth.startOAuth(owner, params.provider, {
+      headers: req?.headers || {},
+      origin: String(body?.origin || ''),
+    });
+  });
+
+  route('GET', 'studio/oauth/:provider/callback', async ({ params, query }) =>
+    await oauth.completeOAuth(params.provider, query || {}),
+  );
 
   route('POST', 'studio/ai/keys', async ({ req, body }) => {
     const owner = await auth(req);
@@ -536,6 +742,22 @@ export function registerStudioRoutes({ route, authUser }) {
   route('GET', 'studio/integrations/google', async ({ req }) => google.driveAccount(await auth(req)));
 
   /* ------------------------------ Google Drive ---------------------------- */
+  route('GET', 'studio/drive/files', async ({ req, query }) => {
+    const owner = await auth(req);
+    return await google.searchDriveFiles(owner, {
+      q: query?.q || '',
+      kind: query?.kind || 'all',
+      folderId: query?.folderId || '',
+      pageSize: query?.pageSize || 30,
+      pageToken: query?.pageToken || '',
+    });
+  });
+
+  route('POST', 'studio/drive/manage', async ({ req, body }) => {
+    const owner = await auth(req);
+    return await google.manageDriveFile(owner, body || {});
+  });
+
   route('POST', 'studio/drive/read', async ({ req, body }) => {
     const owner = await auth(req);
     return { document: await google.readDriveFile(owner, { id: body.id }) };
@@ -557,6 +779,31 @@ export function registerStudioRoutes({ route, authUser }) {
     return { export: result };
   });
 
+  /* ------------------------------ Google Docs ----------------------------- */
+  route('GET', 'studio/docs', async ({ req, query }) => {
+    const owner = await auth(req);
+    return await google.searchDriveFiles(owner, { q: query?.q || '', kind: 'doc', pageSize: query?.pageSize || 30 });
+  });
+
+  route('POST', 'studio/docs/read', async ({ req, body }) => {
+    const owner = await auth(req);
+    return { doc: await google.readGoogleDoc(owner, { id: body.id }) };
+  });
+
+  route('POST', 'studio/docs/create', async ({ req, body }) => {
+    const owner = await auth(req);
+    const doc = await google.createGoogleDoc(owner, { title: body.title, content: body.content || '' });
+    if (body.projectId) {
+      await addDeployment(owner, Number(body.projectId), { provider: 'google', status: 'doc_created', url: doc.url, meta: doc }).catch(() => {});
+    }
+    return { doc };
+  });
+
+  route('POST', 'studio/docs/update', async ({ req, body }) => {
+    const owner = await auth(req);
+    return { doc: await google.updateGoogleDoc(owner, body || {}) };
+  });
+
   /* --------------------------- real repositories -------------------------- */
   /* open an existing GitHub repository as a project, and commit back to it */
   route('POST', 'studio/vercel/state', async ({ req, body }) => {
@@ -564,19 +811,85 @@ export function registerStudioRoutes({ route, authUser }) {
     return await deploy.vercelProjectState(owner, { id: body.id || null, name: body.name || '' });
   });
 
+  route('GET', 'studio/vercel/deployments', async ({ req, query }) => {
+    const owner = await auth(req);
+    return await deploy.vercelDeployments(owner, {
+      id: query?.id || '',
+      name: query?.name || '',
+      limit: query?.limit || 10,
+    });
+  });
+
+  route('GET', 'studio/repos/branches', async ({ req, query }) => {
+    const owner = await auth(req);
+    return await deploy.githubBranches(owner, { repo: query?.repo || '' });
+  });
+
+  route('POST', 'studio/repos/branches', async ({ req, body }) => {
+    const owner = await auth(req);
+    const created = await deploy.githubCreateBranch(owner, {
+      repo: body.repo,
+      branch: body.branch,
+      from: body.from || '',
+    });
+    if (body.projectId) {
+      await updateProject(owner, Number(body.projectId), {
+        meta: { repo: created.repo, branch: created.branch },
+      }).catch(() => {});
+    }
+    return created;
+  });
+
+  route('POST', 'studio/repos/file', async ({ req, body }) => {
+    const owner = await auth(req);
+    return await deploy.githubReadFile(owner, {
+      repo: body.repo,
+      path: body.path,
+      ref: body.ref || '',
+    });
+  });
+
+  route('POST', 'studio/repos/file/save', async ({ req, body }) => {
+    const owner = await auth(req);
+    const saved = await deploy.githubSaveFile(owner, {
+      repo: body.repo,
+      path: body.path,
+      content: body.content,
+      branch: body.branch || '',
+      message: body.message || '',
+      sha: body.sha || '',
+    });
+    if (body.projectId && typeof body.content === 'string') {
+      const proj = await getProject(owner, Number(body.projectId)).catch(() => null);
+      if (proj) {
+        const { files } = applyOps(proj.files, [{ op: 'write', path: body.path, content: body.content }]);
+        await updateProject(owner, proj.id, { files }).catch(() => {});
+      }
+    }
+    return saved;
+  });
+
   route('POST', 'studio/repos/import', async ({ req, body }) => {
     const owner = await auth(req);
     const imported = await deploy.githubImport(owner, { repo: body.repo, ref: body.ref });
+    const targetId = body.projectId ? Number(body.projectId) : null;
     const name = String(body.name || imported.repo.split('/')[1] || 'imported repo').slice(0, 60);
-    const created = await createProject(owner, { name });
+    const base = targetId ? await getProject(owner, targetId) : await createProject(owner, { name });
     const stack = detectStack(imported.files);
     const entry = guessEntry(imported.files, stack);
-    const project = await updateProject(owner, created.id, {
+    const project = await updateProject(owner, base.id, {
+      ...(targetId ? {} : { name }),
       files: imported.files,
       stack,
       entry,
       status: 'ready',
       description: `Imported from ${imported.repo}@${imported.ref}`.slice(0, 200),
+      meta: {
+        kind: 'project',
+        repo: imported.repo,
+        branch: imported.ref,
+        defaultBranch: imported.defaultBranch || imported.ref || 'main',
+      },
     });
     await addDeployment(owner, project.id, {
       provider: 'github',
@@ -584,12 +897,13 @@ export function registerStudioRoutes({ route, authUser }) {
       url: `https://github.com/${imported.repo}`,
       meta: { repo: imported.repo, ref: imported.ref, imported: imported.imported, skipped: imported.skipped },
     });
-    try { await addRevision(owner, project.id, project.files, `imported ${imported.repo}`); } catch { /* a restore point is nice, not required */ }
+    try { await addRevision(owner, project.id, project.files, `imported ${imported.repo}@${imported.ref}`); } catch { /* a restore point is nice, not required */ }
     return {
       project: projectPayload(project),
       repo: {
         full: imported.repo,
         ref: imported.ref,
+        defaultBranch: imported.defaultBranch || imported.ref || 'main',
         private: imported.private,
         imported: imported.imported,
         skipped: imported.skipped,
@@ -606,18 +920,24 @@ export function registerStudioRoutes({ route, authUser }) {
       const result = await deploy.githubPushBranch(owner, {
         repo: body.repo,
         files: project.files,
+        deletePaths: Array.isArray(body.deletePaths) ? body.deletePaths : [],
         branch: body.branch || '',
         base: body.base || '',
         message: String(body.message || `NEXORA Studio: ${project.name}`).slice(0, 200),
         pr: body.pr !== false,
+        prTitle: body.prTitle || '',
+        prBody: body.prBody || '',
       });
+      await updateProject(owner, project.id, {
+        meta: { repo: result.repo, branch: result.branch, defaultBranch: result.base },
+      }).catch(() => {});
       await updateDeployment(owner, record.id, {
         status: result.pull ? 'pr_open' : 'ready',
-        url: result.pull?.url || result.url,
+        url: result.pull?.url || result.commitUrl || result.url,
         externalId: result.commitSha,
         meta: result,
       });
-      return { ...result, deployment: { ...record, url: result.pull?.url || result.url, status: result.pull ? 'pr_open' : 'ready' } };
+      return { ...result, deployment: { ...record, url: result.pull?.url || result.commitUrl || result.url, status: result.pull ? 'pr_open' : 'ready' } };
     } catch (e) {
       await updateDeployment(owner, record.id, { status: 'failed', meta: { error: e.detail || e.message } });
       throw e;
@@ -663,7 +983,13 @@ export function registerStudioRoutes({ route, authUser }) {
         existingProjectId: body.existingProjectId || null,
       });
       await updateDeployment(owner, record.id, { status: result.state || 'queued', url: result.url, externalId: result.id, meta: result });
-      await updateProject(owner, project.id, { status: 'deployed' });
+      await updateProject(owner, project.id, {
+        status: 'deployed',
+        meta: {
+          vercelProjectName: result.project || '',
+          ...(body.existingProjectId ? { vercelProjectId: String(body.existingProjectId) } : {}),
+        },
+      });
       return { deployment: { ...record, ...result, status: result.state } };
     } catch (e) {
       await updateDeployment(owner, record.id, { status: 'failed', meta: { error: e.detail || e.message } });
@@ -690,6 +1016,9 @@ export function registerStudioRoutes({ route, authUser }) {
         projectName: project.name,
       });
       await updateDeployment(owner, record.id, { status: 'ready', url: result.url, externalId: result.commitSha, meta: result });
+      await updateProject(owner, project.id, {
+        meta: { repo: result.repo, branch: result.branch || 'main', defaultBranch: result.branch || 'main' },
+      }).catch(() => {});
       return { deployment: { ...record, ...result } };
     } catch (e) {
       await updateDeployment(owner, record.id, { status: 'failed', meta: { error: e.detail || e.message } });

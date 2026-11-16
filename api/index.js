@@ -81,6 +81,12 @@ export default async function handler(req, res) {
   try {
     const body = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method) ? await readBody(req) : {};
     const data = await dispatch(req.method, path, { headers: req.headers, body, query: Object.fromEntries(url.searchParams) });
+    if (data && typeof data === 'object' && typeof data.__html === 'string') {
+      res.statusCode = Number(data.status) || 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.end(data.__html);
+    }
     send(res, 200, data);
   } catch (e) {
     if (e instanceof HttpError) return send(res, e.status, e.detail ? { error: e.code, detail: e.detail } : { error: e.code });

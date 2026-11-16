@@ -171,6 +171,28 @@ Return the FULL content of every file you change or create, and nothing else. If
   };
 }
 
+export function buildChatPrompt({ project, userMessage, selectedPath = '', history = [] }) {
+  const files = project?.files || {};
+  const hasFiles = Object.keys(files).length > 0;
+  const ctx = hasFiles
+    ? `\nWorkspace: "${project.name}" (stack: ${project.stack})\n${renderTree(files, 120)}\n\nProject files:\n${pickContext(files, { maxChars: 55_000, prefer: selectedPath ? [selectedPath] : [project.entry] }).text}\n${selectedPath ? `Currently open file: ${selectedPath}\n` : ''}`
+    : '';
+  return {
+    instructions: `You are NEXORA — an intelligent AI software engineering & research agent.
+Answer the user directly, clearly, and thoroughly in the same language the user writes in (Arabic, English, etc.).
+- When the user asks a question, explanation, analysis, review, brainstorm, or comparison, respond inside <message>...</message> with clear, well-structured Markdown (headings, bullet points, code snippets as helpful). Do not invent unneeded project files for pure questions.
+- If the user also asks you to create or modify project files, emit <file path="...">FULL content</file> (or <delete path="..."/>) followed by a concise <message>summary</message>.
+- Be honest, precise, and practical. Never claim to have run a command unless its output was provided.`,
+    messages: [
+      ...history.slice(-10),
+      {
+        role: 'user',
+        content: `${ctx ? ctx + '\n' : ''}${userMessage}`,
+      },
+    ],
+  };
+}
+
 export function buildFixPrompt({ project, logs, userMessage = '' }) {
   const files = project.files || {};
   return {
