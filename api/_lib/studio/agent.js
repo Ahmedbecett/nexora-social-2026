@@ -4,6 +4,7 @@
    The model answers with a small, provider-agnostic tag protocol:
 
      <plan>{ json }</plan>
+     <inspect>src/App.jsx</inspect>          ← announce each existing file you read
      <file path="src/App.jsx">…full file…</file>
      <file path="article.md" append>…next section only…</file>
      <delete path="old.css"/>
@@ -22,6 +23,7 @@ OUTPUT PROTOCOL — this is a strict contract:
 - Produce complete files with <file path="relative/path"> … </file>. The content is the ENTIRE file.
 - Only when the task asks for long-form text may you continue an existing file with <file path="same/path" append> … </file>, which carries ONLY the next section.
 - Delete a file with <delete path="relative/path"/>.
+- Before touching existing code, name each existing file you consult with <inspect>relative/path</inspect> on its own line (only files that already exist, at most 8) — the IDE opens them as you read.
 - Return the project plan only with <plan>{valid JSON}</plan>.
 - End with <message>one short paragraph</message> written in Saudi-friendly Modern Standard Arabic unless the user writes in another language — then use that language.
 - No markdown fences around the tags. No explanations of the protocol. Short prose between blocks is allowed but is NOT how files are delivered.
@@ -95,7 +97,11 @@ ${userMessage}
 Plan:
 ${JSON.stringify(plan || {}, null, 2)}
 
-${ctx ? `Existing files (replace only when you output them again):\n${ctx}\n` : ''}
+${ctx ? `Existing files (replace only when you output them again):
+${ctx}
+
+Name every existing file you consult first: one <inspect>path</inspect> line per file, before your first <file> block.
+` : ''}
 ${missingList ? `FILES TO WRITE IN THIS REQUEST — output these now, and only these:\n${missingList}\n` : 'Write the files the app still needs to run.'}
 
 ${askPlan ? 'Start this answer with one <plan>{…}</plan> block (JSON, the same shape as a build plan) so the system knows the complete file list, then write the files.\n' : ''}Rules for this turn: at most ${Math.max(1, batch)} complete files, each ONE whole file, smallest stack that works, no placeholder content. Start with the entry point (index.html) so the preview can render immediately. Stop after these files — the system asks for the rest.`,
@@ -276,9 +282,9 @@ function normalizePlan(obj) {
 
 /** Parse a complete model answer into plan / file operations / prose. */
 export function parseAgentOutput(raw) {
-  const out = { plan: null, ops: [], prose: '', message: '', truncatedFiles: [] };
+  const out = { plan: null, ops: [], prose: '', message: '', truncatedFiles: [], inspects: [] };
   const text = String(raw || '');
-  const openRe = /<(?:nexora:)?(file|delete|plan|message)\b([^>]*)>/gi;
+  const openRe = /<(?:nexora:)?(file|delete|plan|message|inspect)\b([^>]*)>/gi;
   let last = 0;
   let m;
   while ((m = openRe.exec(text))) {
@@ -290,7 +296,10 @@ export function parseAgentOutput(raw) {
     const path = normalizePath((attrs.match(/path\s*=\s*("([^"]*)"|'([^']*)')/) || [])[2] || (attrs.match(/path\s*=\s*'([^']*)'/) || [])[1]);
 
     if (selfClosing || kind === 'delete') {
-      if (path) out.ops.push({ op: 'delete', path });
+      if (kind === 'inspect') {
+        const p = normalizePath(path || '');
+        if (p && !out.inspects.includes(p)) out.inspects.push(p);
+      } else if (path) out.ops.push({ op: 'delete', path });
       last = openRe.lastIndex;
       continue;
     }
@@ -309,6 +318,9 @@ export function parseAgentOutput(raw) {
 
     if (kind === 'file') {
       if (path) out.ops.push({ op: 'write', path, content: stripFences(body), append: hasAppend(attrs) });
+    } else if (kind === 'inspect') {
+      const p = normalizePath(body.trim());
+      if (p && !out.inspects.includes(p)) out.inspects.push(p);
     } else if (kind === 'plan') {
       const plan = normalizePlan(parseJsonLoose(body));
       if (plan) out.plan = plan;
@@ -318,7 +330,7 @@ export function parseAgentOutput(raw) {
   }
   const tail = text.slice(last).trim();
   if (tail) out.prose += (out.prose ? '\n' : '') + tail;
-  out.prose = out.prose.replace(/(?:<\/?(?:nexora:)?(?:file|delete|plan|message)\b[^>]*>)/gi, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 8000);
+  out.prose = out.prose.replace(/(?:<\/?(?:nexora:)?(?:file|delete|plan|message|inspect)\b[^>]*>)/gi, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 8000);
 
   // JSON fallback for models that ignore the tag protocol
   if (!out.ops.length && !out.plan) {
@@ -348,7 +360,7 @@ export function parseAgentOutput(raw) {
  * `push(accumulatedText)` is designed for providers that send the full text so
  * far; only newly completed blocks are emitted.
  */
-export function createProtocolStreamer({ onProse, onFile, onDelete, onPlan, onMessage, onFilePartial } = {}) {
+export function createProtocolStreamer({ onProse, onFile, onDelete, onPlan, onMessage, onFilePartial, onInspect } = {}) {
   let buffer = '';
   let cursor = 0;
   let proseEmitted = 0;
@@ -356,6 +368,8 @@ export function createProtocolStreamer({ onProse, onFile, onDelete, onPlan, onMe
   let lastPartialAt = 0;
   let lastPartialLen = 0;
   let partialPath = null;
+  /* inspections are announced once per path — the Work view opens the file */
+  const inspected = new Set();
 
   const emitProse = (chunk) => {
     const clean = chunk.replace(/\n{3,}/g, '\n\n');
@@ -364,7 +378,7 @@ export function createProtocolStreamer({ onProse, onFile, onDelete, onPlan, onMe
   };
 
   const findOpen = (from) => {
-    const re = /<(?:nexora:)?(file|delete|plan|message)\b([^>]*)>/gi;
+    const re = /<(?:nexora:)?(file|delete|plan|message|inspect)\b([^>]*)>/gi;
     re.lastIndex = from;
     const m = re.exec(buffer);
     return m ? { index: m.index, end: re.lastIndex, kind: m[1].toLowerCase(), attrs: m[2] || '' } : null;
@@ -389,7 +403,9 @@ export function createProtocolStreamer({ onProse, onFile, onDelete, onPlan, onMe
       if (open.kind === 'delete' || /\/\s*$/.test(open.attrs)) {
         const m = open.attrs.match(/path\s*=\s*("([^"]*)"|'([^']*)')/);
         const path = normalizePath(m ? (m[2] || m[3]) : '');
-        if (path && onDelete) onDelete(path);
+        if (open.kind === 'inspect') {
+          if (path && !inspected.has(path)) { inspected.add(path); if (onInspect) onInspect({ path }); }
+        } else if (path && onDelete) onDelete(path);
         cursor = open.end;
         continue;
       }
@@ -419,6 +435,9 @@ export function createProtocolStreamer({ onProse, onFile, onDelete, onPlan, onMe
         const m = open.attrs.match(/path\s*=\s*("([^"]*)"|'([^']*)')/);
         const path = normalizePath(m ? (m[2] || m[3]) : '');
         if (path && onFile) onFile({ path, content: stripFences(body), append: hasAppend(open.attrs) });
+      } else if (open.kind === 'inspect') {
+        const path = normalizePath(body.trim());
+        if (path && !inspected.has(path)) { inspected.add(path); if (onInspect) onInspect({ path }); }
       } else if (open.kind === 'plan') {
         const plan = normalizePlan(parseJsonLoose(body));
         if (plan && onPlan) onPlan(plan);

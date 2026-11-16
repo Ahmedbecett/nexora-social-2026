@@ -46,6 +46,7 @@ const errors = [];
 const requests = [];
 const bodies = [];
 let mode = 'existing';
+let liveAgent = false;
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -93,6 +94,21 @@ function installDom() {
 function sse(frames) {
   const text = frames.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join('');
   return new Response(text, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+}
+
+/** SSE answer whose frames arrive over time, so live UI states are observable. */
+function sseLive(frames, delayMs = 40) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      for (const [event, data] of frames) {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+      controller.close();
+    },
+  });
+  return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
 }
 
 function installFetch() {
@@ -143,6 +159,23 @@ function installFetch() {
     }
     if (url.includes('/api/studio/agent')) {
       const body = JSON.parse(init.body || '{}');
+      if (liveAgent && (body.mode === 'create' || body.mode === 'edit' || body.mode === 'continue')) {
+        return sseLive([
+          ['status', { mode: 'create' }],
+          ['inspect', { path: 'index.html' }],
+          ['inspect', { path: 'app.js' }],
+          ['file_partial', { path: 'index.html', partial: '<!doctype html><html><body><div id="hero">Built by the agent</div>' }],
+          ['file', { path: 'index.html', content: BUILT_FILES['index.html'] }],
+          ['log', { text: '$ npm install --no-audit --no-fund\n' }],
+          ['log', { text: 'added 3 packages in 2s\n' }],
+          ['file', { path: 'app.js', content: BUILT_FILES['app.js'] }],
+          ['done', {
+            project: { ...PROJECT, files: BUILT_FILES, status: 'ready', entry: 'index.html', fileCount: 2, bytes: 300 },
+            assistantMessage: { id: 44, role: 'assistant', kind: 'files', text: 'Rebuilt the counter page.', meta: {}, createdAt: new Date().toISOString() },
+            plan: { title: 'Counter demo' }, missing: [], changed: ['index.html', 'app.js'], provider: 'openai', notes: [],
+          }],
+        ], 150);
+      }
       if (body.mode === 'create' || body.mode === 'edit' || body.mode === 'continue') {
         return sse([
           ['status', { mode: 'create' }],
@@ -444,6 +477,55 @@ test('after a build, Diff reviews every change and Checks runs real verification
   } finally {
     console.error = origError;
     root.unmount();
+  }
+});
+
+test('live Work view: file inspection, streaming writes and real install logs appear as they happen', async () => {
+  mode = 'existing';
+  liveAgent = true;
+  errors.length = 0;
+  const window = installDom();
+  installFetch();
+  const { StudioApp } = await bundleApp();
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(document.getElementById('root'));
+  const origError = console.error;
+  console.error = (...args) => { errors.push(args.map(String).join(' ')); origError(...args); };
+  try {
+    root.render(React.createElement(StudioApp));
+    assert.ok(await until(() => document.querySelector('textarea[aria-label="Message NEXORA Studio"]')), 'composer ready');
+
+    const area = document.querySelector('textarea[aria-label="Message NEXORA Studio"]');
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+    setValue.call(area, 'rewrite the counter with the live work view');
+    area.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await until(() => document.querySelector('button.nxs-send:not(.stop)'));
+    click(document.querySelector('button.nxs-send:not(.stop)'));
+
+    /* while the stream runs: inspected files are listed as being read */
+    assert.ok(await until(() => document.querySelector('.nxs-aw-inspect-row'), 4000), 'inspect row is live');
+    assert.ok(document.body.textContent.includes('index.html'), 'the inspected path is shown');
+    assert.ok(textOf('.nxs-aw-inspect-row').some((t) => /reading/i.test(t)), 'row carries the reading tag');
+    assert.ok(/Inspecting/.test(document.body.textContent), 'headline reports inspection');
+
+    /* the streaming file window shows the file as it is typed */
+    assert.ok(await until(() => document.querySelector('.nxs-aw-code'), 4000), 'streaming code window is live');
+    assert.ok(/streaming/.test(document.body.textContent), 'the code window marks live streaming');
+
+    /* real command output (npm install) renders in the Work view terminal */
+    assert.ok(await until(() => document.querySelector('.nxs-aw-logs'), 4000), 'terminal box is live');
+    assert.ok(await until(() => /npm install/.test(document.querySelector('.nxs-aw-logs')?.textContent || ''), 4000), 'the real install command is visible');
+    assert.ok(await until(() => /added 3 packages/.test(document.querySelector('.nxs-aw-logs')?.textContent || ''), 4000), 'install output lines stream in');
+
+    /* the build completes and the transient reading rows clear */
+    assert.ok(await until(() => /Build finished/.test(document.body.textContent), 8000), 'agent completes the build');
+    assert.ok(!document.querySelector('.nxs-aw-inspect-row'), 'reading rows clear after done');
+    assert.deepEqual(errors.filter((e) => !/not wrapped in act/.test(e)), [], 'no React errors during the live stream');
+  } finally {
+    liveAgent = false;
+    console.error = origError;
+    try { root.unmount(); } catch { /* fine */ }
   }
 });
 

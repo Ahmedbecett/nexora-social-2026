@@ -55,6 +55,14 @@ const server = http.createServer((req, res) => {
     const last = body.messages?.at(-1)?.content || '';
     if (/produce a build plan/.test(last)) {
       sse(res, [`Here is the plan.\n<plan>${JSON.stringify(PLAN)}</plan>\n<message>خطة جاهزة: تطبيق عدّاد صغير.</message>`]);
+    } else if (/npm tool with dependencies/.test(last)) {
+      /* a build that declares dependencies — the route must really install them */
+      sse(res, [
+        `<plan>${JSON.stringify({ title: 'Node tool', summary: 's', stack: 'node', files: [{ path: 'package.json' }, { path: 'index.js' }] })}</plan>`,
+        '<file path="package.json">{"name":"node-tool","version":"1.0.0","dependencies":{"left-pad":"1.3.0"}}</file>',
+        '<file path="index.js">const pad = require("left-pad"); console.log(pad("x", 3));</file>',
+        '<message>أداة جاهزة.</message>',
+      ]);
     } else if (/Start this answer with one <plan>/.test(last)) {
       /* direct mode: the plan travels inside the first create answer */
       sse(res, [
@@ -245,6 +253,36 @@ test('direct mode skips the plan request and still tracks what is missing', asyn
   const stored = await getProject('dev', project.id);
   assert.ok(stored.plan && stored.plan.files.length === 2, 'the plan is stored from that answer');
 });
+
+test('a build that declares npm dependencies really installs them (once per dependency set)', async () => {
+  const project = await createProject('dev', { name: 'Node tool' });
+  const res = fakeRes();
+  await studioAgentStream(fakeReq(), res, {
+    projectId: project.id, mode: 'create', message: 'npm tool with dependencies', buildMode: 'direct',
+  });
+  const list = events(res.text);
+  const done = list.find((e) => e.event === 'done');
+
+  /* the install really ran: status frame, streamed logs, recorded result */
+  assert.ok(list.some((e) => e.event === 'status' && e.data.step === 'install'), 'an install status frame is sent');
+  const logs = list.filter((e) => e.event === 'log').map((e) => e.data.text).join('');
+  assert.ok(/npm install/.test(logs), 'the install command is streamed to the client');
+  assert.ok(/added \d+ package/.test(logs) || /up to date/.test(logs), 'npm really produced output');
+  assert.equal(done.data.install?.ran, true);
+  assert.equal(done.data.install?.exitCode, 0);
+
+  /* the fingerprint is stored so the next identical build does not reinstall */
+  const stored = await getProject('dev', project.id);
+  assert.equal(stored.meta?.deps, 'left-pad@1.3.0', 'the installed dependency set is remembered');
+
+  const again = fakeRes();
+  await studioAgentStream(fakeReq(), again, {
+    projectId: project.id, mode: 'continue', message: 'npm tool with dependencies', buildMode: 'direct',
+  });
+  const againDone = events(again.text).find((e) => e.event === 'done');
+  assert.ok(!againDone.data.install, 'unchanged dependencies are not installed again');
+  try { rmSync(join(process.cwd(), '.nexora', 'studio', 'work', String(project.id)), { recursive: true, force: true }); } catch { /* fine */ }
+}, 120_000);
 
 test('long-text mode appends the next section to the same file', async () => {
   const project = await createProject('dev', { name: 'Article' });

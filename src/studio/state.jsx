@@ -67,6 +67,8 @@ const emptyAgent = () => ({
   pending: 0,
   lastNotes: [],
   typing: null,
+  inspecting: [],
+  logs: '',
   started: null,
   finishedAt: null,
   durationMs: 0,
@@ -158,6 +160,8 @@ export function StudioProvider({ children }) {
   const abortRef = useRef(null);
   const saveTimer = useRef(null);
   const stateRef = useRef({});
+  /* path of the file the agent is currently streaming (tab-follow trigger) */
+  const prevTypingPathRef = useRef(null);
   stateRef.current = {
     session, projects, project, messages, files, diffBaseline, checks,
     activeFile, dirty, agent, terminal, tab, workspaceOpen, previewMode,
@@ -916,26 +920,54 @@ export function StudioProvider({ children }) {
       case 'status': {
         const phase = data.phase
           || (mode === 'plan' ? 'planning' : mode === 'continue' ? 'orchestrating' : 'working');
+        prevTypingPathRef.current = null;
         setAgent((a) => ({ ...a, step: mode, phase, running: true, error: null }));
         break;
       }
       case 'prose':
         setAgent((a) => ({ ...a, prose: data.text || '' }));
         break;
-      case 'file_partial':
+      case 'inspect': {
+        /* the agent announced it is reading an existing file — show it live
+           in the Work view and open its tab so the user sees the inspection */
+        const path = String(data.path || '');
+        if (!path) break;
+        setAgent((a) => ({
+          ...a,
+          phase: a.typing ? 'working' : 'reading',
+          inspecting: a.inspecting.includes(path) ? a.inspecting : [...a.inspecting.slice(-11), path],
+        }));
+        recordStep(`read:${path}`, { phase: 'reading', label: `Reading ${path}`, status: 'running' });
+        break;
+      }
+      case 'log':
+        setAgent((a) => ({ ...a, logs: (a.logs + String(data.text || '')).slice(-6000) }));
+        break;
+      case 'file_partial': {
+        /* a new file started streaming — open its tab right away so the user
+           watches each file being written, exactly like the Work view shows */
+        if (data.path && prevTypingPathRef.current !== data.path) {
+          prevTypingPathRef.current = data.path;
+          setOpenFiles((prev) => (prev.includes(data.path) ? prev : (prev.length < 6 ? [...prev, data.path] : prev)));
+          setActiveFile(data.path);
+        }
         setAgent((a) => ({
           ...a,
           phase: 'working',
           typing: { path: data.path, text: String(data.partial || ''), at: Date.now() },
+          inspecting: a.inspecting.filter((p) => p !== data.path),
         }));
         recordStep(`file:${data.path}`, { phase: 'working', label: `Writing ${data.path}`, status: 'running' });
         break;
+      }
       case 'file':
         setAgent((a) => ({
           ...a,
           phase: 'working',
           typing: a.typing && a.typing.path === data.path ? null : a.typing,
+          inspecting: a.inspecting.filter((p) => p !== data.path),
         }));
+        recordStep(`read:${data.path}`, { status: 'done' });
         setFiles((prev) => ({
           ...prev,
           [data.path]: data.append ? appendPart(prev[data.path], data.content) : data.content,
@@ -999,6 +1031,7 @@ export function StudioProvider({ children }) {
           error: data.failed ? a.error : null,
           prose: '',
           message: '',
+          inspecting: [],
           lastNotes: data.notes || [],
           finishedAt: Date.now(),
           durationMs: a.started ? Date.now() - a.started : (data.latencyMs || 0),
@@ -1013,6 +1046,7 @@ export function StudioProvider({ children }) {
           step: null,
           phase: 'error',
           error: data.detail || data.code,
+          inspecting: [],
           finishedAt: Date.now(),
         }));
         break;
@@ -1133,7 +1167,7 @@ export function StudioProvider({ children }) {
 
   const stopAgent = useCallback(() => {
     try { abortRef.current?.abort(); } catch { /* already */ }
-    setAgent((a) => ({ ...a, running: false, step: null, phase: 'stopped', stopped: true, finishedAt: Date.now() }));
+    setAgent((a) => ({ ...a, running: false, step: null, phase: 'stopped', stopped: true, inspecting: [], finishedAt: Date.now() }));
     const current = stateRef.current.files;
     if (Object.keys(current || {}).length) persistFiles(current, { label: 'stopped mid-build' }).catch(() => {});
     notify('Stopped — files written so far are kept', 'warn');

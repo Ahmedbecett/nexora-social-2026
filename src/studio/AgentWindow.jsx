@@ -19,7 +19,7 @@ const STAGES = [
   { id: 'completed', label: 'Completed' },
 ];
 
-const STAGE_ORDER = { planning: 0, orchestrating: 1, working: 2, completed: 3 };
+const STAGE_ORDER = { planning: 0, orchestrating: 1, working: 2, completed: 3, reading: 1 };
 
 function formatElapsed(ms) {
   const sec = Math.max(0, Math.round(ms / 100) / 10);
@@ -74,6 +74,10 @@ export default function AgentWindow() {
   if (phase === 'planning') headline = 'Planning';
   else if (phase === 'orchestrating') {
     headline = agent.round > 1 ? `Orchestrating · Round ${agent.round}` : 'Orchestrating';
+  } else if (phase === 'reading') {
+    headline = agent.inspecting?.length
+      ? `Inspecting ${agent.inspecting[agent.inspecting.length - 1]}`
+      : 'Inspecting project files';
   } else if (phase === 'working') {
     headline = agent.typing?.path ? `Writing ${agent.typing.path}` : 'Working';
   } else if (phase === 'completed') {
@@ -168,6 +172,36 @@ export default function AgentWindow() {
           {/* Live prose while planning/thinking */}
           {agent.running && agent.prose && !agent.typing && (
             <p className="nxs-aw-prose" dir="auto">{agent.prose.slice(-420)}</p>
+          )}
+
+          {/* Files being inspected right now — each one opens in the editor */}
+          {(agent.inspecting || []).length > 0 && agent.running && (
+            <div className="nxs-aw-inspect" aria-label="Files being inspected">
+              {agent.inspecting.map((path) => (
+                <button
+                  key={path}
+                  type="button"
+                  className="nxs-aw-inspect-row"
+                  onClick={() => openFileInEditor(path)}
+                  title={`Open ${path} in editor`}
+                >
+                  <span className="nxs-aw-inspect-spin" aria-hidden="true" />
+                  <span className="mono">{path}</span>
+                  <span className="nxs-aw-inspect-tag">reading</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Real command output (npm install & friends) streamed by the server */}
+          {agent.logs && !agent.typing && (
+            <div className="nxs-aw-logs" aria-label="Command output">
+              <div className="nxs-aw-logs-head">
+                <span className={`nxs-aw-dot ${agent.running ? 'working' : 'completed'}`} aria-hidden="true" />
+                <span>Terminal</span>
+              </div>
+              <pre><code>{agent.logs.slice(-2400)}</code></pre>
+            </div>
           )}
 
           {/* Plan checklist summary */}
