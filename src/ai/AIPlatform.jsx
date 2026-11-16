@@ -380,7 +380,7 @@ export default function AIPlatform() {
           loadConvs(convQ.trim());
           if(voiceOut)speak(r.answer);
         }else{
-          const reader=res.body.getReader();const dec=new TextDecoder();let buf='';
+          const reader=res.body.getReader();const dec=new TextDecoder();let buf='';let lastText='';let gotDone=false;
           for(;;){
             const rd=await reader.read();if(rd.done)break;
             buf+=dec.decode(rd.value,{stream:true});
@@ -388,9 +388,10 @@ export default function AIPlatform() {
             for(const part of parts){
               const line=part.split('\n').find(l=>l.startsWith('data: '));if(!line)continue;
               let ev;try{ev=JSON.parse(line.slice(6))}catch{continue}
-              if(ev.type==='delta')patchLast({text:ev.text,streaming:true});
+              if(ev.type==='delta'){lastText=ev.text;patchLast({text:ev.text,streaming:true});}
               else if(ev.type==='start'){if(ev.conversationId)setConvId(ev.conversationId)}
               else if(ev.type==='done'){
+                gotDone=true;
                 patchLast({text:ev.answer||undefined,provider:ev.provider,providerLabel:ev.providerLabel,model:ev.model,sources:ev.sources||null,streaming:false});
                 if(ev.conversationId)setConvId(ev.conversationId);
                 loadConvs(convQ.trim());
@@ -399,6 +400,12 @@ export default function AIPlatform() {
                 throw Object.assign(new Error(ev.code||'server_error'),{code:ev.code,detail:ev.detail});
               }
             }
+          }
+          /* انقطع البث بلا إتمام ولا خطأ (الدالة أُوقفت أو الشبكة قطعت):
+             نص جزئي؟ يُوقف بسلام؛ لا نص؟ خطأ شبكة واضح قابل لإعادة المحاولة — لا صمت تام */
+          if(!gotDone){
+            if(lastText)patchLast({streaming:false,stopped:true});
+            else throw Object.assign(new Error('stream_closed'),{code:'network'});
           }
           patchLast({streaming:false});
         }

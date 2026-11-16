@@ -8,7 +8,7 @@ const loader = readFileSync('public/monetag-web.js', 'utf8');
 const tag = '<script src="/monetag-web.js" defer></script>';
 
 function runLoader({ host = 'nexora-social-2026.vercel.app', protocol = 'https:', userAgent = '',
-  capacitor = false, nativeClass = false, gpc = false, readyState = 'complete' } = {}) {
+  capacitor = false, nativeClass = false, gpc = false, readyState = 'complete', storage = null } = {}) {
   const nodes = new Map();
   const listeners = new Map();
   const document = {
@@ -27,6 +27,7 @@ function runLoader({ host = 'nexora-social-2026.vercel.app', protocol = 'https:'
     navigator: { userAgent, globalPrivacyControl: gpc },
     window: { Capacitor: capacitor ? { isNativePlatform: () => true } : undefined },
     document,
+    ...(storage ? { localStorage: storage } : {}),
   };
   const execute = () => runInNewContext(loader, context, { filename: 'monetag-web.js' });
   execute();
@@ -84,6 +85,24 @@ test('no Monetag request in Android WebView, preview/local hosts, or browsers si
     assert.equal(nodes.size, 0, JSON.stringify(options));
     assert.equal(listeners.size, 0, JSON.stringify(options));
   }
+});
+
+test('OnClick واحد كحد أقصى كل 30 دقيقة (بوابة مستقلة عن البانرات)', () => {
+  const mkStorage = (last) => ({
+    map: {},
+    getItem(k) { return Object.prototype.hasOwnProperty.call(this.map, k) ? this.map[k] : (last == null ? null : String(last)); },
+    setItem(k, v) { this.map[k] = String(v); },
+  });
+  /* أُطلق قبل 5 دقائق: النافذة مغلقة */
+  const closed = runLoader({ storage: mkStorage(Date.now() - 5 * 60 * 1000) });
+  assert.equal(closed.nodes.size, 0);
+  /* آخر إطلاق قبل 31 دقيقة: يُحمَّل ويُختم */
+  const storage = mkStorage(Date.now() - 31 * 60 * 1000);
+  const page = runLoader({ storage });
+  assert.equal(page.nodes.size, 1);
+  assert.ok(Number(storage.map.nx_pop_ad_last) > 0, 'خُتم وقت الإطلاق');
+  /* والمفتاح مستقل عن بوابة البانرات المشتركة */
+  assert.equal(storage.map.nx_web_ad_last, undefined);
 });
 
 test('privacy disclosures mention OnClick, web sessions, and third-party page access in both languages', () => {

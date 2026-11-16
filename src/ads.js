@@ -1,7 +1,7 @@
 /* ==========================================================================
    NEXORA AI — إدارة إعلانات Google AdMob (Android فقط؛ الويب لا يعرض AdMob أبدًا)
    - Banner  : على شاشة الترحيب فقط، يظهر فوق شريط التنقل السفلي.
-   - Interstitial (بيني): مرة واحدة كحد أقصى كل 10 دقائق، وبحد 3 مرات يوميًا،
+   - Interstitial (بيني): مرة واحدة كحد أقصى كل 30 دقيقة، وبحد 3 مرات يوميًا،
      وعند انتقال طبيعي فقط (محادثة جديدة) — وفقط بينما لا توجد محادثة جارية
      ولا تسجيل/إجابة صوتية ولا نوافذ مفتوحة.
    - Rewarded (مكافأة): اختياري بطلب المستخدم — تُمنح فقط بعد حدث Rewarded
@@ -33,7 +33,7 @@ const TEST_UNITS = {
 const UNITS = DEV_BUILD ? TEST_UNITS : PROD_UNITS;
 
 const INTER_MAX_PER_DAY = 3;
-const INTER_MIN_GAP_MS = 10 * 60 * 1000;
+const INTER_MIN_GAP_MS = 30 * 60 * 1000;
 const APP_GRACE_MS = 2 * 60 * 1000;
 const FREE_UNTIL_KEY = 'nx_ads_inter_free_until';
 const INTER_STATE_KEY = 'nx_interstitial_state';
