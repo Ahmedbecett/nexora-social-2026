@@ -278,7 +278,7 @@ export async function studioAgentStream(req, res, body = {}) {
         .catch(() => { /* the final write below retries the whole set */ });
     };
 
-    const streamer = createProtocolStreamer({
+    const streamerHandlers = {
       onProse: (chunk) => { prose = (prose + chunk).replace(/\n{3,}/g, '\n\n'); sse.send('prose', { text: prose }); },
       onFile: ({ path, content, append }) => {
         seen.push({ op: 'write', path, content, append: Boolean(append) });
@@ -299,7 +299,8 @@ export async function studioAgentStream(req, res, body = {}) {
       onPlan: (plan) => { livePlan = plan; sse.send('plan', { plan }); },
       onMessage: (text) => { liveMessage = text; sse.send('message', { text }); },
       onInspect: ({ path }) => { if (!aborted) sse.send('inspect', { path }); },
-    });
+    };
+    const streamer = createProtocolStreamer(streamerHandlers);
 
     let result;
     try {
@@ -333,11 +334,47 @@ export async function studioAgentStream(req, res, body = {}) {
       return;
     }
 
-    const parsed = streamer.flush();
-    await persistChain;
+    let parsed = streamer.flush();
     /* prefer the incremental parse; fall back to a full re-parse of the answer */
-    const final = parseAgentOutput(result.text);
-    const ops = mergeOps(parsed.ops, final.ops, seen);
+    let final = parseAgentOutput(result.text);
+    let ops = mergeOps(parsed.ops, final.ops, seen);
+
+    /* الجولة السابعة — ضمان العمل الحقيقي: نموذج مجاني ضعيف قد يرد على
+       create/continue بنثر بلا أي وسم <file> فلا يُكتب أي ملف. جولة تصحيح
+       واحدة تعيد طلب الملفات صراحة قبل الاستسلام. */
+    if ((mode === 'create' || mode === 'continue') && !ops.length && !aborted
+      && Date.now() - startedMs < 150_000) {
+      sse.send('status', {
+        step: mode, mode, phase: 'working',
+        label: 'Retrying file output (protocol)', provider: null, at: nowIso(),
+      });
+      try {
+        const retryStreamer = createProtocolStreamer(streamerHandlers);
+        const retry = await ai.studioChat({
+          ownerId,
+          instructions: prompt.instructions,
+          messages: [
+            ...prompt.messages,
+            { role: 'assistant', content: String(result.text || '').slice(0, 6000) },
+            { role: 'user', content: 'Your previous answer contained no <file> tag, so no file was created. Deliver the files now using the protocol exactly: one <file path="relative/path"> …full file content… </file> per file. No markdown fences, no prose.' },
+          ],
+          maxTokens,
+          temperature: buildMode.temp,
+          signal: abort.signal,
+          preferProvider: body.provider || null,
+          model: body.model || null,
+          timeoutMs: 230_000,
+          budgetMs: Math.max(60_000, 250_000 - (Date.now() - startedMs)),
+          onDelta: (full) => { if (!aborted) retryStreamer.push(full); },
+        });
+        result = retry;
+        parsed = retryStreamer.flush();
+        final = parseAgentOutput(retry.text);
+        ops = mergeOps(parsed.ops, final.ops, seen);
+      } catch { /* أبقِ الجواب الأول كما هو */ }
+    }
+
+    await persistChain;
     const plan = final.plan || livePlan || parsed.plan;
     const messageText = final.message || liveMessage || parsed.message
       || ((mode === 'chat' || (mode === 'edit' && !ops.length)) ? String(final.prose || prose || '').trim() : '');

@@ -319,9 +319,12 @@ test('an attached image reaches the provider in its own image format', async () 
     buildMode: 'direct',
     images: [{ mime: 'image/png', data: png }, { mime: 'image/svg+xml', data: png }, { mime: 'image/png', data: 'not base64!!' }],
   });
-  const call = captured[captured.length - 1];
+  /* round 7: when a create answer carries no <file> tag a corrective retry
+     follows with a plain-text message — the image always rides the call whose
+     last message is content parts, so target that one, not the last call */
+  const call = captured.find((c) => Array.isArray(c.messages?.at(-1)?.content));
+  assert.ok(call, 'the OpenAI-compatible call uses content parts');
   const last = call.messages[call.messages.length - 1];
-  assert.ok(Array.isArray(last.content), 'the OpenAI-compatible call uses content parts');
   const imageParts = last.content.filter((p) => p.type === 'image_url');
   assert.equal(imageParts.length, 1, 'only the valid PNG survives sanitising');
   assert.equal(imageParts[0].image_url.url, `data:image/png;base64,${png}`);

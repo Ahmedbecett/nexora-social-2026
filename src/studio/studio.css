@@ -3480,3 +3480,18 @@
 .nxs-thread .nx-ai-thinking-keys { color: var(--text-2); }
 .nxs-thread .nx-ai-thinking-keys i { background: #8d70ff1a; border-color: #8d70ff45; color: var(--ink); }
 .nxs-thread .nx-ai-thinking-live { border-color: var(--line-soft); background: var(--surface-2); color: var(--ink); }
+
+/* ============================================================================
+   Round 7 — the studio owns its text colour, never the page-root theme.
+   The shared markdown renderer (.nx-md) ships a dark-palette white ink for
+   the AI platform shell; with the main app dark (its default) the studio's
+   light canvas rendered white-on-cream — invisible replies. Own the ink.
+   ============================================================================ */
+.nxs .nx-md { color: var(--ink); }
+.nxs .nx-md h1, .nxs .nx-md h2, .nxs .nx-md h3, .nxs .nx-md h4 { color: var(--ink); }
+.nxs .nx-md a { color: var(--blue); }
+:root[data-theme=light] .nxs .nx-md,
+:root[data-theme=light] .nxs .nx-md h1,
+:root[data-theme=light] .nxs .nx-md h2,
+:root[data-theme=light] .nxs .nx-md h3,
+:root[data-theme=light] .nxs .nx-md h4 { color: var(--ink); }
