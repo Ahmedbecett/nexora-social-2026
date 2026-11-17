@@ -8,7 +8,7 @@ import { resolve, dirname } from 'node:path';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const base = 'https://nexora-social-2026.vercel.app';
 // Change this date only when the public copy actually changes, not on every build.
-const lastmod = '2026-11-15';
+const lastmod = '2026-11-17';
 const version = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
 // Rounded size stays honest even when CI refreshes the APK with small binary changes.
 const apkSize = Math.round(statSync(resolve(root, 'public/download/Nexora.apk')).size / 1_000_000);
