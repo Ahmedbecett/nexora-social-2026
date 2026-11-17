@@ -70,6 +70,22 @@ async function shrinkImage(file){
   }catch{ return file }
 }
 
+/* مرحلة التفكير بأسلوب أرينا: رموز متوهجة تنبض مثل نجوم الصفحة الرئيسية، وشريط
+   حالات يروي ما يفعله النموذج لحظة بلحظة (يقرأ رسالتك ← يحلّل النص ← ينظّم الإجابة)
+   قبل أن يبدأ أول حرف بالظهور — بدل مؤشر وامض صامت */
+function ThinkingPhase({lang}){
+  const steps=lang==='ar'
+    ?['يفكّر في رسالتك…','يقرأ ويدرس النص…','يحلّل ما أرسلته…','ينظّم الإجابة…']
+    :['Thinking…','Reading your message…','Analyzing your text…','Structuring the answer…'];
+  const [ix,setIx]=useState(0);
+  useEffect(()=>{const t=setInterval(()=>setIx(x=>(x+1)%steps.length),1900);return()=>clearInterval(t)},[lang]);
+  return <div className="nx-ai-thinking" role="status" aria-live="polite">
+    <span className="nx-ai-thinking-glyphs" aria-hidden="true"><i>✦</i><i>✧</i><i>✳</i></span>
+    <span className="nx-ai-thinking-label">{steps[ix]}</span>
+    <span className="nx-ai-thinking-bar" aria-hidden="true"><i/></span>
+  </div>;
+}
+
 export default function AIPlatform() {
   const [token,setTok]=useState(getToken());
   const [me,setMe]=useState(()=>{try{return JSON.parse(localStorage.getItem('nx_me')||'null')}catch{return null}});
@@ -92,7 +108,11 @@ export default function AIPlatform() {
   const fileInput=useRef(null);
   const [busy,setBusy]=useState(false);
   const [sidebarOpen,setSidebarOpen]=useState(false);
-  const bottom=useRef(null);
+  /* تمرير بأسلوب أرينا: تتبّع فوري للأسفل أثناء تدفق الرد، مع احترام صعود المستخدم للقراءة */
+  const scrollRef=useRef(null);
+  const stickRef=useRef(true);
+  const prevLenRef=useRef(0);
+  const [showJump,setShowJump]=useState(false);
   const field=useRef(null);
   const [toastMsg,setToastMsg]=useState('');
   const [style,setStyle]=useState(()=>localStorage.getItem('nx_ai_style')||'auto');
@@ -317,7 +337,12 @@ export default function AIPlatform() {
 
   const stopGen=()=>{ try{ abortRef.current&&abortRef.current.abort() }catch{/* لا شيء */} };
   useEffect(()=>{if(!me?.id){setHistoryOwner(null);setMessages([]);return}let saved=[];try{saved=JSON.parse(localStorage.getItem(keyFor(me.id))||'[]')}catch{saved=[]}setMessages(saved);setHistoryOwner(me.id)},[me?.id]);
-  useEffect(()=>{if(me?.id&&historyOwner===me.id)localStorage.setItem(keyFor(me.id),JSON.stringify(messages.slice(-80)));bottom.current?.scrollIntoView({behavior:'smooth',block:'end'})},[messages,me?.id,historyOwner,busy]);
+  useEffect(()=>{if(me?.id&&historyOwner===me.id)localStorage.setItem(keyFor(me.id),JSON.stringify(messages.slice(-80)))},[messages,me?.id,historyOwner]);
+  /* رسالة جديدة (رسالتك أو بدء الرد) ⇒ ننزل معها دائمًا؛ أثناء تدفق النص لا ننزل
+     إلا إذا كان المستخدم أصلًا قرب الأسفل — فيستطيع الصعود والقراءة بسلام */
+  useEffect(()=>{const el=scrollRef.current;if(!el)return;if(messages.length>prevLenRef.current)stickRef.current=true;prevLenRef.current=messages.length;if(stickRef.current)el.scrollTop=el.scrollHeight},[messages]);
+  const onConvScroll=()=>{const el=scrollRef.current;if(!el)return;const near=el.scrollHeight-el.scrollTop-el.clientHeight<140;stickRef.current=near;setShowJump(!near)};
+  const jumpToBottom=()=>{const el=scrollRef.current;if(!el)return;stickRef.current=true;setShowJump(false);el.scrollTo({top:el.scrollHeight,behavior:'smooth'})};
   const onHome=messages.length===0;
   useEffect(()=>{ setAdSlot(onHome); return ()=>setAdSlot(false); },[onHome]);
   const [rewardedFreeAt,setRewardedFreeAt]=useState(()=>{try{return Number(localStorage.getItem('nx_ads_inter_free_until')||0)}catch{return 0}});
@@ -525,7 +550,7 @@ export default function AIPlatform() {
               <option value="es">Español</option><option value="tr">Türkçe</option><option value="ru">Русский</option><option value="de">Deutsch</option>
             </select></label>
             <label className="nx-ai-model"><Icon name="spark" size={16}/><select value={model} onChange={e=>setModel(e.target.value)} aria-label="النموذج"><option value="gpt-5-mini">تلقائي · أفضل مزوّد متاح</option><option value="gpt-5.1">GPT-5.1 (OpenAI)</option><option value="gpt-5-nano">GPT-5 nano (OpenAI)</option></select></label><button type="button" className="nx-ai-icon-button" onClick={()=>{const cur=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=cur;localStorage.setItem('nx_theme',cur);setThemeTick(t=>t+1)}} title="الوضع الفاتح/الداكن" aria-label="تبديل السمة">{document.documentElement.dataset.theme==='light'?'☾':'☀'}</button><span className="nx-ai-avatar top-avatar">{(me.fullName||me.username||'N').slice(0,1).toUpperCase()}</span></div></header>
-        <section className={'nx-ai-content '+(messages.length?'has-messages':'')}>
+        <section className={'nx-ai-content '+(messages.length?'has-messages':'')} ref={scrollRef} onScroll={onConvScroll}>
           {!Capacitor.isNativePlatform()&&<AdsterraBanner/>}
           {!messages.length?<div className="nx-ai-welcome">
             <div className="nx-ai-hero-art"><img src="/mascot-ui.webp" alt="NEXORA AI" width={176} height={176} fetchPriority="high" decoding="async"/><i className="orb-star one">✦</i><i className="orb-star two">✧</i><i className="orb-star three">✳</i></div>
@@ -537,8 +562,8 @@ export default function AIPlatform() {
           </div>:<div className="nx-ai-conversation">
             <div className="nx-ai-conversation-head"><div><span className={'nx-ai-mode-icon '+active.color}>{active.icon}</span><div><b>{active.title}</b><small>{MODEL_NAMES[model]} · محادثة خاصة</small></div></div><button className="nx-ai-icon-button" onClick={newChat} title="محادثة جديدة"><Icon name="plus"/></button></div>
             <AdSlot name="chat" className="chat"/>
-            {messages.map((m,i)=><div key={i} className={'nx-ai-message '+(m.role==='user'?'user':m.role==='error'?'error':'assistant')}>{m.role!=='user'&&<span className="nx-ai-message-avatar"><img className="nx-ai-mascot" src="/mascot-avatar.webp" alt="NEXORA AI"/></span>}<div className="nx-ai-message-body">{m.role!=='user'&&<b className="nx-ai-message-label">{m.role==='error'?'تنبيه':'NEXORA AI'}{m.role==='model'&&m.provider&&<small className={'nx-ai-provider-badge'+(m.provider==='openai'?' openai':'')}>{m.providerLabel||m.provider}{m.provider!=='openai'?' · بديل':''}</small>}</b>}{m.trace&&<p className="nx-ai-trace" dir="ltr">trace: {m.trace}</p>}{m.text&&(m.role==='user'?<p dir="auto">{m.text}</p>:<Suspense fallback={<p dir="auto">{m.text}</p>}><Markdown text={m.text}/></Suspense>)}
-              {m.role==='model'&&m.streaming&&<span className="nx-ai-cursor" aria-label="يكتب"/>}
+            {messages.map((m,i)=><div key={i} className={'nx-ai-message '+(m.role==='user'?'user':m.role==='error'?'error':'assistant')}>{m.role!=='user'&&<span className="nx-ai-message-avatar"><img className="nx-ai-mascot" src="/mascot-avatar.webp" alt="NEXORA AI"/></span>}<div className="nx-ai-message-body">{m.role!=='user'&&<b className="nx-ai-message-label">{m.role==='error'?'تنبيه':'NEXORA AI'}{m.role==='model'&&m.provider&&<small className={'nx-ai-provider-badge'+(m.provider==='openai'?' openai':'')}>{m.providerLabel||m.provider}{m.provider!=='openai'?' · بديل':''}</small>}</b>}{m.trace&&<p className="nx-ai-trace" dir="ltr">trace: {m.trace}</p>}{m.role==='model'&&m.streaming&&!m.text&&<ThinkingPhase lang={lang}/>}{m.text&&(m.role==='user'?<p dir="auto">{m.text}</p>:<Suspense fallback={<p dir="auto">{m.text}</p>}><Markdown text={m.text}/></Suspense>)}
+              {m.role==='model'&&m.streaming&&m.text&&<span className="nx-ai-cursor" aria-label="يكتب"/>}
               {m.attachments&&m.attachments.length>0&&<span className="nx-ai-attach-chips">{m.attachments.map((n,ix)=><i key={ix}>📎 {n}</i>)}</span>}
               {m.role==='model'&&m.text&&!m.streaming&&<div className="nx-ai-msg-actions">
                 <button type="button" onClick={()=>copyText(m.text)} title="نسخ الإجابة">نسخ</button>
@@ -552,8 +577,9 @@ export default function AIPlatform() {
               </div>}
               {m.sources&&m.sources.length>0&&<div className="nx-ai-sources"><b>المصادر ({m.sources.length})</b>{m.sources.map((sc,si)=><a key={si} href={sc.url} target="_blank" rel="noopener noreferrer" className={sc.ok===false?'dead':''}>{si+1}. {sc.title||sc.url}{sc.ok===false?' — تعذر التحقق من الرابط':''}</a>)}</div>}
               {m.stopped&&<span className="nx-ai-stopped">تم إيقاف التوليد — ما ظهر أعلاه هو ما وصل قبل الإيقاف.</span>}{m.role==='error'&&m.retry&&<button type="button" className="nx-ai-retry" disabled={busy} onClick={()=>runPrompt(m.retry)}><Icon name="spark" size={13}/> أعد المحاولة</button>}{m.image&&<img className="nx-ai-generated-image" src={m.image} alt="الصورة المولدة" loading="lazy" onError={e=>{e.currentTarget.alt='تعذر تحميل الصورة من مزود التوليد'}}/>}</div></div>)}
-            {busy&&!messages.some(m=>m.streaming)&&<div className="nx-ai-message assistant"><span className="nx-ai-message-avatar"><img className="nx-ai-mascot" src="/mascot-avatar.webp" alt="NEXORA AI"/></span><div className="nx-ai-message-body"><b className="nx-ai-message-label">NEXORA AI</b><div className="nx-ai-typing"><i/><i/><i/><span>{mode==='image'?'يجري إنشاء الصورة…':'يفكر الآن…'}</span></div></div></div>}<div ref={bottom}/>
+            {busy&&!messages.some(m=>m.streaming)&&<div className="nx-ai-message assistant"><span className="nx-ai-message-avatar"><img className="nx-ai-mascot" src="/mascot-avatar.webp" alt="NEXORA AI"/></span><div className="nx-ai-message-body"><b className="nx-ai-message-label">NEXORA AI</b><div className="nx-ai-typing"><i/><i/><i/><span>{mode==='image'?'يجري إنشاء الصورة…':'يفكر الآن…'}</span></div></div></div>}
           </div>}
+          {messages.length>0&&showJump&&<button type="button" className="nx-ai-jump" onClick={jumpToBottom} aria-label="انتقل إلى آخر الرسائل" title="انتقل إلى آخر الرسائل">▼</button>}
         </section>
         <footer className="nx-ai-composer-wrap"><form className="nx-ai-composer" onSubmit={send}><textarea ref={field} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send(e)}}} placeholder={mode==='image'?'صف الصورة التي تريد إنشاءها…':'اكتب رسالتك إلى NEXORA AI…'} rows={1} maxLength={4000} dir="auto" aria-label="رسالتك"/>{attach.length>0&&<div className="nx-ai-attach-row">{attach.map(a=><span key={a.id} className={'nx-ai-attach-chip '+(a.kind==='image'?'img':'doc')}>{a.kind==='image'?'🖼️':'📄'} {a.name}<button type="button" onClick={()=>setAttach(x=>x.filter(y=>y.id!==a.id))} aria-label="إزالة">✕</button></span>)}{fileBusy&&<span className="nx-ai-attach-chip loading">جارٍ الرفع…</span>}</div>}
 <div className="nx-ai-composer-bottom"><span><Icon name="spark" size={14}/>{recording?'يسجّل الآن… اضغط للإيقاف':voiceBusy?'يفرّغ صوتك…':mode==='image'?'اكتب وصفًا واضحًا للصورة':(searchOn?'بحث الويب مفعّل · سأذكر المصادر':'راجع المعلومات المهمة قبل الاعتماد عليها')}</span>
