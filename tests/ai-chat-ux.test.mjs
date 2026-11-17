@@ -44,9 +44,9 @@ test('تمرير بأسلوب أرينا: تتبّع ذكي للأسفل وزر 
 });
 
 test('نص الرد لم يعد خافتًا: أكبر وأوضح في الوضعين', () => {
-  assert.match(css, /\.nx-ai-message-body p\{white-space:pre-wrap;overflow-wrap:anywhere;color:#f2f4fd;font-size:17px[^}]*font-weight:550/);
+  assert.match(css, /\.nx-ai-message-body p\{white-space:pre-wrap;overflow-wrap:anywhere;color:#f2f4fd;font-size:17px[^}]*font-weight:600/);
   assert.match(css, /\.nx-md\{font-size:17px;line-height:1\.85;color:#f2f4fd/);
-  assert.match(css, /\.nx-md p,\.nx-md li\{font-weight:550\}/);
+  assert.match(css, /\.nx-md p,\.nx-md li\{font-weight:600\}/);
   assert.match(css, /\.nx-md h1\{font-size:19px\}\.nx-md h2\{font-size:17\.5px\}/);
   assert.match(css, /:root\[data-theme=light\] \.nx-md\{color:#1a1e33\}/);
   /* الجوال: 14px بدل 11px */
