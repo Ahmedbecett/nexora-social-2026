@@ -276,16 +276,17 @@ export default function ChatPanel() {
   const canSend = Boolean(text.trim() || shots.length || docs.length) && !picking;
   const connectedCount = [accounts?.github?.connected, accounts?.google?.connected, accounts?.vercel?.connected].filter(Boolean).length;
 
-  /* Arena thinking phase: from the moment the request is sent until the first
-     plan/prose/file signal arrives, the thread shows the symbols + pulsing
-     brain + ghost lines ("studies and analyzes your message") — then the
-     multi-step agent window takes over and the work begins */
-  const awaitingFirstSignal = Boolean(agent.running)
-    && !agent.prose
+  /* Arena thinking phase: from the moment the request is sent until real work
+     signals arrive (files/inspection/plan), the thread shows the symbols +
+     pulsing brain + THE USER'S MESSAGE being read and analyzed (quote + key
+     terms) + the model's live reasoning text as it streams — then the
+     multi-step agent window takes over and the build begins */
+  const agentThinking = Boolean(agent.running)
     && !(agent.activity && agent.activity.length)
     && !agent.typing
     && !(agent.inspecting && agent.inspecting.length);
   const thinkLang = (typeof document !== 'undefined' && document.documentElement.dir === 'rtl') ? 'ar' : 'en';
+  const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
 
   /* Composer block (rendered inside the centered hero on empty chat, or docked at bottom of active chat) */
   const renderComposer = () => (
@@ -885,11 +886,12 @@ export default function ChatPanel() {
                 </div>
               )}
 
-              {/* Arena thinking phase first (symbols + pulsing brain + ghost
-                  lines while the request is read and analyzed), then the live
-                  multi-step agent execution window once work begins */}
-              {awaitingFirstSignal
-                ? <ThinkingPhase lang={thinkLang} />
+              {/* Arena thinking phase first: the user's message is quoted and
+                  analyzed live (key terms extracted), and the model's actual
+                  reasoning text streams in — then the multi-step agent
+                  execution window takes over once the work begins */}
+              {agentThinking
+                ? <ThinkingPhase lang={thinkLang} message={lastUserMsg?.text} prose={agent.prose} />
                 : <AgentWindow />}
             </div>
             {showJump && (
