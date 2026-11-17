@@ -3495,3 +3495,11 @@
 :root[data-theme=light] .nxs .nx-md h2,
 :root[data-theme=light] .nxs .nx-md h3,
 :root[data-theme=light] .nxs .nx-md h4 { color: var(--ink); }
+
+/* ============================================================================
+   Round 8 — the web ad inside the studio chat column: same guarded Adsterra
+   container, sized to the chat column. Nothing renders in the Android app
+   (html.native hides it and the component never mounts there).
+   ============================================================================ */
+.nxs-chat .nx-adsterra-placement { width: min(768px, 100%); }
+.nxs-chat .nx-adsterra-placement > div:not(:empty) { margin-block: 4px 10px; }

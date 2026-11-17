@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Markdown from '../ai/Markdown.jsx';
 import ThinkingPhase from '../ai/ThinkingPhase.jsx';
+import StudioWebAd from './StudioWebAd.jsx';
 import { useStudio } from './state.jsx';
 import AgentWindow from './AgentWindow.jsx';
 import BottomControlBar from './BottomControlBar.jsx';
@@ -935,6 +936,10 @@ export default function ChatPanel() {
           </div>
         </>
       )}
+
+      {/* Round 8 — web ads on every device (browser only; the Android app
+          keeps AdMob). The shared 30-min gate manages the rhythm. */}
+      <StudioWebAd />
 
       {/* Real Google Docs & Drive manager modal */}
       <DocsModal onAttachDoc={attachFromDocsModal} />
