@@ -1531,6 +1531,8 @@ function aiStripThinking(text) {
    (extra key, free models) → Pollinations / llm7.io (keyless, free). A dead key, an empty credit
    balance or a rate limit can never take the page down: the next credential/provider answers. */
 const AI_PROVIDER_TIMEOUT = { openai: 10000, gemini: 6000, openrouter: 11000, pollinations: 12000 };
+/* مهلة تفوّق قصيرة للمزوّدين المجانيين: إذا لم يجب المدفوع خلالها ينطلق المجانيون بسباق موازٍ */
+const AI_KEYLESS_HEAD_START_MS = 4000;
 const AI_TOTAL_BUDGET_MS = 26000;    /* المسار المتزامن /api/ai/chat كما كان */
 const AI_STREAM_BUDGET_MS = 95000;   /* مسار البث: الإجابات الطويلة تحتاج عمرًا أطول (maxDuration 300) */
 const aiBudget = (ms, deadline) => Math.max(1500, Math.min(ms, deadline - Date.now()));
@@ -2563,7 +2565,19 @@ async function aiChatCore({ message, model, history, instructions, onDelta }) {
     providerLabel: AI_PROVIDER_LABEL[r.provider] || r.provider,
     fallbacks: failures.map((f) => f.reason)
   });
+  /* سباق المزوّدين: المدفوعون أولًا كالعادة، لكن المجانيين السريعين ينطلقون فور
+     فشل السلسلة المدفوعة — أو بعد مهلة تفوّق قصيرة — فمن يجيب أولًا يفوز، ولا
+     يبقى المستخدم معلّقًا على مزوّد معطّل يلتهم المهلة كاملة. أول بث يبدأ يملك
+     المجرى: دلتا الخاسر المتأخر تُهمَل. */
+  let streamOwner = null;
+  let abandoned = false;
+  const relay = (id) => (wantStream ? (d) => {
+    if (streamOwner && streamOwner !== id) return;
+    streamOwner = id;
+    onDelta(d);
+  } : undefined);
 
+  const paidChain = (async () => {
   // 1) OpenAI
   const openaiPark = 'openai:' + aiKeyFp(keys.openai[0] && keys.openai[0].key);
   if (!keys.openai.length) failures.push(aiFail('no_key', 'openai:no_key'));
@@ -2575,7 +2589,7 @@ async function aiChatCore({ message, model, history, instructions, onDelta }) {
       const chain = [...new Set([model, 'gpt-4o-mini'])];
       let r = null;
       for (const m of chain) {
-        r = await aiAskOpenAI({ apiKey: keys.openai[0].key, model: m, instructions, history, message, timeoutMs: aiBudget(AI_PROVIDER_TIMEOUT.openai, deadline), onDelta });
+        r = await aiAskOpenAI({ apiKey: keys.openai[0].key, model: m, instructions, history, message, timeoutMs: aiBudget(AI_PROVIDER_TIMEOUT.openai, deadline), onDelta: relay('openai') });
         if (r.ok) break;
         failures.push(r);
         if (r.kind !== 'model') break;
@@ -2585,6 +2599,7 @@ async function aiChatCore({ message, model, history, instructions, onDelta }) {
     } catch (e) { failures.push(aiFail(e?.name === 'TimeoutError' ? 'timeout' : 'network', 'openai:network:' + aiCode(e?.name || 'error'))); }
   }
 
+  if (abandoned) return null;
   // 2) OpenRouter — every configured key (the extra key in the database is tried next), several free models each
   if (!keys.openrouter.length) failures.push(aiFail('no_key', 'openrouter:no_key'));
   else {
@@ -2617,12 +2632,26 @@ async function aiChatCore({ message, model, history, instructions, onDelta }) {
          keyless providers that can answer immediately. Streaming answers get a wider slice —
          the old 8s cap is what cut replies mid-sentence. */
       const geminiDeadline = Math.min(deadline, Date.now() + (onDelta ? 45000 : 8000));
-      const r = await aiAskGemini({ keys: keys.gemini, instructions, history, message, deadline: geminiDeadline, onDelta, onFail: (reason) => failures.push(aiFail('tried', reason)) });
+      const r = await aiAskGemini({ keys: keys.gemini, instructions, history, message, deadline: geminiDeadline, onDelta: relay('gemini'), onFail: (reason) => failures.push(aiFail('tried', reason)) });
       if (r.ok) return await done(r);
       failures.push(r);
     } catch (e) { failures.push(aiFail(e?.name === 'TimeoutError' ? 'timeout' : 'network', 'gemini:network:' + aiCode(e?.name || 'error'))); }
   }
 
+    return null;
+  })();
+
+  /* المجانيون: يبدؤون فور اكتمال السلسلة المدفوعة بالفشل، أو بعد مهلة التفوّق
+     القصيرة إن كان المدفوع معلّقًا — ولا انتظار إضافيًا حين لا توجد مفاتيح أصلًا */
+  const keylessChain = (async () => {
+    const hasPaidChance = keys.openai.length || keys.openrouter.length || keys.gemini.length;
+    if (hasPaidChance) {
+      await new Promise((res) => {
+        const t = setTimeout(res, AI_KEYLESS_HEAD_START_MS);
+        paidChain.then(() => { clearTimeout(t); res(); }, () => { clearTimeout(t); res(); });
+      });
+    }
+    if (abandoned) return null;
   // 4) the two keyless providers race each other — whoever answers first wins
   const keyless = [];
   const keylessTry = (label, fn) => fn().then((r) => {
@@ -2644,13 +2673,13 @@ async function aiChatCore({ message, model, history, instructions, onDelta }) {
     racers.push(keylessTry('pollinations', () => aiAskPollinations({ instructions, history, message, timeoutMs: aiBudget(AI_PROVIDER_TIMEOUT.pollinations, deadline) })));
   } else if (wantStream) failures.push(aiFail('skipped', 'pollinations:stream_deferred'));
   if (!(await aiIsParked('llm7'))) {
-    racers.push(keylessTry('llm7', () => aiAskLlm7({ instructions, history, message, onDelta, timeoutMs: aiBudget(AI_PROVIDER_TIMEOUT.pollinations, deadline) })));
+    racers.push(keylessTry('llm7', () => aiAskLlm7({ instructions, history, message, onDelta: relay('llm7'), timeoutMs: aiBudget(AI_PROVIDER_TIMEOUT.pollinations, deadline) })));
   } else failures.push(aiFail('parked', 'llm7:skipped'));
   /* المزوّدون الإضافيون المجانيون (بمفاتيح مجانية) — يمنحون استمرارية التشغيل بلا تكلفة */
   for (const fp of AI_FREE_PROVIDERS) {
     if (!process.env[fp.env]) continue;
     if (await aiIsParked(fp.id)) { failures.push(aiFail('parked', fp.id + ':skipped')); continue; }
-    racers.push(keylessTry(fp.id, () => aiAskOpenAICompat({ provider: fp, instructions, history, message, onDelta, timeoutMs: aiBudget(AI_PROVIDER_TIMEOUT.pollinations, deadline) })));
+    racers.push(keylessTry(fp.id, () => aiAskOpenAICompat({ provider: fp, instructions, history, message, onDelta: relay(fp.id), timeoutMs: aiBudget(AI_PROVIDER_TIMEOUT.pollinations, deadline) })));
   }
   if (racers.length) {
     const winner = await new Promise((resolve) => {
@@ -2671,6 +2700,18 @@ async function aiChatCore({ message, model, history, instructions, onDelta }) {
     }
     for (const x of keyless) if (x.f) await aiPark(x.label, x.f.kind, x.f.kind === 'rate_limited' ? 30e3 : 60e3);
   }
+    return null;
+  })();
+
+  const raceWinner = await new Promise((resolve) => {
+    let pending = 2;
+    const settle = (r) => { if (r) resolve(r); else if (--pending === 0) resolve(null); };
+    paidChain.then(settle, () => settle(null));
+    keylessChain.then(settle, () => settle(null));
+  });
+  abandoned = true;
+  if (raceWinner) return raceWinner;
+
   if (wantStream && !(await aiIsParked('pollinations'))) {
     try {
       const alt = await aiAskPollinations({ instructions, history, message, timeoutMs: aiBudget(AI_PROVIDER_TIMEOUT.pollinations, deadline) });
