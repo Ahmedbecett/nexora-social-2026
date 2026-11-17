@@ -70,9 +70,9 @@ async function shrinkImage(file){
   }catch{ return file }
 }
 
-/* مرحلة التفكير بأسلوب أرينا: رموز متوهجة تنبض مثل نجوم الصفحة الرئيسية، وشريط
-   حالات يروي ما يفعله النموذج لحظة بلحظة (يقرأ رسالتك ← يحلّل النص ← ينظّم الإجابة)
-   قبل أن يبدأ أول حرف بالظهور — بدل مؤشر وامض صامت */
+/* مرحلة التفكير بأسلوب أرينا: الدماغ (كرة نابضة) ثم الرموز المتوهجة ✦ ✧ ✳،
+   وسطر حالات يروي ما يفعله النموذج لحظة بلحظة (يقرأ رسالتك ← يحلّل النص ←
+   ينظّم الإجابة) وأسطر شبحية تتلألأ — كل ذلك قبل أول حرف من الرد */
 function ThinkingPhase({lang}){
   const steps=lang==='ar'
     ?['يفكّر في رسالتك…','يقرأ ويدرس النص…','يحلّل ما أرسلته…','ينظّم الإجابة…']
@@ -80,9 +80,13 @@ function ThinkingPhase({lang}){
   const [ix,setIx]=useState(0);
   useEffect(()=>{const t=setInterval(()=>setIx(x=>(x+1)%steps.length),1900);return()=>clearInterval(t)},[lang]);
   return <div className="nx-ai-thinking" role="status" aria-live="polite">
-    <span className="nx-ai-thinking-glyphs" aria-hidden="true"><i>✦</i><i>✧</i><i>✳</i></span>
-    <span className="nx-ai-thinking-label">{steps[ix]}</span>
-    <span className="nx-ai-thinking-bar" aria-hidden="true"><i/></span>
+    <div className="nx-ai-thinking-row">
+      <span className="nx-ai-thinking-orb" aria-hidden="true"/>
+      <span className="nx-ai-thinking-glyphs" aria-hidden="true"><i>✦</i><i>✧</i><i>✳</i></span>
+      <span className="nx-ai-thinking-label">{steps[ix]}</span>
+      <span className="nx-ai-thinking-bar" aria-hidden="true"><i/></span>
+    </div>
+    <div className="nx-ai-thinking-skel" aria-hidden="true"><i/><i/></div>
   </div>;
 }
 
@@ -343,6 +347,16 @@ export default function AIPlatform() {
   useEffect(()=>{const el=scrollRef.current;if(!el)return;if(messages.length>prevLenRef.current)stickRef.current=true;prevLenRef.current=messages.length;if(stickRef.current)el.scrollTop=el.scrollHeight},[messages]);
   const onConvScroll=()=>{const el=scrollRef.current;if(!el)return;const near=el.scrollHeight-el.scrollTop-el.clientHeight<140;stickRef.current=near;setShowJump(!near)};
   const jumpToBottom=()=>{const el=scrollRef.current;if(!el)return;stickRef.current=true;setShowJump(false);el.scrollTo({top:el.scrollHeight,behavior:'smooth'})};
+  /* خط أرينا: Inter للأرقام واللاتينية (يُحمَّل مرة واحدة)، والعربية على Cairo */
+  useEffect(()=>{
+    if(document.querySelector('link[data-nx-inter]'))return;
+    const l=document.createElement('link');
+    l.rel='stylesheet';l.dataset.nxInter='1';
+    l.href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap';
+    document.head.appendChild(l);
+  },[]);
+  /* مربع الكتابة ينمو مع النص تلقائيًا مثل أرينا */
+  useEffect(()=>{const el=field.current;if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,160)+'px'},[input]);
   const onHome=messages.length===0;
   useEffect(()=>{ setAdSlot(onHome); return ()=>setAdSlot(false); },[onHome]);
   const [rewardedFreeAt,setRewardedFreeAt]=useState(()=>{try{return Number(localStorage.getItem('nx_ads_inter_free_until')||0)}catch{return 0}});

@@ -41,8 +41,9 @@ test('تمرير بأسلوب أرينا: تتبّع ذكي للأسفل وزر 
 });
 
 test('نص الرد لم يعد خافتًا: أكبر وأوضح في الوضعين', () => {
-  assert.match(css, /\.nx-ai-message-body p\{white-space:pre-wrap;overflow-wrap:anywhere;color:#eef0fa;font-size:15px/);
-  assert.match(css, /\.nx-md\{font-size:15px;line-height:1\.85;color:#eef0fa/);
+  assert.match(css, /\.nx-ai-message-body p\{white-space:pre-wrap;overflow-wrap:anywhere;color:#f2f4fd;font-size:16px[^}]*font-weight:500/);
+  assert.match(css, /\.nx-md\{font-size:16px;line-height:1\.85;color:#f2f4fd/);
+  assert.match(css, /\.nx-md p,\.nx-md li\{font-weight:500\}/);
   assert.match(css, /\.nx-md h1\{font-size:19px\}\.nx-md h2\{font-size:17\.5px\}/);
   assert.match(css, /:root\[data-theme=light\] \.nx-md\{color:#1a1e33\}/);
   /* الجوال: 14px بدل 11px */
@@ -50,4 +51,20 @@ test('نص الرد لم يعد خافتًا: أكبر وأوضح في الوض�
   assert.doesNotMatch(css, /font-size:11px\}\.nx-ai-conversation-head/, 'حجم الجوال القديم أُزيل');
   assert.doesNotMatch(css, /\.nx-md\{font-size:12px/, 'حجم 12px القديم أُزيل');
   assert.doesNotMatch(css, /\.nx-ai-message-body p\{white-space:pre-wrap;[^}]*font-size:12px/, 'نص الرد القديم أُزيل');
+});
+
+test('الجولة الثانية: دماغ نابض + أسطر شبحية + خط أرينا + مربع ينمو تلقائيًا', () => {
+  /* الدماغ (كرة نابضة) والأسطر الشبحية داخل مرحلة التفكير */
+  assert.match(jsx, /nx-ai-thinking-orb/);
+  assert.match(jsx, /nx-ai-thinking-skel/);
+  assert.match(css, /@keyframes nxorb\{/);
+  assert.match(css, /@keyframes nxskel\{/);
+  assert.match(css, /:root\[data-theme=light\] \.nx-ai-thinking-skel i\{/);
+  /* خط أرينا: Inter يُحمَّل مرة واحدة ويتقدّم المكدس */
+  assert.match(jsx, /link\[data-nx-inter\]/);
+  assert.match(jsx, /fonts\.googleapis\.com\/css2\?family=Inter/);
+  assert.match(css, /font-family:Inter,"Cairo Variable","Segoe UI",system-ui,sans-serif/);
+  /* مربع الكتابة ينمو مع النص بدل التحجيم اليدوي */
+  assert.match(jsx, /el\.style\.height='auto';el\.style\.height=Math\.min\(el\.scrollHeight,160\)\+'px'/);
+  assert.match(css, /resize:none;overflow:hidden/);
 });
