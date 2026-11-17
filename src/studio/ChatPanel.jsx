@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Markdown from '../ai/Markdown.jsx';
+import ThinkingPhase from '../ai/ThinkingPhase.jsx';
 import { useStudio } from './state.jsx';
 import AgentWindow from './AgentWindow.jsx';
 import BottomControlBar from './BottomControlBar.jsx';
@@ -84,10 +85,31 @@ export default function ChatPanel() {
     || (agent.activity && agent.activity.length > 0)
     || Boolean(agent.error);
 
-  /* Scroll to latest message when conversation advances */
+  /* Arena-style smart scrolling: follow the stream only while the user is
+     already near the bottom, always follow their own new message, and offer
+     a floating jump button whenever they scroll up to read */
+  const stickRef = useRef(true);
+  const [showJump, setShowJump] = useState(false);
+  const onThreadScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    stickRef.current = atBottom;
+    if (showJump !== !atBottom) setShowJump(!atBottom);
+  };
+  const jumpToBottom = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickRef.current = true;
+    setShowJump(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  };
+
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const last = messages[messages.length - 1];
+    if (stickRef.current || (last && last.role === 'user')) el.scrollTop = el.scrollHeight;
   }, [messages.length, agent.running, agent.activity?.length, agent.prose]);
 
   /* Auto-resize composer textarea without jitter */
@@ -253,6 +275,17 @@ export default function ChatPanel() {
 
   const canSend = Boolean(text.trim() || shots.length || docs.length) && !picking;
   const connectedCount = [accounts?.github?.connected, accounts?.google?.connected, accounts?.vercel?.connected].filter(Boolean).length;
+
+  /* Arena thinking phase: from the moment the request is sent until the first
+     plan/prose/file signal arrives, the thread shows the symbols + pulsing
+     brain + ghost lines ("studies and analyzes your message") — then the
+     multi-step agent window takes over and the work begins */
+  const awaitingFirstSignal = Boolean(agent.running)
+    && !agent.prose
+    && !(agent.activity && agent.activity.length)
+    && !agent.typing
+    && !(agent.inspecting && agent.inspecting.length);
+  const thinkLang = (typeof document !== 'undefined' && document.documentElement.dir === 'rtl') ? 'ar' : 'en';
 
   /* Composer block (rendered inside the centered hero on empty chat, or docked at bottom of active chat) */
   const renderComposer = () => (
@@ -654,7 +687,7 @@ export default function ChatPanel() {
       ) : (
         /* =================== ACTIVE CONVERSATION + AGENT ==================== */
         <>
-          <div className="nxs-thread" ref={scrollRef}>
+          <div className="nxs-thread" ref={scrollRef} onScroll={onThreadScroll}>
             <div className="nxs-thread-inner">
               {messages.map((msg) => {
                 if (msg.role === 'user') {
@@ -852,9 +885,24 @@ export default function ChatPanel() {
                 </div>
               )}
 
-              {/* Live multi-step agent execution window */}
-              <AgentWindow />
+              {/* Arena thinking phase first (symbols + pulsing brain + ghost
+                  lines while the request is read and analyzed), then the live
+                  multi-step agent execution window once work begins */}
+              {awaitingFirstSignal
+                ? <ThinkingPhase lang={thinkLang} />
+                : <AgentWindow />}
             </div>
+            {showJump && (
+              <button
+                type="button"
+                className="nxs-jump"
+                aria-label="الانتقال إلى آخر الرسائل"
+                title="الانتقال إلى الأسفل"
+                onClick={jumpToBottom}
+              >
+                ▼
+              </button>
+            )}
           </div>
 
           <div className="nxs-dock">

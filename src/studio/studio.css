@@ -3416,3 +3416,57 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================================
+   Arena-style chat clarity + smart scroll (owner request, 2026-11-17)
+   The streaming prose was 12.5px muted and final replies 14.5px — "faint".
+   Now: bold, large, full-ink replies like Arena, in both themes.
+   ============================================================================ */
+/* instant follow while streaming (the jump button keeps its smooth scroll) */
+.nxs-thread { scroll-behavior: auto; }
+
+.nxs-asst-body { font-size: 16px; line-height: 1.78; font-weight: 500; }
+.nxs-asst-body .nx-md p,
+.nxs-asst-body .nx-md li { font-weight: 500; }
+.nxs-aw-prose { font-size: 15px; line-height: 1.7; color: var(--ink); font-weight: 500; }
+.nxs-user-text { font-size: 15px; }
+
+/* ThinkingPhase lives in AIPlatform.css (dark palette) — retune it for the
+   studio's light/dark themes via the studio's own variables */
+.nxs-thread .nx-ai-thinking-label { color: var(--ink); }
+.nxs-thread .nx-ai-thinking-bar { background: var(--line-soft); }
+.nxs-thread .nx-ai-thinking-skel i {
+  background: linear-gradient(90deg, var(--line-soft) 25%, #8d70ff4d 50%, var(--line-soft) 75%);
+  background-size: 200% 100%;
+}
+
+/* Floating jump-to-bottom button (appears when the user scrolls up) */
+.nxs-jump {
+  position: sticky;
+  bottom: 14px;
+  margin-inline-start: auto;
+  margin-inline-end: 14px;
+  margin-top: -46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 8px 26px rgb(0 0 0 / 14%);
+  z-index: 6;
+}
+.nxs-jump:hover { background: var(--surface); color: var(--ink); }
+.nxs-jump:active { transform: scale(0.94); }
+
+@media (max-width: 720px) {
+  .nxs-asst-body { font-size: 15px; }
+  .nxs-aw-prose { font-size: 14px; }
+  .nxs-user-text { font-size: 14.5px; }
+  .nxs-jump { width: 34px; height: 34px; margin-top: -42px; bottom: 10px; }
+}

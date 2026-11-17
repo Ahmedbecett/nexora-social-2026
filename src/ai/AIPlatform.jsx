@@ -11,6 +11,7 @@ import { openUrl } from '../native.js';
 import { setAdSlot, maybeShowInterstitial, showRewardedAd, interstitialFreeUntil } from '../ads.js';
 import './AIPlatform.css';
 import { APP_VERSION_LABEL } from '../version.js';
+import ThinkingPhase from './ThinkingPhase.jsx';
 
 // Rich Markdown (KaTeX/highlighter) and the owner dashboard are not needed at sign-in.
 const Markdown = lazy(() => import('./Markdown.jsx'));
@@ -70,25 +71,8 @@ async function shrinkImage(file){
   }catch{ return file }
 }
 
-/* مرحلة التفكير بأسلوب أرينا: الدماغ (كرة نابضة) ثم الرموز المتوهجة ✦ ✧ ✳،
-   وسطر حالات يروي ما يفعله النموذج لحظة بلحظة (يقرأ رسالتك ← يحلّل النص ←
-   ينظّم الإجابة) وأسطر شبحية تتلألأ — كل ذلك قبل أول حرف من الرد */
-function ThinkingPhase({lang}){
-  const steps=lang==='ar'
-    ?['يفكّر في رسالتك…','يقرأ ويدرس النص…','يحلّل ما أرسلته…','ينظّم الإجابة…']
-    :['Thinking…','Reading your message…','Analyzing your text…','Structuring the answer…'];
-  const [ix,setIx]=useState(0);
-  useEffect(()=>{const t=setInterval(()=>setIx(x=>(x+1)%steps.length),1900);return()=>clearInterval(t)},[lang]);
-  return <div className="nx-ai-thinking" role="status" aria-live="polite">
-    <div className="nx-ai-thinking-row">
-      <span className="nx-ai-thinking-orb" aria-hidden="true"/>
-      <span className="nx-ai-thinking-glyphs" aria-hidden="true"><i>✦</i><i>✧</i><i>✳</i></span>
-      <span className="nx-ai-thinking-label">{steps[ix]}</span>
-      <span className="nx-ai-thinking-bar" aria-hidden="true"><i/></span>
-    </div>
-    <div className="nx-ai-thinking-skel" aria-hidden="true"><i/><i/></div>
-  </div>;
-}
+/* مرحلة التفكير بأسلوب أرينا (الدماغ + الرموز + الأسطر الشبحية) انتقلت إلى
+   ملف مشترك src/ai/ThinkingPhase.jsx لتستخدمها دردشة الاستوديو أيضًا */
 
 export default function AIPlatform() {
   const [token,setTok]=useState(getToken());
