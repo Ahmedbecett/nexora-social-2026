@@ -43,6 +43,9 @@ export default function ThinkingPhase({ lang, message, prose }) {
     : ['Thinking…', 'Reading your message…', 'Analyzing your text…', 'Structuring the answer…'];
   const [ix, setIx] = useState(0);
   useEffect(() => { const t = setInterval(() => setIx(x => (x + 1) % steps.length), 1900); return () => clearInterval(t); }, [lang]);
+  /* a visible ticking clock: the owner always knows the platform is alive and working */
+  const [secs, setSecs] = useState(0);
+  useEffect(() => { const t = setInterval(() => setSecs((s) => s + 1), 1000); return () => clearInterval(t); }, []);
 
   /* real analysis of the user's own words — quote + extracted key terms */
   const analysis = useMemo(() => analyzeMessage(message), [message]);
@@ -55,6 +58,7 @@ export default function ThinkingPhase({ lang, message, prose }) {
       <span className="nx-ai-thinking-glyphs" aria-hidden="true"><i>✦</i><i>✧</i><i>✳</i></span>
       <span className="nx-ai-thinking-label">{steps[ix]}</span>
       <span className="nx-ai-thinking-bar" aria-hidden="true"><i /></span>
+      <span className="nx-ai-thinking-time" aria-hidden="true">{secs}{lang === 'ar' ? 'ث' : 's'}</span>
     </div>
 
     {liveText ? (

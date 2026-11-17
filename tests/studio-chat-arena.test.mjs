@@ -7,6 +7,8 @@ import { readFileSync } from 'node:fs';
 const chat = readFileSync('src/studio/ChatPanel.jsx', 'utf8');
 const studioCss = readFileSync('src/studio/studio.css', 'utf8');
 const aiJsx = readFileSync('src/ai/ThinkingPhase.jsx', 'utf8');
+const cssFile = readFileSync('src/ai/AIPlatform.css', 'utf8');
+const apiJs = readFileSync('api/_lib/handlers.js', 'utf8');
 
 test('مرحلة التفكير في دردشة الاستوديو: الدماغ والرموز بين الإرسال وأول إشارة عمل', () => {
   assert.match(chat, /import ThinkingPhase from '\.\.\/ai\/ThinkingPhase\.jsx';/);
@@ -31,7 +33,8 @@ test('الكتابة لم تعد خافتة في دردشة الاستوديو: 
 test('تمرير بأسلوب أرينا في دردشة الاستوديو: تتبّع ذكي + زر قفز عند الصعود', () => {
   assert.match(chat, /ref=\{scrollRef\} onScroll=\{onThreadScroll\}/);
   assert.match(chat, /const atBottom = el\.scrollHeight - el\.scrollTop - el\.clientHeight < 140;/);
-  assert.match(chat, /if \(stickRef\.current \|\| \(last && last\.role === 'user'\)\) el\.scrollTop = el\.scrollHeight;/);
+  assert.match(chat, /if \(newMessage && last && last\.role === 'user'\) \{/);
+  assert.match(chat, /if \(stickRef\.current\) snapToBottom\(el\);/);
   assert.match(chat, /showJump && \(/);
   assert.match(chat, /className="nxs-jump"/);
   assert.match(chat, /el\.scrollTo\(\{ top: el\.scrollHeight, behavior: 'smooth' \}\);/);
@@ -50,4 +53,21 @@ test('الجولة الثالثة في الاستوديو: رسالة المست
   /* عناصر التحليل مكيّفة مع ثيم الاستوديو */
   assert.match(studioCss, /\.nxs-thread \.nx-ai-thinking-read \{ border-color: var\(--line-soft\); border-inline-start-color: #8d70ff; background: var\(--surface-2\); \}/);
   assert.match(studioCss, /\.nxs-thread \.nx-ai-thinking-live \{ border-color: var\(--line-soft\); background: var\(--surface-2\); color: var\(--ink\); \}/);
+});
+
+test('الجولة الرابعة: حرية التمرير أثناء البث + مؤقّت مرئي + إجابات أسرع وأذكى', () => {
+  /* التمرير: النزول القسري مرة واحدة لكل رسالة مستخدم فقط — لا لكل جزء بث،
+     مع تجاهل صدى التمرير البرمجي حتى لا يُحسب نزولًا من المستخدم */
+  assert.match(chat, /const prevLenRef = useRef\(0\);/);
+  assert.match(chat, /const lockRef = useRef\(false\);/);
+  assert.match(chat, /if \(lockRef\.current\) return;/);
+  assert.match(chat, /const newMessage = messages\.length !== prevLenRef\.current;/);
+  /* المؤقّت: ثوانٍ تدق داخل مرحلة التفكير */
+  assert.match(aiJsx, /const \[secs, setSecs\] = useState\(0\);/);
+  assert.match(aiJsx, /nx-ai-thinking-time/);
+  assert.match(studioCss, /\.nxs-thread \.nx-ai-thinking-time \{ color: var\(--text-2\); \}/);
+  assert.match(cssFile, /:root\[data-theme=light\] \.nx-ai-thinking-time\{color:#5b617e\}/);
+  /* الخادم: مهلات أقصر قبل التراجع للمزوّد التالي + تعليمات إجابة أذكى */
+  assert.match(apiJs, /AI_PROVIDER_TIMEOUT = \{ openai: 10000, gemini: 6000, openrouter: 11000, pollinations: 12000 \};/);
+  assert.match(apiJs, /structure longer answers with short headings or bullet points/);
 });
