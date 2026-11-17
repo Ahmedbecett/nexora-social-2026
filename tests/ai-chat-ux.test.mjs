@@ -44,13 +44,13 @@ test('تمرير بأسلوب أرينا: تتبّع ذكي للأسفل وزر 
 });
 
 test('نص الرد لم يعد خافتًا: أكبر وأوضح في الوضعين', () => {
-  assert.match(css, /\.nx-ai-message-body p\{white-space:pre-wrap;overflow-wrap:anywhere;color:#f2f4fd;font-size:16px[^}]*font-weight:500/);
-  assert.match(css, /\.nx-md\{font-size:16px;line-height:1\.85;color:#f2f4fd/);
-  assert.match(css, /\.nx-md p,\.nx-md li\{font-weight:500\}/);
+  assert.match(css, /\.nx-ai-message-body p\{white-space:pre-wrap;overflow-wrap:anywhere;color:#f2f4fd;font-size:17px[^}]*font-weight:550/);
+  assert.match(css, /\.nx-md\{font-size:17px;line-height:1\.85;color:#f2f4fd/);
+  assert.match(css, /\.nx-md p,\.nx-md li\{font-weight:550\}/);
   assert.match(css, /\.nx-md h1\{font-size:19px\}\.nx-md h2\{font-size:17\.5px\}/);
   assert.match(css, /:root\[data-theme=light\] \.nx-md\{color:#1a1e33\}/);
   /* الجوال: 14px بدل 11px */
-  assert.match(css, /\.nx-ai-message-body p\{font-size:14px\}\.nx-md\{font-size:14px\}/);
+  assert.match(css, /\.nx-ai-message-body p\{font-size:15px\}\.nx-md\{font-size:15px\}/);
   assert.doesNotMatch(css, /font-size:11px\}\.nx-ai-conversation-head/, 'حجم الجوال القديم أُزيل');
   assert.doesNotMatch(css, /\.nx-md\{font-size:12px/, 'حجم 12px القديم أُزيل');
   assert.doesNotMatch(css, /\.nx-ai-message-body p\{white-space:pre-wrap;[^}]*font-size:12px/, 'نص الرد القديم أُزيل');
@@ -70,4 +70,14 @@ test('الجولة الثانية: دماغ نابض + أسطر شبحية + خ�
   /* مربع الكتابة ينمو مع النص بدل التحجيم اليدوي */
   assert.match(jsx, /el\.style\.height='auto';el\.style\.height=Math\.min\(el\.scrollHeight,160\)\+'px'/);
   assert.match(css, /resize:none;overflow:hidden/);
+});
+
+test('الجولة الثالثة: تحليل نصي حقيقي — الرسالة تُقرأ والكلمات المفتاحية تُستخرج والتفكير يُبث حيًّا', () => {
+  assert.match(think, /function analyzeMessage\(/);
+  assert.match(think, /message, prose/);
+  assert.match(think, /nx-ai-thinking-read/);
+  assert.match(think, /nx-ai-thinking-keys/);
+  assert.match(think, /nx-ai-thinking-live/);
+  assert.match(css, /@keyframes nxscan\{/);
+  assert.match(css, /:root\[data-theme=light\] \.nx-ai-thinking-live\{/);
 });

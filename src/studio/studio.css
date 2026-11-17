@@ -3425,11 +3425,11 @@
 /* instant follow while streaming (the jump button keeps its smooth scroll) */
 .nxs-thread { scroll-behavior: auto; }
 
-.nxs-asst-body { font-size: 16px; line-height: 1.78; font-weight: 500; }
+.nxs-asst-body { font-size: 17px; line-height: 1.8; font-weight: 550; }
 .nxs-asst-body .nx-md p,
-.nxs-asst-body .nx-md li { font-weight: 500; }
-.nxs-aw-prose { font-size: 15px; line-height: 1.7; color: var(--ink); font-weight: 500; }
-.nxs-user-text { font-size: 15px; }
+.nxs-asst-body .nx-md li { font-weight: 550; }
+.nxs-aw-prose { font-size: 16px; line-height: 1.75; color: var(--ink); font-weight: 550; }
+.nxs-user-text { font-size: 16px; }
 
 /* ThinkingPhase lives in AIPlatform.css (dark palette) — retune it for the
    studio's light/dark themes via the studio's own variables */
@@ -3465,8 +3465,15 @@
 .nxs-jump:active { transform: scale(0.94); }
 
 @media (max-width: 720px) {
-  .nxs-asst-body { font-size: 15px; }
-  .nxs-aw-prose { font-size: 14px; }
-  .nxs-user-text { font-size: 14.5px; }
+  .nxs-asst-body { font-size: 16px; }
+  .nxs-aw-prose { font-size: 15px; }
+  .nxs-user-text { font-size: 15px; }
   .nxs-jump { width: 34px; height: 34px; margin-top: -42px; bottom: 10px; }
 }
+
+/* v3 — عناصر التحليل الحقيقي على متغيرات ثيم الاستوديو */
+.nxs-thread .nx-ai-thinking-read { border-color: var(--line-soft); border-inline-start-color: #8d70ff; background: var(--surface-2); }
+.nxs-thread .nx-ai-thinking-read-quote { color: var(--ink); }
+.nxs-thread .nx-ai-thinking-keys { color: var(--text-2); }
+.nxs-thread .nx-ai-thinking-keys i { background: #8d70ff1a; border-color: #8d70ff45; color: var(--ink); }
+.nxs-thread .nx-ai-thinking-live { border-color: var(--line-soft); background: var(--surface-2); color: var(--ink); }
