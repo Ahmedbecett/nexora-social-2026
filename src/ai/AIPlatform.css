@@ -348,7 +348,7 @@ html.native .nx-ai-public,html.native .nx-ai-discover-link{display:none}
 @keyframes nxthink{0%,100%{opacity:.3;transform:translateY(0) scale(.9)}50%{opacity:1;transform:translateY(-3px) scale(1.12)}}
 .nx-ai-thinking-label{font-size:14.5px;font-weight:650;color:#d3d7ec;letter-spacing:.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:nxthinkfade 1.9s ease-in-out infinite}
 @keyframes nxthinkfade{0%,100%{opacity:.6}50%{opacity:1}}
-.nx-ai-thinking-bar{flex:1;min-width:46px;max-width:130px;height:3px;border-radius:99px;background:#ffffff14;overflow:hidden;flex:none}
+.nx-ai-thinking-bar{flex:1;min-width:46px;max-width:130px;height:3px;border-radius:99px;background:#ffffff14;overflow:hidden;flex:none}.nx-ai-thinking-time{flex:none;font-size:12.5px;font-weight:650;color:#9aa2c6;font-variant-numeric:tabular-nums;letter-spacing:.3px;animation:nxthinkfade 1.9s ease-in-out infinite}
 .nx-ai-thinking-bar i{display:block;height:100%;width:38%;border-radius:99px;background:linear-gradient(90deg,#8f6dff,#f19bd7);animation:nxthinkbar 1.5s ease-in-out infinite}
 @keyframes nxthinkbar{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}
 [dir=ltr] .nx-ai-thinking-bar i{animation-name:nxthinkbar-ltr}
@@ -360,6 +360,7 @@ html.native .nx-ai-public,html.native .nx-ai-discover-link{display:none}
 .nx-ai-content{overscroll-behavior:contain}
 /* الوضع الفاتح */
 :root[data-theme=light] .nx-ai-thinking-label{color:#3d4462}
+:root[data-theme=light] .nx-ai-thinking-time{color:#5b617e}
 :root[data-theme=light] .nx-ai-thinking-skel i{background:linear-gradient(90deg,#1a1e330f 25%,#8d70ff30 50%,#1a1e330f 75%);background-size:200% 100%}
 :root[data-theme=light] .nx-ai-thinking-bar{background:#1a1e3314}
 :root[data-theme=light] .nx-ai-jump{background:#fffffff5;border-color:#8d70ff59;color:#5b48c9;box-shadow:0 8px 26px #1a1e3326}

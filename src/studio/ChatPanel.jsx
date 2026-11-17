@@ -89,8 +89,17 @@ export default function ChatPanel() {
      already near the bottom, always follow their own new message, and offer
      a floating jump button whenever they scroll up to read */
   const stickRef = useRef(true);
+  const prevLenRef = useRef(0);   /* messages.length at the last forced snap */
+  const lockRef = useRef(false);  /* true just after a programmatic snap — its scroll echo is not the user */
   const [showJump, setShowJump] = useState(false);
+  const snapToBottom = (el, smooth) => {
+    lockRef.current = true;
+    if (smooth) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    else el.scrollTop = el.scrollHeight;
+    requestAnimationFrame(() => { lockRef.current = false; });
+  };
   const onThreadScroll = () => {
+    if (lockRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
@@ -102,14 +111,26 @@ export default function ChatPanel() {
     if (!el) return;
     stickRef.current = true;
     setShowJump(false);
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    snapToBottom(el, true);
   };
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const last = messages[messages.length - 1];
-    if (stickRef.current || (last && last.role === 'user')) el.scrollTop = el.scrollHeight;
+    const newMessage = messages.length !== prevLenRef.current;
+    if (newMessage) prevLenRef.current = messages.length;
+    /* Snap down ONCE when the user's own message lands — never per streamed
+       chunk: while a reply streams, the user's message stays the last one
+       until the reply completes, so snapping on every chunk pinned the
+       thread to the bottom and made scrolling up impossible. */
+    if (newMessage && last && last.role === 'user') {
+      stickRef.current = true;
+      snapToBottom(el);
+      return;
+    }
+    /* otherwise follow the stream only while the user is already near the bottom */
+    if (stickRef.current) snapToBottom(el);
   }, [messages.length, agent.running, agent.activity?.length, agent.prose]);
 
   /* Auto-resize composer textarea without jitter */

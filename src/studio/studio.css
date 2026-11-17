@@ -3434,6 +3434,7 @@
 /* ThinkingPhase lives in AIPlatform.css (dark palette) — retune it for the
    studio's light/dark themes via the studio's own variables */
 .nxs-thread .nx-ai-thinking-label { color: var(--ink); }
+.nxs-thread .nx-ai-thinking-time { color: var(--text-2); }
 .nxs-thread .nx-ai-thinking-bar { background: var(--line-soft); }
 .nxs-thread .nx-ai-thinking-skel i {
   background: linear-gradient(90deg, var(--line-soft) 25%, #8d70ff4d 50%, var(--line-soft) 75%);
