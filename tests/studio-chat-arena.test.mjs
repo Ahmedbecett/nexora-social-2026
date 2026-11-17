@@ -21,9 +21,9 @@ test('مرحلة التفكير في دردشة الاستوديو: الدماغ
 
 test('الكتابة لم تعد خافتة في دردشة الاستوديو: أوضح وأثقل في الوضعين', () => {
   /* النص المتداخل كان 12.5px بلون ثانوي باهت والرد النهائي 14.5px */
-  assert.match(studioCss, /\.nxs-aw-prose \{ font-size: 16px; line-height: 1\.75; color: var\(--ink\); font-weight: 550; \}/);
-  assert.match(studioCss, /\.nxs-asst-body \{ font-size: 17px; line-height: 1\.8; font-weight: 550; \}/);
-  assert.match(studioCss, /\.nxs-asst-body \.nx-md p,\n\.nxs-asst-body \.nx-md li \{ font-weight: 550; \}/);
+  assert.match(studioCss, /\.nxs-aw-prose \{ font-size: 16px; line-height: 1\.75; color: var\(--ink\); font-weight: 600; \}/);
+  assert.match(studioCss, /\.nxs-asst-body \{ font-size: 17px; line-height: 1\.8; font-weight: 600; \}/);
+  assert.match(studioCss, /\.nxs-asst-body \.nx-md p,\n\.nxs-asst-body \.nx-md li \{ font-weight: 600; \}/);
   /* الجوال */
   assert.match(studioCss, /\.nxs-asst-body \{ font-size: 16px; \}/);
   /* مرحلة التفكير مكيّفة مع ثيم الاستوديو الفاتح/الداكن عبر متغيراته */
@@ -86,4 +86,20 @@ test('الجولة الخامسة: سباق المزوّدين للإجابة ا
   assert.match(studioCss, /\.nxs-composer\.focused \{\n  border-color: var\(--text-3\);\n  box-shadow: var\(--shadow-m\);\n\}/);
   assert.match(studioCss, /\.nxs-composer\.busy \{ border-color: var\(--line\); \}/);
   assert.doesNotMatch(studioCss, /rgba\(180, 85, 45/);
+});
+
+test('الجولة السادسة: لا خفوت بعد الآن — نص المستخدم بوزن كامل وألوان أغمق', () => {
+  /* رسالة المستخدم كانت بلا وزن خط إطلاقًا (ترث 400 النحيف) — الآن 600 */
+  assert.match(studioCss, /\.nxs-user-text \{ font-size: 14px; line-height: 1\.6; font-weight: 600; white-space: pre-wrap; word-break: break-word; \}/);
+  /* الألوان الثانوية أغمق في الوضعين — كانت التباين 3.4:1 فقط */
+  assert.match(studioCss, /--text-3: #6b655a;/);
+  assert.match(studioCss, /--text-3: #a5a094;/);
+  assert.doesNotMatch(studioCss, /#8a8478/);
+  assert.doesNotMatch(studioCss, /#7d776c/);
+  /* لا أوزان 450 نحيفة متبقية */
+  assert.doesNotMatch(studioCss, /font: 450 /);
+  /* اسم الموديل أكبر تحت الرد */
+  assert.match(studioCss, /\.nxs-asst-model \{ font-size: 11\.5px; color: var\(--text-3\); \}/);
+  /* منصة الذكاء: فقرات الرد بوزن 600 أيضًا */
+  assert.match(cssFile, /\.nx-md p,\.nx-md li\{font-weight:600\}/);
 });
