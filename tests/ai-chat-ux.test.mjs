@@ -4,13 +4,16 @@ import { readFileSync } from 'node:fs';
 
 const jsx = readFileSync('src/ai/AIPlatform.jsx', 'utf8');
 const css = readFileSync('src/ai/AIPlatform.css', 'utf8');
+const think = readFileSync('src/ai/ThinkingPhase.jsx', 'utf8');
 
 test('مرحلة التفكير بأسلوب أرينا: رموز ✦✧✳ + حالات متبدّلة قبل أول حرف', () => {
-  assert.match(jsx, /function ThinkingPhase\(/);
-  assert.match(jsx, /'يفكّر في رسالتك…','يقرأ ويدرس النص…','يحلّل ما أرسلته…','ينظّم الإجابة…'/);
-  assert.match(jsx, /✦/);
-  assert.match(jsx, /✧/);
-  assert.match(jsx, /✳/);
+  /* المكوّن انتقل إلى ملف مشترك تستورده المنصة ودردشة الاستوديو معًا */
+  assert.match(jsx, /import ThinkingPhase from '\.\/ThinkingPhase\.jsx';/);
+  assert.match(think, /export default function ThinkingPhase\(/);
+  assert.match(think, /'يفكّر في رسالتك…', 'يقرأ ويدرس النص…', 'يحلّل ما أرسلته…', 'ينظّم الإجابة…'/);
+  assert.match(think, /✦/);
+  assert.match(think, /✧/);
+  assert.match(think, /✳/);
   /* تُعرض فقط أثناء البث قبل وصول أي نص، والمؤشر الوامض يظهر بعد بدء النص */
   assert.match(jsx, /m\.streaming&&!m\.text&&<ThinkingPhase lang=\{lang\}\/>/);
   assert.match(jsx, /m\.streaming&&m\.text&&<span className="nx-ai-cursor"/);
@@ -55,8 +58,8 @@ test('نص الرد لم يعد خافتًا: أكبر وأوضح في الوض�
 
 test('الجولة الثانية: دماغ نابض + أسطر شبحية + خط أرينا + مربع ينمو تلقائيًا', () => {
   /* الدماغ (كرة نابضة) والأسطر الشبحية داخل مرحلة التفكير */
-  assert.match(jsx, /nx-ai-thinking-orb/);
-  assert.match(jsx, /nx-ai-thinking-skel/);
+  assert.match(think, /nx-ai-thinking-orb/);
+  assert.match(think, /nx-ai-thinking-skel/);
   assert.match(css, /@keyframes nxorb\{/);
   assert.match(css, /@keyframes nxskel\{/);
   assert.match(css, /:root\[data-theme=light\] \.nx-ai-thinking-skel i\{/);
