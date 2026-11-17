@@ -82,6 +82,12 @@ export const PROVIDERS = [
     env: [], base: () => 'https://text.pollinations.ai/openai',
     models: () => [process.env.POLLINATIONS_MODEL || 'openai'],
   },
+  {
+    id: 'llm7', label: 'llm7.io (free)', kind: 'openai', keyless: true,
+    env: [], base: () => 'https://api.llm7.io/v1',
+    models: () => [process.env.LLM7_MODEL || 'default'],
+    headers: () => ({ 'User-Agent': 'NEXORA-AI/1.0' }),
+  },
 ];
 
 export const providerMeta = (id) => PROVIDERS.find((p) => p.id === id) || null;

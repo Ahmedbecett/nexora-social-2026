@@ -9,6 +9,8 @@ const studioCss = readFileSync('src/studio/studio.css', 'utf8');
 const aiJsx = readFileSync('src/ai/ThinkingPhase.jsx', 'utf8');
 const cssFile = readFileSync('src/ai/AIPlatform.css', 'utf8');
 const apiJs = readFileSync('api/_lib/handlers.js', 'utf8');
+const studioAi = readFileSync('api/_lib/studio/ai.js', 'utf8');
+const routesJs = readFileSync('api/_lib/studio/routes.js', 'utf8');
 
 test('مرحلة التفكير في دردشة الاستوديو: الدماغ والرموز بين الإرسال وأول إشارة عمل', () => {
   assert.match(chat, /import ThinkingPhase from '\.\.\/ai\/ThinkingPhase\.jsx';/);
@@ -102,4 +104,23 @@ test('الجولة السادسة: لا خفوت بعد الآن — نص الم
   assert.match(studioCss, /\.nxs-asst-model \{ font-size: 11\.5px; color: var\(--text-3\); \}/);
   /* منصة الذكاء: فقرات الرد بوزن 600 أيضًا */
   assert.match(cssFile, /\.nx-md p,\.nx-md li\{font-weight:600\}/);
+});
+
+test('الجولة السابعة: نص أبيض لم يعد + وكيل يعمل عملًا حقيقيًا بلا مفاتيح', () => {
+  /* 1) الخط الأبيض: عارض الماركداون المشترك يحمل حبرًا أبيض لمنصة الذكاء
+     الداكنة، وكان ثيم جذر الصفحة (الداكن افتراضيًا) يجعله أبيض على كريم
+     الاستوديو — الآن الاستوديو يملك لونه بنفسه في كل الحالات */
+  assert.match(studioCss, /\.nxs \.nx-md \{ color: var\(--ink\); \}/);
+  assert.match(studioCss, /\.nxs \.nx-md h1, \.nxs \.nx-md h2, \.nxs \.nx-md h3, \.nxs \.nx-md h4 \{ color: var\(--ink\); \}/);
+  assert.match(studioCss, /\.nxs \.nx-md a \{ color: var\(--blue\); \}/);
+  assert.match(studioCss, /:root\[data-theme=light\] \.nxs \.nx-md,/);
+  /* 2) سلسلة الوكيل صارت تملك مزوّدًا مجانيًا ثانيًا (llm7) بعد Pollinations */
+  assert.match(studioAi, /id: 'llm7', label: 'llm7\.io \(free\)', kind: 'openai', keyless: true,/);
+  assert.match(studioAi, /base: \(\) => 'https:\/\/api\.llm7\.io\/v1',/);
+  /* 3) العمل الحقيقي: إن ردّ النموذج على create/continue بلا أي وسم ملف،
+     جولة تصحيح واحدة تعيد طلب الملفات صراحة قبل الاستسلام */
+  assert.match(routesJs, /const streamerHandlers = \{/);
+  assert.match(routesJs, /const retryStreamer = createProtocolStreamer\(streamerHandlers\);/);
+  assert.match(routesJs, /Your previous answer contained no <file> tag, so no file was created\./);
+  assert.match(routesJs, /Retrying file output \(protocol\)/);
 });
