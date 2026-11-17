@@ -71,3 +71,19 @@ test('الجولة الرابعة: حرية التمرير أثناء البث +
   assert.match(apiJs, /AI_PROVIDER_TIMEOUT = \{ openai: 10000, gemini: 6000, openrouter: 11000, pollinations: 12000 \};/);
   assert.match(apiJs, /structure longer answers with short headings or bullet points/);
 });
+
+test('الجولة الخامسة: سباق المزوّدين للإجابة السريعة + مربع كتابة محايد بلا برتقالي', () => {
+  /* السباق: المجانيون ينطلقون فور فشل المدفوعين أو بعد مهلة تفوق 4 ثوانٍ،
+     وأول بث يبدأ يملك المجرى فتُهمَل دلتا الخاسر المتأخر */
+  assert.match(apiJs, /AI_KEYLESS_HEAD_START_MS = 4000;/);
+  assert.match(apiJs, /let streamOwner = null;/);
+  assert.match(apiJs, /const paidChain = \(async \(\) => \{/);
+  assert.match(apiJs, /const keylessChain = \(async \(\) => \{/);
+  assert.match(apiJs, /onDelta: relay\('openai'\)/);
+  assert.match(apiJs, /onDelta: relay\('llm7'\)/);
+  assert.match(apiJs, /if \(raceWinner\) return raceWinner;/);
+  /* المربع: إطار محايد في التركيز والانشغال — بلا برتقالي */
+  assert.match(studioCss, /\.nxs-composer\.focused \{\n  border-color: var\(--text-3\);\n  box-shadow: var\(--shadow-m\);\n\}/);
+  assert.match(studioCss, /\.nxs-composer\.busy \{ border-color: var\(--line\); \}/);
+  assert.doesNotMatch(studioCss, /rgba\(180, 85, 45/);
+});

@@ -16,10 +16,10 @@
   --ink: #1a1915;
   --text-2: #57534a;
   --text-3: #8a8478;
-  --accent: #b4552d;
-  --accent-hover: #9c4523;
-  --accent-soft: #f6e7de;
-  --accent-ink: #8a3f1f;
+  --accent: #1a1915;
+  --accent-hover: #33322d;
+  --accent-soft: #eceadf;
+  --accent-ink: #3560a8;
   --green: #3d7a4e;
   --green-soft: #e7f0e9;
   --red: #b3402f;
@@ -72,10 +72,10 @@
   --ink: #f0eee8;
   --text-2: #b3aea3;
   --text-3: #7d776c;
-  --accent: #e0714b;
-  --accent-hover: #ea8360;
-  --accent-soft: #3a271f;
-  --accent-ink: #f0a488;
+  --accent: #f0eee8;
+  --accent-hover: #ffffff;
+  --accent-soft: #2a2825;
+  --accent-ink: #85a8e0;
   --green: #6fb383;
   --green-soft: #1f2b22;
   --red: #e07a6a;
@@ -114,7 +114,7 @@
 }
 .nxs a { color: var(--accent-ink); text-decoration: none; }
 .nxs a:hover { text-decoration: underline; }
-.nxs ::selection { background: rgba(180, 85, 45, 0.22); }
+.nxs ::selection { background: rgba(140, 138, 130, 0.30); }
 
 .nxs :focus-visible {
   outline: 2px solid var(--accent);
@@ -178,6 +178,7 @@
 .nxs-mini-btn:hover { background: var(--surface); color: var(--ink); }
 .nxs-mini-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .nxs-mini-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.nxs[data-theme='dark'] .nxs-mini-btn.primary { color: #141413; }
 .nxs-mini-btn.primary:hover { background: var(--accent-hover); color: #fff; }
 .nxs-mini-btn.ok { background: var(--green-soft); border-color: transparent; color: var(--green); }
 .nxs-mini-btn.ok:hover { background: var(--green-soft); color: var(--green); }
@@ -225,7 +226,7 @@
 .nxs-input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(180, 85, 45, 0.13);
+  box-shadow: 0 0 0 3px rgba(140, 138, 130, 0.18);
 }
 .nxs select.nxs-input { appearance: auto; cursor: pointer; }
 
@@ -342,8 +343,8 @@
   animation: nxsPulse 1.4s ease-in-out infinite;
 }
 @keyframes nxsPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(180, 85, 45, 0.35); }
-  50% { box-shadow: 0 0 0 5px rgba(180, 85, 45, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(140, 138, 130, 0.35); }
+  50% { box-shadow: 0 0 0 5px rgba(140, 138, 130, 0); }
 }
 
 .nxs-toast {
@@ -401,7 +402,7 @@
   justify-content: center;
   padding: 24px;
   background:
-    radial-gradient(1200px 500px at 20% -10%, rgba(180, 85, 45, 0.05), transparent 60%),
+    radial-gradient(1200px 500px at 20% -10%, rgba(140, 138, 130, 0.05), transparent 60%),
     var(--canvas);
 }
 .nxs-auth-card {
@@ -1230,11 +1231,12 @@
   transition: border-color 0.16s, box-shadow 0.16s;
   overflow: visible;
 }
+/* بسيط مثل أرينا: إطار محايد هادئ — بلا برتقالي وبلا توهج ملوّن */
 .nxs-composer.focused {
-  border-color: rgba(180, 85, 45, 0.55);
-  box-shadow: 0 0 0 3px rgba(180, 85, 45, 0.1), var(--shadow-m);
+  border-color: var(--text-3);
+  box-shadow: var(--shadow-m);
 }
-.nxs-composer.busy { border-color: var(--amber); }
+.nxs-composer.busy { border-color: var(--line); }
 
 .nxs-composer-input {
   display: block;
@@ -3047,7 +3049,7 @@
   background: var(--card);
   padding: 12px 14px;
 }
-.nxs-provider.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(180, 85, 45, 0.1); }
+.nxs-provider.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(140, 138, 130, 0.15); }
 .nxs-provider-main { display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
 .nxs-provider-info { flex: 1; min-width: 170px; display: flex; flex-direction: column; gap: 2px; }
 .nxs-provider-title { display: flex; align-items: center; gap: 7px; font-size: 13px; }
