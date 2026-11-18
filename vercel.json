@@ -73,6 +73,171 @@
       "source": "/en/privacy",
       "destination": "/en/privacy.html",
       "permanent": true
+    },
+    {
+      "source": "/blog",
+      "destination": "/faq.html",
+      "permanent": true
+    },
+    {
+      "source": "/blog/apk",
+      "destination": "/download.html",
+      "permanent": true
+    },
+    {
+      "source": "/blog/:path*",
+      "destination": "/features.html",
+      "permanent": true
+    },
+    {
+      "source": "/use",
+      "destination": "/features.html",
+      "permanent": true
+    },
+    {
+      "source": "/use/:path*",
+      "destination": "/features.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/blog",
+      "destination": "/en/faq.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/blog/apk",
+      "destination": "/en/download.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/blog/:path*",
+      "destination": "/en/features.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/use",
+      "destination": "/en/features.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/use/:path*",
+      "destination": "/en/features.html",
+      "permanent": true
+    },
+    {
+      "source": "/privacy-policy",
+      "destination": "/privacy.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/privacy-policy",
+      "destination": "/en/privacy.html",
+      "permanent": true
+    },
+    {
+      "source": "/cookie-policy",
+      "destination": "/privacy.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/cookie-policy",
+      "destination": "/en/privacy.html",
+      "permanent": true
+    },
+    {
+      "source": "/about-us",
+      "destination": "/about.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/about-us",
+      "destination": "/en/about.html",
+      "permanent": true
+    },
+    {
+      "source": "/help",
+      "destination": "/faq.html",
+      "permanent": true
+    },
+    {
+      "source": "/support",
+      "destination": "/faq.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/help",
+      "destination": "/en/faq.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/support",
+      "destination": "/en/faq.html",
+      "permanent": true
+    },
+    {
+      "source": "/apk",
+      "destination": "/download.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/apk",
+      "destination": "/en/download.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/index.html",
+      "destination": "/en.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/",
+      "destination": "/en.html",
+      "permanent": true
+    },
+    {
+      "source": "/about/",
+      "destination": "/about.html",
+      "permanent": true
+    },
+    {
+      "source": "/features/",
+      "destination": "/features.html",
+      "permanent": true
+    },
+    {
+      "source": "/faq/",
+      "destination": "/faq.html",
+      "permanent": true
+    },
+    {
+      "source": "/privacy/",
+      "destination": "/privacy.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/about/",
+      "destination": "/en/about.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/features/",
+      "destination": "/en/features.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/download/",
+      "destination": "/en/download.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/faq/",
+      "destination": "/en/faq.html",
+      "permanent": true
+    },
+    {
+      "source": "/en/privacy/",
+      "destination": "/en/privacy.html",
+      "permanent": true
     }
   ],
   "rewrites": [
