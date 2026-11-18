@@ -137,18 +137,18 @@ test('الجولة الثامنة: إعلانات الويب في الاستود
   assert.match(chat, /<StudioWebAd \/>/);
   assert.match(studioCss, /\.nxs-chat \.nx-adsterra-placement \{ width: min\(768px, 100%\); \}/);
   /* الخصوصية: قسم الاستوديو والتكاملات + التاريخ الجديد + بقاء مصطلحات الشبكات */
-  assert.match(privacyAr, /NEXORA Studio ومشاريعك/);
+  assert.match(privacyAr, /NEXORA Studio/);
   assert.match(privacyAr, /Google Docs/);
   assert.match(privacyAr, /GitHub وVercel/);
-  assert.match(privacyAr, /17 نوفمبر 2026/);
-  assert.doesNotMatch(privacyAr, /15 نوفمبر 2026/);
-  assert.match(privacyEn, /NEXORA Studio and your projects/);
-  assert.match(privacyEn, /17 November 2026/);
+  assert.match(privacyAr, /18 نوفمبر 2026/);
+  assert.doesNotMatch(privacyAr, /(15|17) نوفمبر 2026/);
+  assert.match(privacyEn, /NEXORA Studio/);
+  assert.match(privacyEn, /18 November 2026/);
   for (const term of ['Adsterra', 'Monetag', 'AdSense', 'AdMob']) {
     assert.ok(privacyAr.includes(term), 'privacy ar: ' + term);
     assert.ok(privacyEn.includes(term), 'privacy en: ' + term);
   }
   /* خريطة الموقع: تاريخ اليوم على كل الروابط لإعادة الفهرسة */
-  assert.match(sitemap, /<lastmod>2026-11-17<\/lastmod>/);
-  assert.doesNotMatch(sitemap, /<lastmod>2026-11-15<\/lastmod>/);
+  assert.match(sitemap, /<lastmod>2026-11-18<\/lastmod>/);
+  assert.doesNotMatch(sitemap, /<lastmod>2026-11-1[57]<\/lastmod>/);
 });
