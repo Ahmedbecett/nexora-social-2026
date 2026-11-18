@@ -119,7 +119,7 @@ const copy = {
         ['rights', 'Your rights'],
         ['delete', 'Deleting your account'],
         ['children', 'Children'],
-        ['content', 'Generated content and acceptable use'],
+        ['generated', 'Generated content and acceptable use'],
         ['transfers', 'International transfers'],
         ['changes', 'Changes to this policy'],
         ['contact', 'Contact us'],
@@ -186,7 +186,7 @@ const copy = {
         <p><strong>On the website</strong> we may show Google AdSense, Monetag and Adsterra ads. Adsterra loads as a Native Banner and Monetag as OnClick/Popunder units on public pages, sign-in screens and chat; Monetag may open a new window or tab when clicked.</p>
         <p>Ad networks may process technical data such as IP address, browser identifiers, cookies and page interaction to serve and measure ads. Third-party ad code runs inside the web page and may technically read its content and user input; we do not send conversation history from our servers to ad networks for targeting, but we cannot guarantee what third-party code reads inside your browser.</p>
         <p><strong>In the Android app</strong> we show Google AdMob only: a banner under the welcome screen, a rare interstitial (at most once every 10 minutes and three times a day) on a natural transition, and an optional rewarded ad the user requests. AdMob never appears during text or voice conversations or over dialogs. Consent is handled by the Google UMP framework where it applies, and you can accept or refuse it in the in-app consent dialog.</p>
-        <p>Managing personalised ads: <a href="https://adssettings.google.com" rel="nofollow noopener" target="_blank">Google Ads Settings</a> · <a href="https://www.aboutads.info" rel="nofollow noopener" target="_blank">aboutads.info</a>. Choosing non-personalised ads does not remove ads; it reduces personalisation.</p></section>
+        <p>Managing personalised ads: <a href="https://adssettings.google.com" rel="nofollow noopener" target="_blank">Google Ads Settings</a> · <a href="https://www.aboutads.info/choices/" rel="nofollow noopener" target="_blank">aboutads.info</a>. Choosing non-personalised ads does not remove ads; it reduces personalisation.</p></section>
 
         <section id="sharing"><h2>8. Who we share data with</h2>
         <p>We do not sell your personal data. We share only the minimum necessary with processors working on our behalf:</p>
@@ -227,7 +227,7 @@ const copy = {
         <section id="children"><h2>13. Children</h2>
         <p>The service is not directed to children under 13, or under the minimum age in your country (up to 16 in some EU states). We do not knowingly collect children's data; if we learn a child under that age holds an account, we delete it. If your child created an account, contact us at the address below.</p></section>
 
-        <section id="content"><h2>14. Generated content and acceptable use</h2>
+        <section id="generated"><h2>14. Generated content and acceptable use</h2>
         <ul><li>Outputs may be inaccurate, biased or incomplete; review them before publishing or making an important decision.</li>
         <li>You are responsible for what you publish and for not infringing third-party rights.</li>
         <li>Do not use the service to harm others, break the law, generate illegal content, evade usage limits or attempt to compromise the service.</li></ul></section>
@@ -300,7 +300,7 @@ const copy = {
         ['rights', 'حقوقك'],
         ['delete', 'حذف الحساب والبيانات'],
         ['children', 'الأطفال'],
-        ['content', 'المحتوى المولّد والاستخدام المقبول'],
+        ['generated', 'المحتوى المولّد والاستخدام المقبول'],
         ['transfers', 'النقل الدولي'],
         ['changes', 'تغييرات هذه السياسة'],
         ['contact', 'التواصل معنا'],
@@ -367,7 +367,7 @@ const copy = {
         <p><strong>على الموقع</strong> قد نعرض إعلانات Google AdSense وMonetag وAdsterra. تُحمَّل Adsterra بنمط Native Banner وMonetag بنمط OnClick/Popunder في الصفحات العامة وصفحات الدخول والمحادثات، وقد تفتح Monetag نافذة أو تبويبًا جديدًا عند النقر.</p>
         <p>قد تعالج الشبكات الإعلانية بيانات تقنية مثل عنوان IP ومعرّفات المتصفح وملفات تعريف الارتباط والتفاعل مع الصفحة لعرض الإعلان وقياسه. تعمل شيفرات الإعلانات الخارجية داخل صفحة الويب وقد تتمكن تقنيًا من قراءة محتواها ومدخلات المستخدم؛ لا نرسل سجل المحادثات من خوادمنا إلى شبكات الإعلان للاستهداف، لكننا لا نستطيع ضمان ما تقرؤه شيفرة طرف ثالث داخل المتصفح.</p>
         <p><strong>في تطبيق أندرويد</strong> نعرض إعلانات Google AdMob فقط: بانر أسفل شاشة الترحيب، وإعلان بيني نادر (بحد أقصى مرة كل 10 دقائق و3 مرات يوميًا) عند انتقال طبيعي، وإعلان بمكافأة اختياري يطلبه المستخدم بنفسه. لا تظهر إعلانات AdMob أثناء المحادثة النصية أو الصوتية أو فوق النوافذ. تُدار الموافقة عبر إطار Google UMP حيث ينطبق، ويمكنك قبولها أو رفضها من نافذة الموافقة داخل التطبيق.</p>
-        <p>لإدارة الإعلانات المخصّصة: <a href="https://adssettings.google.com" rel="nofollow noopener" target="_blank">إعدادات إعلانات Google</a> · <a href="https://www.aboutads.info" rel="nofollow noopener" target="_blank">aboutads.info</a>. اختيارك غير المخصّص لا يوقف الإعلانات، لكنه يقلّل تخصيصها.</p></section>
+        <p>لإدارة الإعلانات المخصّصة: <a href="https://adssettings.google.com" rel="nofollow noopener" target="_blank">إعدادات إعلانات Google</a> · <a href="https://www.aboutads.info/choices/" rel="nofollow noopener" target="_blank">aboutads.info</a>. اختيارك غير المخصّص لا يوقف الإعلانات، لكنه يقلّل تخصيصها.</p></section>
 
         <section id="sharing"><h2>٨. مع من نشارك البيانات</h2>
         <p>لا نبيع بياناتك الشخصية. نشارك الحد الأدنى الضروري فقط مع مزوّدين يعملون لحسابنا لتقديم الوظيفة:</p>
@@ -408,7 +408,7 @@ const copy = {
         <section id="children"><h2>١٣. الأطفال</h2>
         <p>الخدمة غير موجّهة لمن دون 13 عامًا، أو دون السن الأدنى المعتمد في بلدك (قد يصل إلى 16 عامًا في بعض دول الاتحاد الأوروبي). لا نجمع بيانات الأطفال عن قصد؛ وإذا تبيّن لنا وجود حساب لطفل دون السن نحذفه. إن كان طفلك أنشأ حسابًا، راسلنا على البريد أدناه.</p></section>
 
-        <section id="content"><h2>١٤. المحتوى المولّد والاستخدام المقبول</h2>
+        <section id="generated"><h2>١٤. المحتوى المولّد والاستخدام المقبول</h2>
         <ul><li>المخرجات قد تكون غير دقيقة أو متحيّزة أو غير مكتملة؛ راجعها قبل النشر أو اتخاذ قرار مهم.</li>
         <li>أنت مسؤول عن المحتوى الذي تنشره وعن عدم انتهاكه حقوق طرف ثالث.</li>
         <li>يُمنع استخدام الخدمة لإيذاء الآخرين، أو انتهاك القانون، أو توليد محتوى غير قانوني، أو محاولة تجاوز حدود الاستخدام أو اختراق الخدمة.</li></ul></section>
