@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { applyTheme } from './theme.js';
 import StudioApp from './studio/StudioApp.jsx';
 import AIPlatform from './ai/AIPlatform.jsx';
+import UpdateNotice from './UpdateNotice.jsx';
 
 /**
  * NEXORA is an AI app builder first: the Studio is the default surface.
@@ -23,8 +24,14 @@ export default function App() {
       <>
         <button className="nxs-switch-back" onClick={() => setView('studio')}>← NEXORA Studio</button>
         <AIPlatform />
+        <UpdateNotice />
       </>
     );
   }
-  return <StudioApp />;
+  return (
+    <>
+      <StudioApp />
+      <UpdateNotice />
+    </>
+  );
 }

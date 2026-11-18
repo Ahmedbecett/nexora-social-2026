@@ -1,0 +1,37 @@
+/* شريط التحديث الجديد — يظهر فوق كل الواجهات حتى لا يبقى أحد على نسخة قديمة */
+.nx-update-bar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px calc(10px + var(--safe-bottom, 0px));
+  background: #2a2154;
+  color: #ffffff;
+  font: 600 13.5px/1.4 system-ui, "Cairo", Tahoma, sans-serif;
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, .28);
+}
+
+html[data-theme="light"] .nx-update-bar { background: #efeaff; color: #221a45; box-shadow: 0 -6px 20px rgba(28, 20, 60, .16); }
+
+.nx-update-bar .nx-update-text { flex: 1 1 auto; min-width: 180px; text-align: center; }
+
+.nx-update-bar .nx-update-btn {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 18px;
+  background: #8b5cf6;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+html[data-theme="light"] .nx-update-bar .nx-update-btn { background: #6d38e8; }
+.nx-update-bar .nx-update-btn:hover { filter: brightness(1.08); }
+.nx-update-bar .nx-update-btn:active { transform: scale(.97); }
