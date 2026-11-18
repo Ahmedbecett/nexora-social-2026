@@ -1,6 +1,9 @@
+# NEXORA AI — قواعد الزحف العامة / public crawl rules
 User-agent: *
 Allow: /
 Disallow: /api$
 Disallow: /api/
+# ملف APK ثنائي: لا فائدة من فهرسته / binary APK, nothing to index
+Disallow: /download/
 
 Sitemap: https://nexora-social-2026.vercel.app/sitemap.xml
