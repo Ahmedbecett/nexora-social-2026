@@ -152,3 +152,26 @@ test('أيقونات manifest موجودة', () => {
     }
   }
 });
+
+test('index.html بلا وسوم meta مكرّرة', () => {
+  const head = read('index.html').split('</head>')[0];
+  const keys = [...head.matchAll(/<meta\s+(name|property)="([^"]+)"/g)].map((m) => `${m[1]}:${m[2]}`);
+  const duplicates = [...new Set(keys.filter((key, i) => keys.indexOf(key) !== i))];
+  assert.deepEqual(duplicates, [], `وسوم meta مكرّرة في index.html: ${duplicates.join(', ')}`);
+});
+
+test('نص الصفحة الرئيسية الظاهر بعد الترطيب يطابق النسخة الساكنة', () => {
+  // غوغل يفهرس DOM بعد تنفيذ React ويسقط HTML الأولي، فلا يجوز أن تكون النسخة
+  // المرئية أضعف من النسخة الساكنة (كانت 124 كلمة مقابل 300 في النسخة الإنجليزية).
+  const staticHeads = [...read('index.html').matchAll(/<h2>([^<]+)<\/h2>/g)].map((m) => m[1].trim());
+  const info = read('src/ai/PublicInfo.jsx');
+  const renderedHeads = [...info.matchAll(/<h2[^>]*>([^<]+)<\/h2>/g)].map((m) => m[1].trim());
+  assert.ok(staticHeads.length >= 5, 'الصفحة الرئيسية الساكنة تحتاج أقسام h2 حقيقية');
+  for (const heading of staticHeads) {
+    assert.ok(renderedHeads.includes(heading), `قسم «${heading}» موجود في HTML الساكن دون النسخة المُرطَّبة`);
+  }
+  for (const page of ['/about.html', '/features.html', '/download.html', '/faq.html', '/privacy.html']) {
+    assert.ok(read('index.html').includes(`href="${page}"`), `الصفحة الرئيسية لا تربط ${page}`);
+    assert.ok(info.includes(`href="${page}"`), `نسخة React لا تربط ${page}`);
+  }
+});
