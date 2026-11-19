@@ -21,10 +21,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat > windows-package-options.json <<'JSON'
+          cat > windows-package-options.base.json <<'JSON'
           {
             "url": "https://nexora-social-2026.vercel.app/",
             "startUrl": "https://nexora-social-2026.vercel.app/?nx_surface=msix",
+            "manifestUrl": "https://nexora-social-2026.vercel.app/manifest.webmanifest",
             "packageId": "Ahmedbecetti.NEXORAAIbyBECETTI",
             "name": "NEXORA AI",
             "version": "4.4.0.0",
@@ -37,6 +38,11 @@ jobs:
             }
           }
           JSON
+          # مرّر بيان الويب نفسه حتى لا يعتمد البناء على خدمة اكتشاف المانيفست.
+          jq --slurpfile manifest public/manifest.webmanifest \
+            '. + {manifest: $manifest[0]}' \
+            windows-package-options.base.json > windows-package-options.json
+          cat windows-package-options.json
           set +e
           status=$(curl --retry 2 --retry-delay 5 --max-time 900 \
             -sS -D response-headers.txt \
@@ -68,6 +74,7 @@ jobs:
             response.bin
             response-headers.txt
             build-status.txt
+            windows-package-options.base.json
             windows-package-options.json
           if-no-files-found: warn
           retention-days: 30
