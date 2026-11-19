@@ -7,7 +7,7 @@ This list is deliberately explicit. A Store-ready release must not hide gaps beh
 | Feature | Status | Reason / alternative |
 |---|---|---|
 | Google AdMob ads | **Not supported on Windows** | AdMob is an Android/iOS SDK. The Android production IDs are not reused. |
-| MG Ads (Miracle Games) | **Incompatible with this package type** | It is a UWP SDK. A PWABuilder MSIX is a Win32/WebView2 hosted PWA, not a UWP app. See `ADS-INTEGRATION.md`. |
+| MG Ads (Miracle Games) | **Incompatible with this package type** | The current UWP SDK (`MiracleGames.Sdk.Uwp`, UAP 10.0, C# API) cannot run in a PWABuilder Win32/WebView2 hosted PWA. MG's C++/Win32 and H5 SDKs need a native host or a verified H5/WebView2 integration that MG has not documented; no AppKey or ad unit was provided. See `MG-ADS-FEASIBILITY.md`. |
 | Google AdSense inside the installed app/MSIX | **Disabled** | AdSense policies prohibit desktop app wrappers and WebView technologies. It remains on public website pages only. |
 | Monetag / Adsterra inside the Windows app | **Not integrated** | No written verification for this package type; no test IDs or fake impressions. |
 | Offline AI conversations | **No** | AI requests require the production backend. The offline shell only opens cached UI and says so. |
@@ -21,7 +21,7 @@ This list is deliberately explicit. A Store-ready release must not hide gaps beh
 | Windows 10 versions older than 2004 (build 19041) | **Not supported** | WebView2/hosted app model baseline. Older systems may work in a browser but are not a release target. |
 | x86 32-bit package | **Not produced by default** | PWABuilder options target x64 and arm64. Add x86 only if the Store requires it. |
 | Signed MSIX download in the repository | **Not provided** | Requires a Partner Center identity and signing certificate. Scripts are included; the certificate is not and must not be. |
-| Microsoft Store Product ID / Store URL | **Pending** | Must come from Partner Center after product creation. Placeholders are explicit. |
+| Microsoft Store publication / Store URL | **Draft** | Product ID `9ND09PBRDPKZ` and identity are recorded, but the listing is not published; do not link to it yet. |
 | Store screenshots | **Not committed** | Must be captured from the real Windows app. A capture script and instructions are included. |
 | Advertising operational claim | **No** | Advertising is disabled. Do not claim otherwise until a real provider is verified and tested. |
 

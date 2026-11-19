@@ -9,17 +9,17 @@ Copy this into the release issue and tick every item. Do not mark a section comp
 - [ ] `npm ci` clean.
 - [ ] `npm test` all green.
 - [ ] `npm run build` succeeds; `dist/sw.js`, `dist/offline.html`, `dist/windows/` exist.
-- [ ] `node windows/tools/check-windows.mjs` exits 0 (2 expected placeholders before Partner Center).
+- [ ] `node windows/tools/check-windows.mjs` exits 0; identity is complete (only Store URL may be pending).
 - [ ] Android build still works: `npm run android:sync` (do not ship a broken APK).
 
 ## 1 · Partner Center identity
 
-- [ ] Product **NEXORA AI** reserved; publisher display name **BECETTI**.
-- [ ] `Package/Identity/Name` copied into `windows/package-identity.json`.
-- [ ] `Package/Identity/Publisher` (`CN=…`) copied.
-- [ ] Real **Product ID** recorded after creation (never invented, never committed before it exists).
-- [ ] Package family name recorded after upload/installation.
-- [ ] Store URL recorded only after the listing is public.
+- [ ] Product **NEXORA AI** is a Draft; publisher display name **Ahmedbecetti**.
+- [x] `Package/Identity/Name` = `Ahmedbecetti.NEXORAAIbyBECETTI` recorded in `windows/package-identity.json`.
+- [x] `Package/Identity/Publisher` = `CN=A5D5DC31-4A15-4059-8030-D96C51054596` recorded.
+- [x] Real **Product ID** `9ND09PBRDPKZ` recorded from Partner Center.
+- [x] Package family name `Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm` recorded.
+- [ ] Store URL added only after the listing is public (currently empty).
 - [ ] Signing certificate obtained and stored outside the repository.
 - [ ] `.pfx`/`.p12`/`.cer`/`certs/` not in `git status`.
 
@@ -64,7 +64,7 @@ Copy this into the release issue and tick every item. Do not mark a section comp
 - [ ] Support email verified.
 - [ ] Age-rating questionnaire completed.
 - [ ] AI disclosure completed where Partner Center asks.
-- [ ] No invented Product ID, Store URL or package family name.
+- [ ] Identity still matches Partner Center exactly; no Store URL before publication.
 - [ ] Certification notes pasted (no test credentials, no mock services).
 
 ## 5 · Advertising

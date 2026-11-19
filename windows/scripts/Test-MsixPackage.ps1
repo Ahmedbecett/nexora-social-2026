@@ -6,7 +6,8 @@
 #>
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory = $true)][string]$MsixPath
+  [Parameter(Mandatory = $true)][string]$MsixPath,
+  [string]$IdentityFile = (Join-Path $PSScriptRoot '..\package-identity.json')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,8 +39,22 @@ try {
   if ($identity.Version -notmatch '^\d{1,5}\.\d{1,5}\.\d{1,5}\.\d{1,5}$') { $errors.Add('Version is not four numeric parts.') }
   if ($identity.Name -match 'REPLACE|PARTNER-CENTER|TODO') { $errors.Add('Identity Name is still a placeholder.') }
   if ($identity.Publisher -match 'REPLACE|PARTNER-CENTER|TODO') { $errors.Add('Publisher is still a placeholder.') }
+
+  # قارن الهوية بالملف المعتمد من Partner Center — لا يكفي أن يكون الشكل صحيحًا.
+  if ($IdentityFile -and (Test-Path -LiteralPath $IdentityFile)) {
+    $expected = Get-Content -LiteralPath $IdentityFile -Raw | ConvertFrom-Json
+    if ($identity.Name -ne $expected.identityName) { $errors.Add("Identity Name does not match package-identity.json: $($identity.Name)") }
+    if ($identity.Publisher -ne $expected.publisher) { $errors.Add("Publisher does not match package-identity.json: $($identity.Publisher)") }
+    if ($identity.Version -ne $expected.version) { $errors.Add("Version does not match package-identity.json: $($identity.Version)") }
+    if ($manifest.Package.Properties.DisplayName -ne $expected.displayName) { $errors.Add("DisplayName does not match package-identity.json: $($manifest.Package.Properties.DisplayName)") }
+    if ($manifest.Package.Properties.PublisherDisplayName -ne $expected.publisherDisplayName) { $errors.Add("PublisherDisplayName does not match package-identity.json: $($manifest.Package.Properties.PublisherDisplayName)") }
+    if ($app.StartPage -ne $expected.startPage) { $errors.Add("StartPage does not match package-identity.json: $($app.StartPage)") }
+  }
+  else {
+    Write-Warning "Identity file not found ($IdentityFile); only structural identity checks were performed."
+  }
   if ($manifest.Package.Properties.DisplayName -ne 'NEXORA AI') { $errors.Add('DisplayName must be "NEXORA AI".') }
-  if ($manifest.Package.Properties.PublisherDisplayName -ne 'BECETTI') { $errors.Add('PublisherDisplayName must be "BECETTI".') }
+  if ($manifest.Package.Properties.PublisherDisplayName -ne 'Ahmedbecetti') { $errors.Add('PublisherDisplayName must be "Ahmedbecetti" (Partner Center).') }
   if ($app.StartPage -notmatch '\?nx_surface=msix') { $errors.Add('StartPage must include ?nx_surface=msix so MSIX-only policies apply.') }
   if ($app.StartPage -notmatch '^https://') { $errors.Add('StartPage must use HTTPS.') }
   if (-not ($manifest.Package.Capabilities.ChildNodes | Where-Object { $_.Name -eq 'internetClient' })) {

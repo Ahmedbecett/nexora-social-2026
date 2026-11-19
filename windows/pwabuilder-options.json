@@ -1,26 +1,34 @@
 {
-  "_note": "Reference values to enter into pwabuilder.com → Package for stores → Windows. This is NOT an official PWABuilder import file.",
+  "_note": "Reference values from Partner Center (2026-11-19). This is NOT an official PWABuilder import file. Product ID is recorded but the listing is still a draft; do not publish a Store link until certification.",
   "webAppUrl": "https://nexora-social-2026.vercel.app/",
   "appName": "NEXORA AI",
   "shortName": "NEXORA AI",
-  "packageId": "REPLACE-WITH-PARTNER-CENTER-PACKAGE-NAME",
-  "publisherId": "CN=REPLACE-WITH-PARTNER-CENTER-PUBLISHER-ID",
-  "publisherDisplayName": "BECETTI",
+  "packageId": "Ahmedbecetti.NEXORAAIbyBECETTI",
+  "publisherId": "CN=A5D5DC31-4A15-4059-8030-D96C51054596",
+  "publisherDisplayName": "Ahmedbecetti",
   "version": "4.4.0.0",
   "displayMode": "standalone",
   "startPage": "https://nexora-social-2026.vercel.app/?nx_surface=msix",
-  "architectures": ["x64", "arm64"],
+  "architectures": [
+    "x64",
+    "arm64"
+  ],
   "targetDeviceFamily": {
     "name": "Windows.Desktop",
     "minVersion": "10.0.19041.0",
     "maxVersionTested": "10.0.26100.0"
   },
-  "capabilities": ["internetClient"],
+  "capabilities": [
+    "internetClient"
+  ],
   "generateSignedPackage": false,
   "signingNote": "Use a test certificate for local install. For Store submission follow Partner Center requirements; never commit a certificate.",
   "doNotChange": [
-    "Do not invent Product ID",
+    "Do not change Package Identity values except by copying new values from Partner Center",
     "Do not enable ads",
     "Do not remove ?nx_surface=msix from the start page"
-  ]
+  ],
+  "productId": "9ND09PBRDPKZ",
+  "packageFamilyName": "Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm",
+  "storeListingStatus": "draft"
 }

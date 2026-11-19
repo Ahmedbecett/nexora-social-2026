@@ -70,11 +70,12 @@
   (service worker) لا تخزّن `/api/` ولا الجلسات، وصفحة عدم اتصال، وتحديث آمن بموافقة المستخدم.
 - **إحساس Windows:** شريط عنوان Window Controls Overlay، قائمة تطبيق، اختصارات `Ctrl+N` و`Ctrl+,`
   و`F1`، أوضاع فاتح/داكن، RTL/LTR، وحالات تحميل وخطأ واضحة.
-- **حزمة MSIX:** مانيفست مرجعي، 53 أصلًا (شعارات/مربعات/Splash/Unplated)، وهوية `NEXORA AI` /
-  `BECETTI` بإصدار `4.4.0.0`. بناء الحزمة وتوقيعها يحتاجان Package Identity وشهادة من Partner Center؛
-  **لا يوجد Product ID ولا رابط متجر مخترع في المستودع**.
-- **الإعلانات معطّلة بصدق:** AdMob لا يدعم Windows، وMG Ads خاص بـ UWP ولا يعمل مع حزمة WebView2،
-  وAdSense ممنوع في أغلفة التطبيقات. لذلك `enabled: false` و`provider: none` مع خانة محجوزة وموافقة
+- **حزمة MSIX:** مانيفست مرجعي، 53 أصلًا (شعارات/مربعات/Splash/Unplated)، وهوية Partner Center الحقيقية
+  `Ahmedbecetti.NEXORAAIbyBECETTI` (Publisher Display: `Ahmedbecetti`) وإصدار `4.4.0.0`، مع
+  Product ID `9ND09PBRDPKZ` كمسودة غير منشورة. بناء الحزمة وتوقيعها يحتاجان Windows وشهادة؛
+  **لا يوجد رابط متجر قبل الاعتماد**.
+- **الإعلانات معطّلة بصدق:** AdMob لا يدعم Windows، وMG Ads UWP SDK لا يعمل مع حزمة WebView2،
+  ونسختا MG C++/H5 غير موثقتين لهذه البيئة، وAdSense ممنوع في أغلفة التطبيقات. لذلك `enabled: false` و`provider: none` مع خانة محجوزة وموافقة
   جاهزتين — التفاصيل في [`docs/windows/ADS-INTEGRATION.md`](docs/windows/ADS-INTEGRATION.md).
 - **أندرويد لم يتغيّر:** تسجيل خدمة العمل محصور في الويب، و`Capacitor` يمنع أي تسجيل داخل التطبيق الأصلي.
 - **الوثائق:** [`docs/windows/README.md`](docs/windows/README.md) · البناء [`BUILD-AND-DEPLOY.md`](docs/windows/BUILD-AND-DEPLOY.md)

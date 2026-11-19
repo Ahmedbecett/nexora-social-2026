@@ -7,7 +7,7 @@
   (الذي يولّد pwa_builder.exe وresources.pri) ثم تُوقَّع بشهادة الشريك.
   لا تستخدم هذا الملف وحده لبناء حزمة: لا يحتوي على executable ولا على
   حزمة WebView2 host. استخدمه للمراجعة ومقارنة الحقول، وللاختبارات.
-  القيم الحقيقية (Identity Name وPublisher) تُنسخ من Partner Center فقط.
+  الهوية أدناه منسوخة من Partner Center (19-11-2026) — لا تعدّلها إلا بقيم جديدة من Partner Center.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -16,13 +16,13 @@
   IgnorableNamespaces="uap uap3">
 
   <Identity
-    Name="REPLACE-WITH-PARTNER-CENTER-PACKAGE-NAME"
-    Publisher="CN=REPLACE-WITH-PARTNER-CENTER-PUBLISHER-ID"
+    Name="Ahmedbecetti.NEXORAAIbyBECETTI"
+    Publisher="CN=A5D5DC31-4A15-4059-8030-D96C51054596"
     Version="4.4.0.0" />
 
   <Properties>
     <DisplayName>NEXORA AI</DisplayName>
-    <PublisherDisplayName>BECETTI</PublisherDisplayName>
+    <PublisherDisplayName>Ahmedbecetti</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>NEXORA AI — Windows edition of the AI workspace and app builder.</Description>
   </Properties>

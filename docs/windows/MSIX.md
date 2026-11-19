@@ -8,42 +8,45 @@
 هذا هو المسار الذي تدعمه Microsoft لتطبيقات الويب: الحزمة تستضيف التطبيق عبر Edge WebView2 (Hosted App Model)
 وتحتفظ بالحساب والخدمات الإنتاجية كما هي.
 
-> **لا تُعِد بناء المنصة كتطبيق UWP أصلي.** ذلك يكلّف إعادة كتابة كاملة، ويستخدم نموذج EdgeHTML/WWAHost
-> الذي أوقفت Microsoft تطويره. كما أن MG Ads SDK مخصّص لـ UWP ولا يمكن ربطه بحزمة Win32/WebView2 (انظر
-> [`ADS-INTEGRATION.md`](ADS-INTEGRATION.md)).
+> **لا تُعِد بناء المنصة كتطبيق UWP أصلي في هذه النسخة.** ذلك يكلّف إعادة كتابة كاملة ويغيّر نموذج
+> الحزمة. صحيح أن UWP/WinUI يستطيع استضافة WebView2، لكن MG Ads UWP SDK لا يمكن ربطه بحزمة
+> Win32/WebView2 الحالية، ونسختا C++/H5 تحتاجان مضيفًا أصليًا أو توثيقًا متحققًا منه (انظر
+> [`MG-ADS-FEASIBILITY.md`](MG-ADS-FEASIBILITY.md)).
 
-## ٢) إنشاء المنتج في Partner Center (مرة واحدة)
+## ٢) هوية المنتج من Partner Center (مثبّتة)
 
-1. ادخل إلى [Partner Center](https://partner.microsoft.com/dashboard) بحساب المطوّر.
-2. **Apps and games → New product → MSIX or PWA app**، واحجز الاسم **NEXORA AI**.
-3. من صفحة **Product identity** انسخ:
-   - **Package/Identity/Name** (مثال الشكل: `Publisher.AppName`).
-   - **Package/Identity/Publisher** (يبدأ بـ `CN=`).
-   - **Publisher display name** — يجب أن يكون **BECETTI**.
-   - **Package family name** يظهر بعد أول رفع/تثبيت؛ **لا تخترعه**.
-4. **Product ID** (مثل `9N…`) يُنشأ للمنتج في Partner Center. اتركه فارغًا في المستودع حتى تحصل عليه.
-   السكربتات تقبل المعرّف الحقيقي بعد إضافته، وترفض أي قيمة لا تطابق صيغة Store.
+المنتج محجوز في Partner Center كـ **Draft**، ولم يُنشر بعد. القيم التالية هي القيم الحقيقية
+التي أدخلها المالك، وهي منسوخة في `windows/package-identity.json` و`AppxManifest.reference.xml`
+وفي [`STORE-LISTING.md`](STORE-LISTING.md):
 
-> القيم الحالية في `windows/package-identity.json` و`windows/msix/AppxManifest.reference.xml` هي
-> **Placeholders صريحة** (`REPLACE-WITH-PARTNER-CENTER-…`) وليست هوية صالحة. هذا مقصود.
+| الحقل | القيمة |
+|---|---|
+| Package/Identity/Name | `Ahmedbecetti.NEXORAAIbyBECETTI` |
+| Package/Identity/Publisher | `CN=A5D5DC31-4A15-4059-8030-D96C51054596` |
+| Publisher display name | `Ahmedbecetti` |
+| Package family name | `Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm` |
+| Product ID | `9ND09PBRDPKZ` |
+| Store listing status | **Draft — not published** |
+| Store URL | يُضاف بعد الاعتماد والنشر |
 
-## ٣) تحديث الهوية والإصدار
+> **لا تغيّر هذه القيم يدويًا.** أي تحديث يجب أن يُنسخ من Partner Center. وجود Product ID
+> لا يعني أن المنتج منشور؛ صفحة المتجر قد لا تعمل قبل اجتياز الاعتماد.
+> `Product ID` لا يوضع داخل `AppxManifest.xml` — هو معرّف المتجر لا معرّف الحزمة.
 
-بعد الحصول على القيم:
+## ٣) التحقق من الهوية والإصدار
 
 ```bash
-# 1) املأ windows/package-identity.json بالقيم الحقيقية
-#    identityName, publisher, productId (بعد إنشائه), packageFamilyName (بعد ظهوره)
-# 2) زامن إصدار MSIX الرباعي مع package.json
+# 1) زامن إصدار MSIX الرباعي مع package.json
 node windows/tools/sync-version.mjs        # 4.4.0 → 4.4.0.0
 node windows/tools/sync-version.mjs --check
-# 3) افحص
-node windows/tools/check-windows.mjs
+# 2) افحص الهوية والمانيفست والأصول والإعلانات وSW
+node windows/tools/check-windows.mjs       # أو npm run windows:check
 ```
 
 - إصدار الحزمة **أربعة أجزاء** وينتهي بـ `.0` عند البناء: `4.4.0.0`.
 - كل إرسال جديد إلى المتجر يتطلب رقمًا أكبر من السابق. لا تعد استخدام نفس الرقم.
 - غيّر `displayName` فقط إذا وافقت Microsoft على تغيير اسم المنتج.
+- `check-windows` يجب أن يخرج 0؛ التحذير الوحيد المسموح حاليًا هو أن **رابط المتجر بانتظار النشر**.
 
 ## ٤) بناء حزمة PWA في PWABuilder
 
@@ -53,9 +56,9 @@ node windows/tools/check-windows.mjs
 3. **Package for stores → Windows**، ثم املأ:
    | الحقل | القيمة |
    |---|---|
-   | Package ID | من Partner Center |
-   | Publisher ID | `CN=…` من Partner Center |
-   | Publisher display name | `BECETTI` |
+   | Package ID | `Ahmedbecetti.NEXORAAIbyBECETTI` |
+   | Publisher ID | `CN=A5D5DC31-4A15-4059-8030-D96C51054596` |
+   | Publisher display name | `Ahmedbecetti` |
    | App name | `NEXORA AI` |
    | Version | `4.4.0.0` |
    | Display mode | `Standalone` (وWindow Controls Overlay يبقى من المانيفست) |
@@ -105,9 +108,14 @@ bash windows/tools/generate-assets.sh
 
 ### شهادة اختبار (جهازك فقط)
 
+> `Subject` هنا هو **نفس** `Package/Identity/Publisher` من Partner Center، وليس اسم العرض.
+> شهادة `CN=Ahmedbecetti` لن تطابق الحزمة وستفشل في `Add-AppxPackage`.
+
 ```powershell
 # 1) أنشئ شهادة اختبار ذاتيًا (مرة واحدة)
-$cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=BECETTI" `
+# يجب أن يطابق Subject قيمة Publisher الحقيقية، وإلا رفض Windows التثبيت.
+$cert = New-SelfSignedCertificate -Type CodeSigningCert `
+  -Subject "CN=A5D5DC31-4A15-4059-8030-D96C51054596" `
   -KeyAlgorithm RSA -KeyLength 2048 -HashAlgorithm SHA256 `
   -CertStoreLocation Cert:\CurrentUser\My
 $pwd = ConvertTo-SecureString -String "CHOOSE-A-STRONG-PASSWORD" -Force -AsPlainText
@@ -146,7 +154,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 يتحقق من:
 
 - وجود `AppxManifest.xml` والهوية والإصدار الرباعي.
-- أن `DisplayName = NEXORA AI` و`PublisherDisplayName = BECETTI`.
+- أن `DisplayName = NEXORA AI` و`PublisherDisplayName = Ahmedbecetti`، وأن `Identity Name` و`Publisher` يطابقان Partner Center.
 - أن `StartPage` يبدأ بـ HTTPS ويحتوي `?nx_surface=msix` (ضروري لتطبيق قواعد الإعلانات الخاصة بالحزمة).
 - وجود `internetClient` وأصول الشعارات.
 - عدم وجود أي أثر لمفاتيح/أسرار خادم في ملفات الحزمة.
@@ -160,7 +168,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 5. **Privacy**: `https://nexora-social-2026.vercel.app/windows/privacy.html`
 6. **Support**: `https://nexora-social-2026.vercel.app/windows/#support` + `ahmedbecetti35@gmail.com`
 7. **Notes for certification**: اذكر أن التطبيق يحتاج حسابًا، وأنه يستخدم خادمًا إنتاجيًا، وأن الإعلانات معطّلة، وأن تاريخ الاختبار غير مطلوب.
-8. **Product ID / Package family name**: انسخهما بعد ظهورهما إلى `windows/package-identity.json` و`storeUrl` بعد النشر.
+8. **Product ID / Package family name**: مسجّلان بالفعل في `windows/package-identity.json`. أضف `storeUrl` فقط بعد نشر المنتج وظهور صفحته.
 9. أرسل. مدة الاعتماد عادة أيام قليلة، وقد يطلب المُراجع معلومات إضافية.
 
 ## ٩) أخطاء شائعة وحلولها
@@ -185,10 +193,10 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 
 ## English checklist
 
-1. Reserve **NEXORA AI** in Partner Center (MSIX or PWA app), copy Identity Name and Publisher `CN=…`.
-2. Fill `windows/package-identity.json`; run `node windows/tools/sync-version.mjs`; run `check-windows.mjs`.
-3. Generate the Windows package with PWABuilder using the exact identity, version `4.4.0.0`, x64 + arm64.
+1. Partner Center product **NEXORA AI** is a **draft** with the real identity recorded in `package-identity.json`.
+2. Verify with `node windows/tools/sync-version.mjs --check` and `node windows/tools/check-windows.mjs`.
+3. Generate the Windows package with PWABuilder using that exact identity, version `4.4.0.0`, x64 + arm64.
 4. Sign a `.msix` for local testing; for Store upload follow Partner Center’s requested package type and signing flow.
 5. Run `Test-MsixPackage.ps1`; install on a clean Windows 10/11 VM and complete the manual test report.
 6. Submit with the listing copy, real screenshots, privacy URL, support URL and certification notes.
-7. Copy the real Product ID and package family name back into `package-identity.json` after they exist.
+7. Add `storeUrl` only after publication; the Product ID and package family name are already recorded.

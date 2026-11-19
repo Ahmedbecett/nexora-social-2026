@@ -48,7 +48,7 @@ test('الإعلانات مذكورة بصدق: لا مزوّد مفعّل، و�
   assert.match(privacy, /no ad request is sent/i);
   assert.match(privacy, /Impressions and clicks will be measured by that provider/i);
   assert.match(privacy, /Google AdSense is used on the public website only/i);
-  assert.match(privacy, /MG Ads SDK is a UWP-only SDK/i);
+  assert.match(privacy, /current MG Ads SDK for UWP cannot be attached/i);
   assert.match(privacy, /لا توجد شبكة إعلانات طرف ثالث مفعّلة/i);
   assert.match(privacy, /لا يولّد التطبيق انطباعات أو نقرات/i);
   assert.doesNotMatch(privacy, /ads are (now )?(live|working|operational)/i);
@@ -80,14 +80,15 @@ test('لا رابط متجر وهمي ولا Product ID مخترع في أي ص�
 
 test('تحقيق الإعلانات يوثّق MG Ads وAdSense وAdMob بوضوح', () => {
   assert.match(adsDoc, /Status: not operational/i);
-  assert.match(adsDoc, /MG Ads = Miracle Games UWP Ads SDK/);
+  assert.match(adsDoc, /MG Ads SDK for UWP/);
+  assert.match(adsDoc, /C\+\+ SDK/);
   assert.match(adsDoc, /Win32\/WebView2/);
   assert.match(adsDoc, /AdMob.*Windows desktop/s);
   assert.match(adsDoc, /AdSense/);
   assert.match(adsDoc, /Monetag/);
   assert.match(adsDoc, /allowInMsix/);
   assert.match(adsDoc, /3940256099942544/);
-  assert.match(adsDoc, /do not.*invent|لا تخترع/i);
+  assert.match(adsDoc, /do not change|لا تغيّر/i);
   assert.match(adsDoc, /written verification|تحقق كتابي/i);
   assert.match(adsDoc, /https:\/\/www\.mg-ads\.com\//);
 });
@@ -98,6 +99,7 @@ test('الاختبار والتقرير والقيود موجودة وتقول �
     'docs/windows/BUILD-AND-DEPLOY.md',
     'docs/windows/MSIX.md',
     'docs/windows/ADS-INTEGRATION.md',
+    'docs/windows/MG-ADS-FEASIBILITY.md',
     'docs/windows/STORE-LISTING.md',
     'docs/windows/TEST-REPORT.md',
     'docs/windows/UNSUPPORTED.md',
@@ -106,6 +108,22 @@ test('الاختبار والتقرير والقيود موجودة وتقول �
   ]) {
     assert.ok(existsSync(doc), doc);
   }
+});
+
+test('تحقيق MG Ads يثبت عدم التوافق مع نوع الحزمة الحالي', () => {
+  const mg = read('docs/windows/MG-ADS-FEASIBILITY.md');
+  assert.match(mg, /MG Ads SDK for UWP/);
+  assert.match(mg, /MiracleGames\.Sdk\.Uwp/);
+  assert.match(mg, /UAP 10\.0/);
+  assert.match(mg, /Win32\/WebView2/);
+  assert.match(mg, /AdvertisingManager\.ShowAd/);
+  assert.match(mg, /2\.8\.7\.0/);
+  assert.match(mg, /C\+\+ SDK/);
+  assert.match(mg, /H5 SDK/);
+  assert.match(mg, /V1\.2\.6\.6/);
+  assert.match(mg, /cannot be integrated|لا يتم دمج/i);
+  assert.match(mg, /Draft|مسودة/);
+  assert.doesNotMatch(mg, /ads are (now )?(live|working|operational)/i);
 });
 
 test('صفحات Windows محمية من الفهرسة الخاطئة وتربط الترجمة', () => {

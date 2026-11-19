@@ -3,9 +3,10 @@
 **Date:** 19 November 2026
 **Branch:** `arena/1ca98629-nexora-social-2026` (base `cfd80a8`)
 **App version:** 4.4.0 · **MSIX version:** 4.4.0.0
-**Environment:** Linux build sandbox, Node.js 22.22.3, npm 10.9.8, no Windows host, no certificate,
-no Partner Center identity. Browser checks used `curl` and static analysis; **no headless browser is
-available in this sandbox**, so real-window screenshots were not produced.
+**Environment:** Linux build sandbox, Node.js 22.22.3, npm 10.9.8, no Windows host, no signing certificate.
+Partner Center identity values are recorded and validated, but no package has been signed or submitted.
+Browser checks used `curl` and static analysis; **no headless browser is available in this sandbox**, so
+real-window screenshots were not produced.
 
 > This report separates **automated results** from **manual Windows verification**. The manual matrix below
 > is **pending** and must be completed on Windows before any Store submission. Nothing in this file claims
@@ -16,10 +17,10 @@ available in this sandbox**, so real-window screenshots were not produced.
 | Command | Result | Notes |
 |---|---|---|
 | `npm ci` | ✅ | 439 packages, lockfile respected |
-| `npm test` | ✅ **223/223** | 189 pre-existing + 34 Windows/PWA/privacy tests |
+| `npm test` | ✅ **224/224** | 189 pre-existing + 35 Windows/PWA/privacy tests |
 | `npm run build` | ✅ | Vite production build; `dist/` verified |
 | `node windows/tools/sync-version.mjs --check` | ✅ | `package.json 4.4.0` → MSIX `4.4.0.0` |
-| `npm run windows:check` | ✅ exit 0 | 2 expected placeholder warnings (`identityName`, `publisher`) |
+| `npm run windows:check` | ✅ exit 0 | Partner Center identity verified; 1 warning: Store URL pending publication |
 | Dev server route check | ✅ 9/9 HTTP 200 | `/`, `/windows/`, `/windows/en.html`, `/windows/privacy.html`, `/windows/ads-config.json`, `/sw.js`, `/offline.html`, `/manifest.webmanifest`, `/version.json` |
 
 ### What the new tests cover (`tests/windows-*.test.mjs`)
@@ -30,9 +31,9 @@ available in this sandbox**, so real-window screenshots were not produced.
 - **Advertising:** shipped config disabled, `provider: none`, no MSIX/PWA surfaces, Google test ID
   rejection, unknown/unimplemented provider fails closed, consent gate, 30-min/3-per-day UX gate, no local
   impression tracking, config separate from code.
-- **MSIX:** 4-part version derivation, official display names, placeholders rather than invented identity,
-  rejection of invented Product ID/HTTP start page, 53 assets present, reference manifest rules, signing
-  script checks, no certificate files in the repo.
+- **MSIX:** 4-part version derivation, exact Partner Center identity (`Ahmedbecetti.NEXORAAIbyBECETTI`,
+  publisher CN, PFN, Product ID `9ND09PBRDPKZ`), rejection of malformed or mismatched identity, 53 assets,
+  reference manifest rules, signing script checks, no certificate files in the repo.
 - **Privacy/docs:** policy sections and local-storage keys, honest advertising wording, support/privacy
   links, no fake Store URL/product ID, advertising investigation references, required documents exist.
 
@@ -88,7 +89,9 @@ Statuses start as **Pending** — do not change to Pass without evidence.
 - Store submission, certification or publication.
 - A signed MSIX (no certificate, no Windows SDK in this environment).
 - Real advertising (disabled by design; no provider verified for PWA/MSIX).
-- Screenshots, promotional art, age rating, Product ID, package family name, Store URL.
+- Screenshots, promotional art, age rating, Store URL/publication, and MSIX signing.
+- MG Ads is **not integrated**: its current UWP SDK cannot run in this package type, and its C++/Win32 and
+  H5 SDKs have no verified WebView2 path; see `MG-ADS-FEASIBILITY.md`.
 - Windows 10/11 behaviour beyond static checks. The matrix above is the evidence gate.
 
 ## 5 · Sign-off

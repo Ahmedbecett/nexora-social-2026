@@ -52,6 +52,7 @@ export function isValidMsixVersion(value) {
 }
 
 const IDENTITY_PLACEHOLDER = /REPLACE|PARTNER-CENTER|TODO|CHANGEME/i;
+const OFFICIAL_PUBLISHER_DISPLAY_NAME = 'Ahmedbecetti';
 
 /** يتحقق من هوية الحزمة مقابل متطلبات Store وقواعد التسمية. */
 export function validateIdentity(identity) {
@@ -68,7 +69,7 @@ export function validateIdentity(identity) {
   if (IDENTITY_PLACEHOLDER.test(publisher)) placeholders.push('publisher');
 
   if (String(id.displayName || '') !== 'NEXORA AI') errors.push('display-name-not-official');
-  if (String(id.publisherDisplayName || '') !== 'BECETTI') errors.push('publisher-display-name-not-official');
+  if (String(id.publisherDisplayName || '') !== OFFICIAL_PUBLISHER_DISPLAY_NAME) errors.push('publisher-display-name-not-official');
 
   if (!isValidMsixVersion(id.version)) errors.push('version-not-four-part');
   const min = String(id.minWindowsVersion || '');
@@ -81,8 +82,10 @@ export function validateIdentity(identity) {
 
   // يُسمح بالمعرّف الحقيقي بعد Partner Center؛ نرفض فقط القيم غير الصالحة.
   if (id.productId && !looksLikeStoreProductId(id.productId)) errors.push('product-id-invalid');
-  if (id.packageFamilyName && !/^[A-Za-z0-9.-]+_[a-z0-9]{13}$/.test(String(id.packageFamilyName))) {
-    errors.push('package-family-name-invalid');
+  if (id.packageFamilyName) {
+    const pfn = String(id.packageFamilyName);
+    if (!/^[A-Za-z0-9.-]+_[a-z0-9]{13}$/.test(pfn)) errors.push('package-family-name-invalid');
+    else if (name && !pfn.startsWith(`${name}_`)) errors.push('package-family-name-mismatch');
   }
 
   return { ok: errors.length === 0, errors, placeholders };
@@ -106,7 +109,9 @@ export function validateManifestXml(xml, identity = {}) {
 
   if (!text.includes(`Version="${version}"`)) errors.push('manifest-version-mismatch');
   if (!text.includes('<DisplayName>NEXORA AI</DisplayName>')) errors.push('manifest-display-name');
-  if (!text.includes('<PublisherDisplayName>BECETTI</PublisherDisplayName>')) errors.push('manifest-publisher-display-name');
+  if (!text.includes(`<PublisherDisplayName>${OFFICIAL_PUBLISHER_DISPLAY_NAME}</PublisherDisplayName>`)) errors.push('manifest-publisher-display-name');
+  if (identity.identityName && !text.includes(`Name="${identity.identityName}"`)) errors.push('manifest-identity-name');
+  if (identity.publisher && !text.includes(`Publisher="${identity.publisher}"`)) errors.push('manifest-publisher');
   if (!text.includes('StartPage="https://nexora-social-2026.vercel.app/?nx_surface=msix"')) errors.push('manifest-start-page');
   if (!text.includes('Name="Windows.Desktop"')) errors.push('manifest-target-family');
   if (!text.includes('<Capability Name="internetClient"')) errors.push('manifest-internet-capability');

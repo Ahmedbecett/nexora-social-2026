@@ -37,41 +37,43 @@ test('إصدار MSIX رباعي مشتق من package.json لا مكتوب يد
   assert.match(manifest, /Version="4\.4\.0\.0"/);
 });
 
-test('هوية المنتج تحمل الاسم والناشر الرسميين، والPlaceholders معلنة لا مخفية', () => {
+test('هوية المنتج الحقيقية من Partner Center مثبّتة في الحزمة', () => {
   assert.equal(identity.displayName, 'NEXORA AI');
-  assert.equal(identity.publisherDisplayName, 'BECETTI');
+  assert.equal(identity.publisherDisplayName, 'Ahmedbecetti');
+  assert.equal(identity.identityName, 'Ahmedbecetti.NEXORAAIbyBECETTI');
+  assert.equal(identity.publisher, 'CN=A5D5DC31-4A15-4059-8030-D96C51054596');
+  assert.equal(identity.productId, '9ND09PBRDPKZ');
+  assert.equal(identity.packageFamilyName, 'Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm');
+  assert.equal(identity.storeListingStatus, 'draft');
+  assert.equal(identity.storeUrl, '', 'لا رابط متجر قبل النشر');
   assert.equal(identity.applicationId, 'App');
   assert.equal(identity.startPage, 'https://nexora-social-2026.vercel.app/?nx_surface=msix');
   assert.match(identity.privacyPolicyUrl, /\/windows\/privacy\.html$/);
   assert.match(identity.supportUrl, /\/windows\/#support$/);
   assert.equal(identity.contactEmail, 'ahmedbecetti35@gmail.com');
 
-  // القيم الحقيقية لا تُخترع: يجب أن تبقى Placeholders حتى Partner Center
-  assert.match(identity.identityName, /REPLACE-WITH-PARTNER-CENTER/);
-  assert.match(identity.publisher, /REPLACE-WITH-PARTNER-CENTER/);
-  assert.equal(identity.productId, '');
-  assert.equal(identity.packageFamilyName, '');
-  assert.equal(identity.storeUrl, '');
-  assert.equal(looksLikeStoreProductId(identity.productId), false);
+  assert.equal(looksLikeStoreProductId(identity.productId), true);
+  assert.equal(identity.packageFamilyName.startsWith(`${identity.identityName}_`), true);
 
   const v = validateIdentity(identity);
   assert.equal(v.ok, true);
-  assert.deepEqual(v.placeholders.sort(), ['identityName', 'publisher']);
+  assert.deepEqual(v.placeholders, []);
 });
 
-test('رفض الهويات المخترعة أو غير الصالحة', () => {
-  const base = { ...identity, identityName: 'BECETTI.NEXORAAI', publisher: 'CN=BECETTI', productId: '', packageFamilyName: '' };
+test('رفض الهويات غير الصالحة أو غير المتطابقة', () => {
+  const base = { ...identity };
   assert.equal(validateIdentity(base).ok, true);
   assert.equal(validateIdentity({ ...base, displayName: 'Nexora' }).ok, false);
-  assert.equal(validateIdentity({ ...base, publisherDisplayName: 'Ahmed' }).ok, false);
+  assert.equal(validateIdentity({ ...base, publisherDisplayName: 'BECETTI' }).ok, false);
   assert.equal(validateIdentity({ ...base, version: '4.4.0' }).ok, false);
   assert.equal(validateIdentity({ ...base, startPage: 'http://nexora-social-2026.vercel.app/' }).ok, false);
   assert.equal(validateIdentity({ ...base, startPage: 'https://nexora-social-2026.vercel.app/' }).ok, false);
-  // معرّف حقيقي من Partner Center مقبول؛ القيم المشوّهة مرفوضة
-  assert.equal(validateIdentity({ ...base, productId: '9NBLGGH4R315' }).ok, true);
   assert.equal(validateIdentity({ ...base, productId: '9FAKE' }).ok, false);
-  assert.equal(validateIdentity({ ...base, packageFamilyName: 'BECETTI.NEXORAAI_8wekyb3d8bbwe' }).ok, true);
+  assert.equal(validateIdentity({ ...base, productId: '' }).ok, true, 'الحقل اختياري لكن check-windows يحذّر');
   assert.equal(validateIdentity({ ...base, packageFamilyName: 'NEXORA' }).ok, false);
+  assert.equal(validateIdentity({ ...base, packageFamilyName: 'Other.NEXORAAI_8wekyb3d8bbwe' }).ok, false);
+  assert.equal(validateIdentity({ ...base, identityName: 'BECETTI.NEXORAAI' }).ok, false, 'PFN لا يطابق Identity Name');
+  assert.equal(looksLikeStoreProductId('9ND09PBRDPKZ'), true);
   assert.equal(looksLikeStoreProductId('9NBLGGH4R315'), true);
   assert.equal(looksLikeStoreProductId(''), false);
 });
@@ -100,7 +102,9 @@ test('مانيفست المرجع يستوفي Store: HTTPS، MSIX surface، Win
   assert.deepEqual(result.errors, []);
   for (const fragment of [
     '<DisplayName>NEXORA AI</DisplayName>',
-    '<PublisherDisplayName>BECETTI</PublisherDisplayName>',
+    '<PublisherDisplayName>Ahmedbecetti</PublisherDisplayName>',
+    'Name="Ahmedbecetti.NEXORAAIbyBECETTI"',
+    'Publisher="CN=A5D5DC31-4A15-4059-8030-D96C51054596"',
     'Name="Windows.Desktop"',
     'MinVersion="10.0.19041.0"',
     '<Capability Name="internetClient"',
@@ -128,9 +132,11 @@ test('سكربتات Windows ترفض Product ID مخترعًا وتشترط ا�
   const inspect = read('windows/scripts/Test-MsixPackage.ps1');
   assert.match(inspect, /nx_surface=msix/);
   assert.match(inspect, /DisplayName -ne 'NEXORA AI'/);
-  assert.match(inspect, /PublisherDisplayName -ne 'BECETTI'/);
+  assert.match(inspect, /PublisherDisplayName -ne 'Ahmedbecetti'/);
   assert.match(inspect, /DATABASE_URL/);
   assert.match(inspect, /OPENAI_API_KEY/);
+  assert.match(inspect, /package-identity\.json/);
+  assert.match(inspect, /Identity Name does not match/);
 
   const assets = read('windows/scripts/New-MsixAssets.ps1');
   assert.match(assets, /SplashScreen\.png/);
@@ -159,22 +165,24 @@ test('أدوات النسخة تعمل: sync-version --check وcheck-windows', a
   const sync = execFileSync(process.execPath, ['windows/tools/sync-version.mjs', '--check'], { encoding: 'utf8' });
   assert.match(sync, /MSIX version OK: 4\.4\.0\.0/);
   const check = execFileSync(process.execPath, ['windows/tools/check-windows.mjs'], { encoding: 'utf8' });
-  assert.match(check, /OK — 2 expected placeholder warning/);
-  assert.match(check, /identity placeholder pending Partner Center: publisher/);
+  assert.match(check, /OK — Partner Center identity is integrated; 1 warning/);
+  assert.match(check, /Store URL pending publication/);
 });
 
-test('النشر والوثائق لا تدّعي حزمة موقّعة أو Product ID', () => {
+test('الوثائق تحمل الهوية الحقيقية ولا تدّعي حزمة موقّعة أو نشرًا', () => {
   const docs = read('docs/windows/MSIX.md');
-  assert.match(docs, /Placeholders/);
+  assert.match(docs, /Ahmedbecetti\.NEXORAAIbyBECETTI/);
+  assert.match(docs, /9ND09PBRDPKZ/);
   assert.match(docs, /Partner Center/);
   assert.match(docs, /4\.4\.0\.0/);
   assert.match(docs, /signtool/);
-  assert.match(docs, /لا تخترعه|لا تخترع/);
+  assert.match(docs, /لا تغيّر هذه القيم يدويًا|لا تغير هذه القيم يدويًا/);
+  assert.match(docs, /draft|مسودة/);
   assert.doesNotMatch(docs, /9NBLGGH4R315/);
 
   const listing = read('docs/windows/STORE-LISTING.md');
-  assert.match(listing, /Do not invent a Product ID/);
-  assert.match(listing, /BECETTI/);
+  assert.match(listing, /9ND09PBRDPKZ/);
+  assert.match(listing, /Ahmedbecetti\.NEXORAAIbyBECETTI/);
   assert.match(listing, /windows\/privacy\.html/);
   assert.match(listing, /not operational|Advertising: \*\*none currently\*\*/);
   assert.doesNotMatch(listing, /9NBLGGH4R315/);

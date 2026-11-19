@@ -47,9 +47,9 @@
     },
     "mgads": {
       "enabled": false,
-      "sdk": "MG Ads SDK for UWP",
+      "sdk": "MG Ads SDK for UWP; C++/Win32 and H5 SDKs not verified for WebView2",
       "allowedSurfaces": [],
-      "notes": "MG Ads is a UWP SDK (Miracle Games). A PWABuilder MSIX is a Win32/PWA host, not a UWP app, so this SDK cannot be attached to it. See the investigation in docs/windows/ADS-INTEGRATION.md."
+      "notes": "MG Ads UWP SDK cannot attach to a PWABuilder Win32/PWA host; MG's C++/Win32 and H5 SDKs need a native host or a verified H5/WebView2 integration. See docs/windows/MG-ADS-FEASIBILITY.md."
     }
   }
 }

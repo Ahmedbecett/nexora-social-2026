@@ -1,19 +1,22 @@
 # Microsoft Store listing — NEXORA AI (Windows)
 
-> **Do not invent a Product ID or Store URL.** They appear only after the product exists in Partner Center.
-> The repository intentionally keeps `productId` and `storeUrl` empty in `windows/package-identity.json`.
+> **Product status: Draft in Partner Center — not published.** The identity and Product ID below are
+> the real values reserved by the publisher. There is no live Store URL yet, so do not add one to the
+> app or the public site until Microsoft publishes the product.
 
 ## Product identity
 
 | Field | Value | Source |
 |---|---|---|
 | App name | **NEXORA AI** | Reserved in Partner Center |
-| Publisher display name | **BECETTI** | Partner Center |
-| Package/Identity/Name | `REPLACE-WITH-PARTNER-CENTER-PACKAGE-NAME` | Copy from Partner Center |
-| Package/Identity/Publisher | `CN=REPLACE-WITH-PARTNER-CENTER-PUBLISHER-ID` | Copy from Partner Center |
+| Publisher display name | **Ahmedbecetti** | Partner Center |
+| Package/Identity/Name | `Ahmedbecetti.NEXORAAIbyBECETTI` | Partner Center |
+| Package/Identity/Publisher | `CN=A5D5DC31-4A15-4059-8030-D96C51054596` | Partner Center |
 | Version | `4.4.0.0` | `windows/package-identity.json` (synced from `package.json`) |
-| Product ID | **pending** | Partner Center assigns it |
-| Package family name | **pending** | Appears after package upload/installation |
+| Product ID | `9ND09PBRDPKZ` | Partner Center (product is Draft) |
+| Package family name | `Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm` | Partner Center |
+| Store listing status | **Draft — not published** | Partner Center |
+| Store URL | pending publication | Do not publish a link before certification |
 | Category | Productivity | Partner Center |
 | Pricing | Free to download | Confirm in Partner Center |
 | Privacy policy URL | `https://nexora-social-2026.vercel.app/windows/privacy.html` | Deployed page |
@@ -138,7 +141,7 @@ Complete the Partner Center age-rating questionnaire yourself. Suggested answers
   and account deletion.
 - Internet connection required; account required for AI features.
 - The app uses AI; answers may be inaccurate and are labelled as such in the interface and listing.
-- Advertising: **none currently**; if enabled later, update the listing and privacy policy before release.
+- Advertising: **none currently**; MG Ads cannot be integrated into this Win32/WebView2 PWA package without a native host or a verified H5/WebView2 SDK (see `MG-ADS-FEASIBILITY.md`). If a provider is verified later, update the listing and privacy policy before release.
 
 ## Certification notes (paste into Partner Center)
 
@@ -147,11 +150,12 @@ Complete the Partner Center age-rating questionnaire yourself. Suggested answers
 > `https://nexora-social-2026.vercel.app`; it does not use mock services. No in-app purchases are offered
 > in this submission. No third-party advertising is enabled in the Windows package. The privacy policy is
 > at `/windows/privacy.html`. There is no test account with elevated privileges in this build. Windows
-> 10 version 2004+ and Windows 11 are supported.
+> 10 version 2004+ and Windows 11 are supported. The Store listing is currently a draft.
 
 ## Do not
 
-- Do not paste an invented Product ID, Store link or package family name.
+- Do not change the Partner Center identity values by hand or add a Store URL before publication.
+- Do not claim MG Ads or any banner is integrated: this package type has no verified MG integration.
 - Do not claim advertising is operational.
 - Do not use screenshots that show fake users, fake statistics or a fabricated UI.
 - Do not promise features that are not in the build (for example OS notifications or offline AI).

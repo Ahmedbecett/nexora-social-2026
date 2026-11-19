@@ -3,6 +3,11 @@
 > **Status: not operational.** No third-party advertising network is enabled in the NEXORA AI Windows app
 > (PWA or MSIX). This document records the investigation, the implementation that is ready, and the exact
 > conditions required before any ad can be shown. Nothing here should be read as a claim that ads work.
+>
+> **MG Ads revalidated 19 Nov 2026:** MG publishes a UWP SDK (`MiracleGames.Sdk.Uwp`, UAP 10.0, C#/XAML),
+> a native C++ (Win32) SDK, and an H5 SDK for its own H5 Store channel. None can be attached to this
+> PWABuilder Win32/WebView2 hosted PWA without a native host we own or a verified H5/WebView2 integration.
+> A banner is not integrated. Full evidence: [`MG-ADS-FEASIBILITY.md`](MG-ADS-FEASIBILITY.md).
 
 <div dir="rtl">
 
@@ -14,9 +19,11 @@
   أندرويد لا تُستخدم ولا تُنسخ إلى نسخة Windows.
 - **AdSense مخصّص لصفحات الويب**، وسياساته تمنع عرضه داخل أغلفة تطبيقات سطح المكتب وتقنيات WebView.
   أبقيناه على صفحات الموقع العامة فقط، ولم نفعّله في التطبيق المثبّت ولا في MSIX.
-- **MG Ads = Miracle Games UWP Ads SDK**. إنه SDK لتطبيقات UWP (XAML/Unity/C++)، وحزمة PWABuilder هي
-  **Win32/PWA host عبر WebView2** وليست تطبيق UWP. لا يمكن ربط SDK الخاص بـ UWP بها دون بناء غلاف UWP
-  منفصل، وهو مسار تستخدم فيه Microsoft تقنيات EdgeHTML/WWAHost المتوقفة. لذلك **غير متوافق مع نوع الحزمة**.
+- **MG Ads = عائلة SDKs من Miracle Games**: منتجها الحالي **MG Ads SDK for UWP** (NuGet `UAP 10.0`،
+  C#/XAML)، ولديها أيضًا **C++ SDK** لمضيف Win32 أصلي، و**H5 SDK** لقناة H5 Microsoft Store الخاصة بها.
+  حزمة PWABuilder الحالية هي **Win32/PWA host عبر WebView2**، وليست تطبيق UWP، ولا تملك مشروع C++ أصليًا
+  يمكن ربط المكتبة فيه، ولا يوجد توثيق عام متاح لـ H5 SDK يثبت عملها داخل WebView2. لذلك **غير متوافق
+  مع نوع الحزمة الحالية** دون مشروع أصلي منفصل أو تأكيد كتابي من MG.
 - **Monetag / Adsterra**: لم نتحقق كتابيًا من سماح شروطها بالعمل داخل MSIX/WebView2 أو التطبيق المثبّت،
   ولم نُدمجهما. سكربتات Adsterra الحالية تبقى على صفحات الموقع فقط.
 - **القياس الحقيقي لدى المزوّد فقط.** لا يوجد أي عدّاد انطباعات/نقرات محلي مزيف. بوابة التكرار في
@@ -28,7 +35,7 @@
 |---|---|---|---|---|
 | Google AdMob | Android / iOS SDK | ❌ لا يوجد SDK لسطح المكتب | ❌ | غير مستخدم |
 | Google AdSense | صفحات ويب في متصفح | ⚠️ غير مؤكد/سياسات الأغلفة | ❌ ممنوع في WebView | معطّل داخل التطبيق |
-| MG Ads SDK for UWP | تطبيقات UWP | ❌ (ليست UWP) | ❌ (ليست UWP) | غير متوافق |
+| MG Ads (UWP / C++ / H5 SDKs) | UWP، Win32 أصلي، أو H5 Store الخاص بـ MG | ❌ لا مضيف أصلي نملكه | ❌ لا جسر JS موثّق | غير متوافق حاليًا |
 | Monetag | وسوم ويب/نوافذ منبثقة | ⚠️ غير متحقق | ⚠️ غير متحقق | غير مُدمج |
 | Adsterra | بانرات ويب | ⚠️ غير متحقق | ⚠️ غير متحقق | موقع فقط |
 | Microsoft UWP ad monetization | UWP | — | — | أُغلق (مصدر ثانوي) |
@@ -122,7 +129,7 @@
 - ❌ تحميل سكربت إعلاني قبل الموافقة.
 - ❌ إعلان يغطي المحتوى أو يظهر فوق نافذة/كيبورد دون إغلاق.
 - ❌ الادعاء أن الإعلانات «تعمل» قبل رؤية إعلان حقيقي في الحزمة النهائية.
-- ❌ اختراع معرّف منتج أو رابط متجر.
+- ❌ تغيير الهوية المسجلة من Partner Center أو نشر رابط متجر قبل الاعتماد.
 
 ### واجهة المحوّل
 
@@ -144,24 +151,31 @@
 
 ## ٥) نتيجة التحقيق في MG Ads (بالتفصيل)
 
-**MG Ads** هي منصة إعلانات من **Miracle Games**، ومنتجها الأساسي **MG Ads SDK for UWP**:
+**MG Ads** هي منصة إعلانات من **Miracle Games**، وتقدّم أكثر من حزمة واحدة:
 
-- تسويقه: SDK لتطبيقات وألعاب **Windows UWP**، مع دعم Unity وC++ وCocos وUE.
-- التكامل: حزمة NuGet وVisual Studio داخل مشروع UWP.
-- تغطية الإعلانات: بانر، بيني، مكافأة، افتتاحي، أصلي.
+- **MG Ads SDK for UWP** (المنتج الرئيسي الحالي): حزمة NuGet `MiracleGames.Sdk.Uwp` تستهدف `UAP 10.0`،
+  وواجهة C#/XAML (`ApplicationManager.SetupAsync` و`AdvertisingManager.ShowAd(..., AdType.Banner, ...)`).
+  أحدث إصدار موثّق وقت المراجعة: 2.8.7.0 (2026-01-08)، ويتطلب Windows 10 SDK 14393+ وVisual Studio.
+- **Miracle Games C++ SDK (Win32)**: مكتبة أصلية، آخر إصدار موثّق `V1.2.6.6` (2024-12-30)، وتشمل
+  واجهة إعلانات (Banner 728×90، افتتاحي، بيني، إلخ). تحتاج مضيف Win32 أصليًا.
+- **H5 SDK**: مخصّص لنسخ **H5 Microsoft Store** التي يديرها MG. صفحة توثيقه تُرجع خطأ حاليًا، ورابط
+  تنزيله في صفحة Advertising SDK يشير إلى صفحة UWP SDK؛ لا توجد واجهة JS عامة موثّقة ومتحقق منها.
+- WebView2 داخل SDK (منذ 2.8.6) هو متصفح داخلي لصفحات MG، وليس واجهة JavaScript للمحتوى الخارجي.
 
 **لماذا لا يعمل مع نسخة NEXORA AI الحالية؟**
 
 1. حزمة PWABuilder هي **Win32 Hosted App Model** تستضيف الموقع في WebView2، وليست تطبيق UWP.
-2. SDK الخاص بـ UWP يعتمد على `Microsoft.Advertising`/XAML/`Windows.UI`، ولا يمكن استدعاؤه من صفحة ويب.
-3. بناء غلاف UWP حول PWA يعني العودة إلى `WWAHost`/EdgeHTML، وهي تقنيات لم تعد Microsoft تطوّرها،
-   كما يفقد التطبيق تكامل WebView2 الحديث.
-4. حتى لو بُني غلاف UWP، سيحتاج ذلك إلى شهادة وتوقيع وتغيير معماري كامل، وقد يخالف شروط المتجر
-   إذا تغيّر سلوك التطبيق عن الموقع.
+2. SDK الخاص بـ UWP يعتمد على XAML/`Windows.UI`، ولا يمكن استدعاؤه من صفحة ويب.
+3. C++ SDK يحتاج مضيف Win32 أصليًا نملك مصدره؛ المشروع المضيف الذي يولّده PWABuilder ليس في هذا
+   المستودع، ولا نضيف إليه مكتبة أصلية دون إعادة بناء الحزمة واختبارها.
+4. H5 SDK مرتبط بقناة H5 Store الخاصة بـ MG، ولا يوجد دليل على أنه يعمل داخل WebView2 لتطبيق PWA
+   مستقل أو أن انطباعاته تُحتسب لهوية المتجر هذه. لا نبني على افتراض أو معرّفات مؤقتة.
+5. لا يوجد `AppKey` أو `BannerAdUnitId` إنتاجي من MG، والمنتج ما زال Draft.
 
 **الخلاصة:** MG Ads غير متوافق مع PWA/MSIX بهذا الشكل. لا نضيفه، ولا نستخدم معرّفاته. إن أراد المالك
-لاحقًا مسارًا أصليًا بالكامل (WinUI/UWP) فهذا مشروع منفصل، ويجب فيه إعادة بناء الواجهة والتحقق من
-كل المتطلبات، وليس «إضافة SDK» إلى الحزمة الحالية.
+لاحقًا مسارًا أصليًا بالكامل (WinUI/UWP أو Win32 C++) فهذا مشروع منفصل، ويجب فيه إعادة بناء الواجهة
+والتحقق من كل المتطلبات. المسار الوحيد الآخر هو تأكيد كتابي من MG بأن H5 SDK يعمل داخل WebView2،
+مع توثيق عام ومفاتيح إنتاجية، ثم اختبار حقيقي قبل أي ادعاء.
 
 ## ٦) مصادر للمراجعة (روابط عامة)
 
@@ -169,6 +183,12 @@
 - Google AdSense — سياسات البرنامج (تطبيقات/WebView): <https://support.google.com/adsense/answer/48182>
 - MG Ads — الموقع الرسمي: <https://www.mg-ads.com/>
 - MG Ads SDK for UWP — وصف المنتج: <https://www.mguwp.com/MGAds>
+- MG UWP SDK — التنزيلات والمتطلبات: <https://doc.mguwp.net/en/uwpsdkupdate.html>
+- MG C++ SDK (Win32) — التنزيلات والإعلانات: <https://doc.mguwp.net/c_sdk_update.html>
+- MG Advertising SDK — مداخل Native/Win32/H5: <https://www.mguwp.net/en/adcenter/receive.html>
+- MG SDK index (UWP/Win32/H5): <https://doc.mguwp.net/en/>
+- حزمة NuGet الرسمية: <https://www.nuget.org/packages/MiracleGames.Sdk.Uwp>
+- مثال التكامل C#: <https://github.com/MiracleGames/MiracleGamesUWPSDK>
 - PWABuilder — حزم Windows: <https://www.pwabuilder.com/>
 - Microsoft Store Policies: <https://learn.microsoft.com/windows/apps/publish/store-policies>
 - Microsoft Q&A — AdSense في تطبيقات Store/PWA: <https://learn.microsoft.com/en-us/answers/questions/5683810/>
@@ -182,9 +202,11 @@
 
 - **No ad network is enabled.** `public/windows/ads-config.json` ships `enabled: false`, `provider: none`,
   `allowInMsix: false`.
-- **MG Ads cannot be used**: it is a UWP SDK from Miracle Games; a PWABuilder MSIX is a Win32/WebView2 hosted
-  PWA, not a UWP app. Building a UWP wrapper would mean the deprecated EdgeHTML/WWAHost path and a full
-  architectural change.
+- **MG Ads cannot be used in this package**: MG publishes a UWP SDK, a native C++/Win32 SDK, and an H5 SDK
+  for its own H5 Store channel. A PWABuilder MSIX is a Win32/WebView2 hosted PWA, not a UWP app, and this
+  repository does not own the generated native host. A separate UWP/WinUI or Win32 host with WebView2 is
+  technically possible, but it is a different package and requires real MG credentials; it does not need
+  the retired EdgeHTML/WWAHost path.
 - **AdMob does not support Windows desktop.** Its Android production IDs are not reused.
 - **AdSense stays on the public website.** Its policies prohibit desktop application wrappers and WebView
   technologies. The installed Windows app is excluded by configuration **and** rejected in code for
@@ -192,6 +214,6 @@
 - **Monetag/Adsterra are not verified** for this package type and are not integrated.
 - A responsive slot is reserved in the layout, a consent dialog exists, and the code fails closed. Real
   impressions/clicks are measured only by an approved provider — never simulated locally.
-- **Do not invent** a Product ID, Store link or package family name.
+- **Do not change** the recorded Partner Center identity or publish a Store link before certification.
 - Enabling any provider requires written verification, a privacy update, package-level testing on Windows
   10/11, and explicit configuration. Until then, advertising must be described as **not operational**.

@@ -2,13 +2,13 @@
 /* فحص شامل لجاهزية نسخة Windows قبل البناء/التوقيع.
    يعمل على أي نظام (لا يحتاج Windows SDK). لا يوقّع ولا ينشر شيئًا.
    الاستخدام: node windows/tools/check-windows.mjs
-   رمز الخروج 1 عند وجود خطأ حقيقي، و0 مع تحذيرات Placeholders المتوقعة.
+   رمز الخروج 1 عند وجود خطأ حقيقي، و0 مع تحذيرات غير حاجزة (مثل رابط المتجر قبل النشر).
 */
 
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
-import { toMsixVersion, validateIdentity, findMissingAssets, validateManifestXml } from './msix.mjs';
+import { toMsixVersion, validateIdentity, findMissingAssets, validateManifestXml, looksLikeStoreProductId } from './msix.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const read = (p) => readFileSync(resolve(root, p), 'utf8');
@@ -55,15 +55,18 @@ if (ads.provider !== 'none') errors.push('ads-config.json provider must be none 
 if (/3940256099942544/.test(JSON.stringify(ads))) errors.push('Google test ad ID present in config');
 if (ads.allowInMsix !== false) errors.push('ads allowInMsix must stay false until written verification');
 
-// 7) منع Product ID مخترع
-if (identity.productId) warnings.push('Store Product ID present — confirm it came from Partner Center');
+// 7) Product ID / Package family name — قيم حقيقية من Partner Center
+if (!identity.productId) warnings.push('Store Product ID not recorded yet');
+else if (!looksLikeStoreProductId(identity.productId)) errors.push('identity productId is not a valid Store Product ID');
+if (identity.productId && !identity.storeUrl) warnings.push('Store URL pending publication (Product ID is recorded)');
+if (!identity.packageFamilyName) warnings.push('Package family name not recorded yet');
 
 console.log('NEXORA AI — Windows readiness check');
 console.log(`app version: ${pkg.version} · msix version: ${identity.version}`);
 for (const w of warnings) console.log(`WARN  ${w}`);
 for (const e of errors) console.error(`ERROR ${e}`);
 if (errors.length) {
-  console.error(`\n${errors.length} error(s), ${warnings.length} expected placeholder warning(s).`);
+  console.error(`\n${errors.length} error(s), ${warnings.length} warning(s).`);
   process.exit(1);
 }
-console.log(`\nOK — ${warnings.length} expected placeholder warning(s). Ready for PWABuilder / Partner Center values.`);
+console.log(`\nOK — Partner Center identity is integrated; ${warnings.length} warning(s).`);

@@ -35,16 +35,17 @@
 هذه ليست نواقص مخفية، بل خطوات تحتاج حسابك أو جهازك:
 
 1. **شهادة توقيع MSIX** تصدر من Partner Center بعد التحقق من هوية الناشر. لا توجد شهادة في المستودع، ولا يجب أن تكون.
-2. **Package/Identity/Name** و **Publisher** يُنسخان من Partner Center. القيم الحالية Placeholders صريحة.
-3. **Product ID** في Microsoft Store لا يُخترع؛ يظهر بعد إنشاء المنتج.
+2. **توليد الحزمة وتوقيعها** يحتاج Windows SDK أو PWABuilder + شهادة. الهوية الحقيقية مسجّلة، لكن الحزمة الموقّعة لا تُبنى على Linux.
+3. **رابط المتجر** لا يُضاف قبل اجتياز الاعتماد والنشر. Product ID الحقيقي مسجّل، والمنتج ما زال **Draft**.
 4. **لقطات شاشة Store** يجب التقاطها من التطبيق الحقيقي على Windows (السكربت جاهز في `docs/windows/SCREENSHOTS.md`).
-5. **تحقق الإعلانات** لا يكتمل إلا بعد موافقة كتابية من مزوّد مناسب لنوع الحزمة، ثم اختبار إعلان حقيقي. لا يُعلَن أن الإعلانات تعمل قبل ذلك.
+5. **إعلانات MG Ads** غير قابلة للدمج في حزمة PWABuilder الحالية (Win32/WebView2) دون مضيف أصلي أو توثيق H5/WebView2 من MG؛ التحقق الكامل في [`MG-ADS-FEASIBILITY.md`](MG-ADS-FEASIBILITY.md).
 
 ## ابدأ من هنا
 
 1. [`BUILD-AND-DEPLOY.md`](BUILD-AND-DEPLOY.md) — البناء والنشر والتحقق.
 2. [`MSIX.md`](MSIX.md) — من Partner Center إلى حزمة موقّعة.
 3. [`ADS-INTEGRATION.md`](ADS-INTEGRATION.md) — نتيجة التحقيق في MG Ads وAdSense وAdMob وMonetag.
+   - [`MG-ADS-FEASIBILITY.md`](MG-ADS-FEASIBILITY.md) — لماذا لا يُدمج MG Ads Banner في حزمة PWA/MSIX الحالية، وما المسارات البديلة.
 4. [`STORE-LISTING.md`](STORE-LISTING.md) — نصوص المتجر والأصول والمتطلبات.
 5. [`TEST-REPORT.md`](TEST-REPORT.md) — ما اختُبر فعليًا وما ينتظر جهاز Windows.
 6. [`UNSUPPORTED.md`](UNSUPPORTED.md) — الميزات غير المدعومة والقيود المعروفة.
@@ -63,6 +64,6 @@ same account, database, API, AI conversations and Studio. There is no mock backe
 keyboard shortcuts, update/offline/error states, complete MSIX icon and splash assets, MSIX build/patch/sign
 scripts, a Windows privacy policy, and a fail-closed advertising configuration that ships disabled.
 
-**Requires your account or Windows machine:** Partner Center package identity and signing certificate,
-the Store Product ID, real Store screenshots, and any advertising verification. None of these are invented
-in the repository.
+**Requires your account or Windows machine:** package generation and signing certificate, real Store
+screenshots, Store publication, and a verified ad provider. The Partner Center identity and Product ID are
+recorded; the listing is still a draft and no Store URL is live.
