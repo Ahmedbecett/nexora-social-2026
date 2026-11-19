@@ -1,0 +1,55 @@
+name: Build Windows Store package
+
+# يطلب حزمة Windows (MSIX) من خدمة PWABuilder الرسمية باستخدام هوية Partner Center.
+# لا يوقّع الحزمة: Microsoft Store يعيد توقيع حزم MSIX بعد الاعتماد.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Request Store package from PWABuilder
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > windows-package-options.json <<'JSON'
+          {
+            "url": "https://nexora-social-2026.vercel.app/",
+            "startUrl": "https://nexora-social-2026.vercel.app/?nx_surface=msix",
+            "packageId": "Ahmedbecetti.NEXORAAIbyBECETTI",
+            "name": "NEXORA AI",
+            "version": "4.4.0.0",
+            "allowSigning": true,
+            "generateModernPackage": true,
+            "resourceLanguage": "en-us",
+            "publisher": {
+              "displayName": "Ahmedbecetti",
+              "commonName": "CN=A5D5DC31-4A15-4059-8030-D96C51054596"
+            }
+          }
+          JSON
+          curl --fail-with-body --retry 3 --retry-delay 5 --max-time 900 \
+            -sS -D response-headers.txt \
+            -X POST 'https://pwabuilder-windows-docker.azurewebsites.net/msix/generatezip' \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/zip' \
+            --data-binary @windows-package-options.json \
+            -o NEXORA-AI-Windows-Store.zip
+          cat response-headers.txt
+          file NEXORA-AI-Windows-Store.zip
+          unzip -l NEXORA-AI-Windows-Store.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NEXORA-AI-Windows-Store
+          path: |
+            NEXORA-AI-Windows-Store.zip
+            response-headers.txt
+          if-no-files-found: error
+          retention-days: 30
