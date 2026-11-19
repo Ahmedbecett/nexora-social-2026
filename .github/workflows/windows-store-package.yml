@@ -37,22 +37,37 @@ jobs:
             }
           }
           JSON
-          curl --fail-with-body --retry 3 --retry-delay 5 --max-time 900 \
+          set +e
+          status=$(curl --retry 2 --retry-delay 5 --max-time 900 \
             -sS -D response-headers.txt \
             -X POST 'https://pwabuilder-windows-docker.azurewebsites.net/msix/generatezip' \
             -H 'Content-Type: application/json' \
             -H 'Accept: application/zip' \
             --data-binary @windows-package-options.json \
-            -o NEXORA-AI-Windows-Store.zip
-          cat response-headers.txt
-          file NEXORA-AI-Windows-Store.zip
-          unzip -l NEXORA-AI-Windows-Store.zip
+            -o response.bin \
+            -w '%{http_code}')
+          code=$?
+          echo "curl_exit=$code" | tee build-status.txt
+          echo "http_status=$status" | tee -a build-status.txt
+          cat response-headers.txt || true
+          if [ "$code" -ne 0 ] || [ "$status" != "200" ]; then
+            echo '--- response body (first 2000 bytes) ---' | tee -a build-status.txt
+            head -c 2000 response.bin | tee -a build-status.txt || true
+            exit 1
+          fi
+          mv response.bin NEXORA-AI-Windows-Store.zip
+          file NEXORA-AI-Windows-Store.zip | tee -a build-status.txt
+          unzip -l NEXORA-AI-Windows-Store.zip | tee -a build-status.txt
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: NEXORA-AI-Windows-Store
           path: |
             NEXORA-AI-Windows-Store.zip
+            response.bin
             response-headers.txt
-          if-no-files-found: error
+            build-status.txt
+            windows-package-options.json
+          if-no-files-found: warn
           retention-days: 30
