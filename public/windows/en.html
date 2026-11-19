@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#120c30" />
+<title>NEXORA AI for Windows — Microsoft Store &amp; PWA</title>
+<meta name="description" content="The official NEXORA AI Windows edition: install it as a PWA from Edge or Chrome, or from the Microsoft Store after certification. Same account, conversations, Studio and production services." />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://nexora-social-2026.vercel.app/windows/en.html" />
+<link rel="alternate" hreflang="ar" href="https://nexora-social-2026.vercel.app/windows/" />
+<link rel="alternate" hreflang="en" href="https://nexora-social-2026.vercel.app/windows/en.html" />
+<link rel="alternate" hreflang="x-default" href="https://nexora-social-2026.vercel.app/windows/en.html" />
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<style>
+  :root { color-scheme: dark; --bg:#0b0918; --panel:#141225; --line:#ffffff1f; --ink:#f6f3ff; --muted:#c2b9dc; --accent:#b7a0ff; --accent2:#f19bd7; }
+  * { box-sizing: border-box; }
+  body { margin:0; background: radial-gradient(ellipse at 70% -10%, #4a2a8a55, transparent 46%), var(--bg); color: var(--ink); font: 16px/1.75 'Segoe UI', system-ui, sans-serif; }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  .wrap { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
+  header.site { border-bottom: 1px solid var(--line); background:#0b0918cc; backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 5; }
+  .bar { display:flex; align-items:center; gap:16px; min-height:64px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.5px; color:var(--ink); text-decoration:none; }
+  .brand img { width:36px; height:36px; border-radius:10px; }
+  .brand span b { background: linear-gradient(100deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  nav.top { display:flex; gap:16px; margin-inline-start:auto; flex-wrap:wrap; font-size:14px; }
+  nav.top a { color: var(--muted); text-decoration:none; }
+  nav.top a:hover { color: var(--ink); }
+  .lang { border:1px solid var(--line); border-radius:999px; padding:5px 11px; font-size:13px; text-decoration:none; color:var(--ink); }
+  main { padding: 46px 0 60px; }
+  .hero { display:grid; grid-template-columns: 1.15fr .85fr; gap: 32px; align-items:center; }
+  .eyebrow { display:inline-flex; align-items:center; gap:8px; border:1px solid #b7a0ff44; background:#b7a0ff12; color:#d9ccff; border-radius:999px; padding:7px 12px; font-size:12.5px; font-weight:700; }
+  h1 { font-size: clamp(30px, 4.4vw, 48px); line-height:1.2; letter-spacing:-.8px; margin:16px 0 12px; }
+  h1 b { background: linear-gradient(100deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .lead { color: var(--muted); font-size: 17px; margin:0 0 22px; max-width: 60ch; }
+  .actions { display:flex; flex-wrap:wrap; gap:10px; }
+  .btn { display:inline-flex; align-items:center; gap:8px; padding:12px 18px; border-radius:12px; text-decoration:none; font-weight:700; font-size:14px; border:1px solid var(--line); color:var(--ink); background:#ffffff0d; cursor:pointer; font-family:inherit; }
+  .btn.primary { background: linear-gradient(110deg,#8b68ff,#d16bc7); border-color:transparent; color:#fff; }
+  .note { font-size:12.5px; color:#a99fc4; margin-top:10px; }
+  .shot { border-radius:20px; border:1px solid var(--line); background:linear-gradient(160deg,#211b3d,#100d20); padding:16px; box-shadow:0 30px 80px #0007; }
+  .shot img { width:100%; border-radius:14px; display:block; }
+  .shot figcaption { text-align:center; font-size:11.5px; color:#9d93ba; margin-top:10px; }
+  section { margin-top: 46px; }
+  h2 { font-size: clamp(21px, 2.6vw, 28px); margin:0 0 6px; }
+  .sub { color: var(--muted); margin:0 0 18px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .card { border:1px solid var(--line); border-radius:16px; background:linear-gradient(150deg,#ffffff0b,#ffffff03); padding:18px; }
+  .card h3 { margin:0 0 6px; font-size:16px; }
+  .card p { margin:0; color:var(--muted); font-size:14px; }
+  .steps { counter-reset: step; display:grid; gap:10px; margin:16px 0 0; padding:0; list-style:none; }
+  .steps li { counter-increment: step; position:relative; padding:12px 14px 12px 44px; border:1px solid var(--line); border-radius:12px; background:#ffffff06; font-size:14.5px; }
+  .steps li::before { content: counter(step); position:absolute; left:14px; top:12px; width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:#8b68ff2e; border:1px solid #b7a0ff55; color:#e3d9ff; font:700 11px/1 'Segoe UI',sans-serif; }
+  .notice { border:1px solid #ffd18a3d; background:#ffd18a0e; border-radius:14px; padding:14px 16px; color:#f3e3c6; font-size:14px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:start; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:#d8cff2; font-size:12.5px; }
+  td { color:var(--muted); }
+  .support { display:grid; grid-template-columns: 1.1fr .9fr; gap:18px; }
+  footer.site { border-top:1px solid var(--line); padding:22px 0 32px; color:#9c92b8; font-size:13px; }
+  footer.site nav { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:8px; }
+  footer.site a { color:#c6b8ea; text-decoration:none; }
+  .sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+  @media (max-width: 860px) { .hero, .support { grid-template-columns:1fr; } .shot { order:-1; } }
+</style>
+</head>
+<body>
+<a class="sr" href="#main">Skip to content</a>
+<header class="site">
+  <div class="wrap bar">
+    <a class="brand" href="/"><img src="/icon-192.png" alt="" width="36" height="36" /><span>NEXORA <b>AI</b></span></a>
+    <nav class="top" aria-label="Primary">
+      <a href="#install">Install</a>
+      <a href="#features">Features</a>
+      <a href="#requirements">Requirements</a>
+      <a href="#support">Support</a>
+      <a href="/windows/privacy.html">Privacy</a>
+      <a class="lang" href="/windows/" lang="ar" hreflang="ar">العربية</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <div class="hero">
+    <div>
+      <span class="eyebrow">Windows 10 &amp; 11 · PWA and Microsoft Store</span>
+      <h1>NEXORA AI <b>for Windows</b></h1>
+      <p class="lead">The official desktop edition of NEXORA AI. The same account, conversations, NEXORA Studio and production services — in a real Windows window that integrates with the title bar.</p>
+      <div class="actions">
+        <button class="btn primary" id="install-btn" type="button" hidden>Install from your browser</button>
+        <a class="btn" href="#install">Microsoft Store</a>
+        <a class="btn" href="/">Open NEXORA on the web</a>
+      </div>
+      <p class="note">The Microsoft Store package is in preparation and certification. There is no official Store link until the product is published in Partner Center — do not use any other Store link.</p>
+    </div>
+    <figure class="shot">
+      <img src="/mascot-ui.webp" width="176" height="176" alt="NEXORA AI logo on a dark background" style="width:190px;margin:14px auto 4px;height:auto" />
+      <figcaption>NEXORA AI · Version 4.4.0 · Windows Edition</figcaption>
+    </figure>
+  </div>
+
+  <section id="install">
+    <h2>Install NEXORA AI on Windows</h2>
+    <p class="sub">Two official paths, both connecting to the same secure backend at <code>nexora-social-2026.vercel.app</code>.</p>
+    <div class="grid">
+      <article class="card">
+        <h3>1 · PWA from the browser (available now)</h3>
+        <p>Open the site in Microsoft Edge or Google Chrome on Windows, then choose Install from the address bar or the browser menu. The app appears in Start and runs in its own window.</p>
+      </article>
+      <article class="card">
+        <h3>2 · Microsoft Store (in certification)</h3>
+        <p>The MSIX package is built from this repository and signed with the publisher certificate. Once the product is accepted, the install link appears here and on the Store listing.</p>
+      </article>
+    </div>
+    <ol class="steps">
+      <li>Open <a href="/">nexora-social-2026.vercel.app</a> in Edge on Windows 10 (2004 or newer) or Windows 11.</li>
+      <li>Wait for the app to load, then use the Install icon in the address bar (or ⋯ → Apps → Install this site as an app).</li>
+      <li>Sign in with your existing account — no new account is created. Your conversations and projects are already there.</li>
+      <li>Updates are handled by the service worker, which tells you when a new version is ready. Apply it from the bottom bar.</li>
+    </ol>
+    <div class="notice" style="margin-top:16px">
+      <strong>Honest note:</strong> no signed MSIX download is stored in this repository. Producing one requires a signing certificate from the publisher’s Partner Center account; the code, manifest and scripts are ready in <code>windows/</code> and <code>docs/windows/MSIX.md</code>.
+    </div>
+  </section>
+
+  <section id="features">
+    <h2>What you get on Windows</h2>
+    <p class="sub">Not a demo and not a static wrapper: every request goes through the same production API.</p>
+    <div class="grid">
+      <article class="card"><h3>Persistent AI conversations</h3><p>Start a chat, keep the thread, and return to your history from the same account on any device.</p></article>
+      <article class="card"><h3>NEXORA Studio</h3><p>Describe an app, edit real files, run the terminal, preview the result, then publish to GitHub or Vercel.</p></article>
+      <article class="card"><h3>Native Windows window</h3><p>Window Controls Overlay title bar, an app menu, and <kbd>Ctrl</kbd>+<kbd>N</kbd>, <kbd>Ctrl</kbd>+<kbd>,</kbd> and <kbd>F1</kbd> shortcuts.</p></article>
+      <article class="card"><h3>Light and dark themes</h3><p>Follows your saved preference or the system setting, with real loading and error states instead of a blank screen.</p></article>
+      <article class="card"><h3>Offline shell</h3><p>The cached interface opens when the network drops and clearly explains that new AI requests need a connection.</p></article>
+      <article class="card"><h3>Keyboard and mouse</h3><p>Visible focus, arrow-key menus and a safe reload when an update is ready.</p></article>
+    </div>
+  </section>
+
+  <section id="requirements">
+    <h2>Requirements and compatibility</h2>
+    <table>
+      <thead><tr><th>Item</th><th>Minimum</th></tr></thead>
+      <tbody>
+        <tr><td>Operating system</td><td>Windows 10 version 2004 (build 19041) or newer, or Windows 11. Architectures: x64 and ARM64.</td></tr>
+        <tr><td>PWA</td><td>A current Microsoft Edge or Google Chrome. Installation requires HTTPS, which the official domain provides.</td></tr>
+        <tr><td>MSIX</td><td>A package signed by the certified publisher; it runs through Edge WebView2, included with Windows 10/11.</td></tr>
+        <tr><td>Connection</td><td>HTTPS only. AI requests and conversations do not work offline.</td></tr>
+        <tr><td>Account</td><td>The same NEXORA account used on the web or Android — no separate or demo account.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="privacy">
+    <h2>Privacy and advertising</h2>
+    <p class="sub">A separate policy written for the Windows edition explains what is stored locally and what is never done.</p>
+    <div class="grid">
+      <article class="card"><h3>Data and account</h3><p>Your conversations and projects belong to your account and are not shown to other users. Requests go to the secure backend only to produce the answer. <a href="/windows/privacy.html#data">Details</a></p></article>
+      <article class="card"><h3>Advertising</h3><p>No third-party ads are currently enabled inside the Windows app. A space is reserved in the layout, and any future provider requires explicit consent and written verification for the package type. <a href="/windows/privacy.html#ads">Advertising policy</a></p></article>
+      <article class="card"><h3>Security</h3><p>HTTPS only, no secrets in the front end, and sessions can be revoked from Account &amp; Security. <a href="/windows/privacy.html#security">Details</a></p></article>
+    </div>
+  </section>
+
+  <section id="support">
+    <h2>Support and help</h2>
+    <p class="sub">NEXORA support answers by email. Include your Windows version and the app version shown in ⋯ → About.</p>
+    <div class="support">
+      <div class="card">
+        <h3>Contact us</h3>
+        <p><a href="mailto:ahmedbecetti35@gmail.com">ahmedbecetti35@gmail.com</a></p>
+        <p><a href="/en/faq.html">FAQ</a> · <a href="/en/features.html">Feature guide</a></p>
+        <p>For a security report, put “Security” in the subject and never attach passwords or session tokens.</p>
+      </div>
+      <div class="card">
+        <h3>Before contacting us</h3>
+        <p>1) Check your connection. 2) Reload the window (<kbd>Ctrl</kbd>+<kbd>R</kbd>). 3) Check for updates from the ⋯ menu. 4) Try the same account in a browser to see whether the issue is the device or the network.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <nav aria-label="Footer">
+      <a href="/">NEXORA AI</a><a href="/en/about.html">About</a><a href="/en/features.html">Features</a><a href="/en/download.html">Download</a><a href="/en/faq.html">FAQ</a><a href="/en/privacy.html">General privacy</a><a href="/windows/privacy.html">Windows privacy</a><a href="/windows/" lang="ar">العربية</a>
+    </nav>
+    <div>NEXORA AI · Windows Edition · Version 4.4.0 · Publisher: BECETTI · <a href="mailto:ahmedbecetti35@gmail.com">Support</a></div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var btn = document.getElementById('install-btn');
+  var deferred = null;
+  function standalone() {
+    try {
+      return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: window-controls-overlay)').matches || navigator.standalone === true;
+    } catch (e) { return false; }
+  }
+  if (standalone() || !btn) return;
+  addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferred = e;
+    btn.hidden = false;
+  });
+  btn.addEventListener('click', async function () {
+    if (!deferred) return;
+    deferred.prompt();
+    try { await deferred.userChoice; } catch (e) { /* dismissed */ }
+    deferred = null;
+    btn.hidden = true;
+  });
+  addEventListener('appinstalled', function () { btn.hidden = true; });
+})();
+</script>
+</body>
+</html>

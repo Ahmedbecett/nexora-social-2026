@@ -1,0 +1,490 @@
+/* ==========================================================================
+   NEXORA AI — Windows shell styles
+   --------------------------------------------------------------------------
+   كل القواعد هنا مقيّدة بـ html[data-nx-wco] أو أصناف nx-win-* التي لا
+   تُرسم إلا داخل غلاف Windows. لا تمسّ تخطيط أندرويد أو المتصفح العادي.
+   ========================================================================== */
+
+html {
+  --nx-titlebar-h: 0px;
+  --nx-win-surface: #faf9f5;
+  --nx-win-surface-2: #f4f2ec;
+  --nx-win-ink: #1a1915;
+  --nx-win-line: #e5e1d8;
+  --nx-win-hover: #eceadf;
+  --nx-accent: #6d5bc7;
+}
+
+html[data-theme='dark'] {
+  --nx-win-surface: #141413;
+  --nx-win-surface-2: #201f1d;
+  --nx-win-ink: #f0eee8;
+  --nx-win-line: #2e2c28;
+  --nx-win-hover: #2a2825;
+}
+
+html[data-nx-view='chat'] {
+  --nx-win-surface: #090b13;
+  --nx-win-surface-2: #111421;
+  --nx-win-ink: #f5f5ff;
+  --nx-win-line: #ffffff1a;
+  --nx-win-hover: #ffffff12;
+}
+
+/* Studio له سمتان مستقلتان (cream/dark)؛ نطابق شريط العنوان معهما. */
+html[data-nx-studio-theme='cream'] {
+  --nx-win-surface: #faf9f5;
+  --nx-win-surface-2: #f4f2ec;
+  --nx-win-ink: #1a1915;
+  --nx-win-line: #e5e1d8;
+  --nx-win-hover: #eceadf;
+}
+
+html[data-nx-studio-theme='dark'] {
+  --nx-win-surface: #141413;
+  --nx-win-surface-2: #201f1d;
+  --nx-win-ink: #f0eee8;
+  --nx-win-line: #2e2c28;
+  --nx-win-hover: #2a2825;
+}
+
+/* ------------------------- Window Controls Overlay ------------------------ */
+
+.nx-win-titlebar {
+  position: fixed;
+  top: 0;
+  left: env(titlebar-area-x, 0px);
+  width: env(titlebar-area-width, 100%);
+  height: var(--nx-titlebar-h, 32px);
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 8px;
+  background: var(--nx-win-surface);
+  color: var(--nx-win-ink);
+  border-bottom: 1px solid var(--nx-win-line);
+  font-family: 'Segoe UI', Inter, system-ui, sans-serif;
+  font-size: 12px;
+  z-index: 2147483000;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.nx-win-titlebar button,
+.nx-win-titlebar a,
+.nx-win-titlebar [role='menuitem'] {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.nx-win-titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding-inline-start: 2px;
+}
+
+.nx-win-titlebar-brand img {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex: none;
+}
+
+.nx-win-titlebar-brand span {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.nx-win-titlebar-brand small {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--nx-win-ink);
+  opacity: 0.55;
+  border: 1px solid var(--nx-win-line);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 16px;
+}
+
+.nx-win-titlebar-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nx-win-menu-btn {
+  width: 34px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  color: inherit;
+  background: transparent;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nx-win-menu-btn:hover,
+.nx-win-menu-btn[aria-expanded='true'] {
+  background: var(--nx-win-hover);
+  border-color: var(--nx-win-line);
+}
+
+.nx-win-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  inset-inline-end: 0;
+  width: min(310px, 78vw);
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--nx-win-surface-2);
+  color: var(--nx-win-ink);
+  border: 1px solid var(--nx-win-line);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.18);
+  z-index: 5;
+}
+
+.nx-win-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.nx-win-menu-item:hover,
+.nx-win-menu-item:focus-visible {
+  background: var(--nx-win-hover);
+  outline: none;
+}
+
+.nx-win-menu-item kbd,
+.nx-win-keys kbd,
+.nx-win-dialog kbd {
+  font: 600 10.5px/1.4 ui-monospace, Consolas, 'Segoe UI Mono', monospace;
+  border: 1px solid var(--nx-win-line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: rgba(127, 127, 127, 0.08);
+  color: inherit;
+  white-space: nowrap;
+}
+
+.nx-win-menu-note {
+  min-height: 0;
+  padding: 0 10px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.nx-win-menu-note:not(:empty) {
+  padding: 8px 10px 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--nx-win-line);
+}
+
+/* المحتوى ينزل تحت الشريط ولا يغطيه */
+html[data-nx-wco='1'] .nx-ai-shell {
+  inset: var(--nx-titlebar-h) 0 0 0;
+  height: auto;
+}
+
+html[data-nx-wco='1'] .nxs {
+  margin-top: var(--nx-titlebar-h);
+  height: calc(100dvh - var(--nx-titlebar-h));
+}
+
+html[data-nx-wco='1'] .nx-ai-auth {
+  min-height: calc(100dvh - var(--nx-titlebar-h));
+  margin-top: var(--nx-titlebar-h);
+}
+
+html[data-nx-wco='1'] #root > div > .seo-landing {
+  padding-top: var(--nx-titlebar-h);
+}
+
+/* ------------------------------ Net status ------------------------------- */
+
+.nx-net-bar {
+  position: fixed;
+  top: var(--nx-titlebar-h, 0px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147482000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(680px, calc(100vw - 28px));
+  padding: 7px 12px;
+  border-radius: 999px;
+  font: 600 12px/1.5 'Segoe UI', Inter, system-ui, sans-serif;
+  background: #2a1b1b;
+  color: #ffe3dc;
+  border: 1px solid #ff8e7a44;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
+.nx-net-bar.is-online {
+  background: #16281f;
+  color: #d6f6e3;
+  border-color: #6fd39a44;
+}
+
+.nx-net-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #ff8e7a;
+  flex: none;
+}
+
+.nx-net-bar.is-online .nx-net-dot {
+  background: #6fd39a;
+}
+
+/* ----------------------------- Update toast ------------------------------ */
+
+.nx-win-update {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147482500;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(720px, calc(100vw - 28px));
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #171a28;
+  color: #f4f3ff;
+  border: 1px solid #a98cff44;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  font: 600 12px/1.5 'Segoe UI', Inter, system-ui, sans-serif;
+}
+
+.nx-win-update button {
+  padding: 6px 11px;
+  border-radius: 8px;
+  border: 1px solid #ffffff26;
+  color: #f4f3ff;
+  background: #ffffff10;
+  font: inherit;
+  cursor: pointer;
+}
+
+.nx-win-update button.primary {
+  background: linear-gradient(110deg, #8b68ff, #d16bc7);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* -------------------------------- Dialogs -------------------------------- */
+
+.nx-win-dialog-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483001;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(6, 6, 12, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.nx-win-dialog {
+  width: min(520px, 100%);
+  max-height: min(80vh, 640px);
+  overflow: auto;
+  border-radius: 14px;
+  background: var(--nx-win-surface-2);
+  color: var(--nx-win-ink);
+  border: 1px solid var(--nx-win-line);
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.42);
+  font-family: 'Segoe UI', Inter, system-ui, sans-serif;
+}
+
+.nx-win-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--nx-win-line);
+}
+
+.nx-win-dialog-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.nx-win-dialog-head button {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.nx-win-dialog-head button:hover {
+  background: var(--nx-win-hover);
+}
+
+.nx-win-dialog-body {
+  padding: 14px 16px 16px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.nx-win-dialog-hint {
+  display: block;
+  padding: 0 16px 14px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.nx-win-keys {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.nx-win-keys > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.07);
+}
+
+.nx-win-keys dt {
+  white-space: nowrap;
+}
+
+.nx-win-keys dd {
+  margin: 0;
+  text-align: end;
+  opacity: 0.85;
+}
+
+.nx-win-about {
+  text-align: center;
+}
+
+.nx-win-about img {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  margin: 0 auto 8px;
+  display: block;
+}
+
+.nx-win-about > strong {
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.nx-win-about > p {
+  margin: 6px auto 12px;
+  max-width: 42ch;
+  opacity: 0.85;
+}
+
+.nx-win-about dl {
+  margin: 0 0 12px;
+  display: grid;
+  gap: 4px;
+  text-align: start;
+}
+
+.nx-win-about dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: rgba(127, 127, 127, 0.07);
+}
+
+.nx-win-about dd {
+  margin: 0;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+.nx-win-about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.nx-win-about-links button {
+  padding: 7px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--nx-win-line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.nx-win-about-links button:hover {
+  background: var(--nx-win-hover);
+}
+
+/* ------------------------------ Accessibility ---------------------------- */
+
+html[data-nx-platform] :where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid #8e6aff;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* تكبير مناسب للشاشات الكبيرة: لا نمدّ النص بعرض 4K */
+@media (min-width: 1600px) {
+  html[data-nx-platform='windows-pwa'] .nx-ai-content,
+  html[data-nx-platform='windows-msix'] .nx-ai-content {
+    font-size: 1.02em;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .nx-win-titlebar,
+  .nx-win-menu,
+  .nx-win-dialog {
+    border-color: currentColor;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nx-win-titlebar *,
+  .nx-win-update *,
+  .nx-net-bar * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

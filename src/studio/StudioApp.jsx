@@ -358,8 +358,15 @@ function Shell() {
     booting, bootError, boot,
     theme, sidebarOpen, setSidebarOpen,
     activeView, workspaceOpen,
-    settingsOpen, toast,
+    settingsOpen, toast, openSettings,
   } = useStudio();
+
+  /* أوامر Windows: Ctrl+, أو قائمة شريط العنوان تفتح الحساب والإعدادات */
+  useEffect(() => {
+    const onSettings = () => openSettings('account');
+    window.addEventListener('nxs-open-settings', onSettings);
+    return () => window.removeEventListener('nxs-open-settings', onSettings);
+  }, [openSettings]);
 
   /* Mobile virtual keyboard guard (iOS Safari + Android Chrome) */
   useEffect(() => {

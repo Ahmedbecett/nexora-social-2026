@@ -1,0 +1,112 @@
+/* خانة إعلان Windows — مساحة داخل التخطيط لا تغطي المحتوى؛ عند الظهور تشغل مساحتها بدل أن تطفو فوقه. */
+.nx-win-ad {
+  position: relative;
+  width: min(850px, calc(100% - 44px));
+  margin: 18px auto 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid #ffffff14;
+  background: #ffffff05;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.nx-win-ad-tag {
+  position: absolute;
+  top: 4px;
+  inset-inline-start: 8px;
+  font: 700 8.5px/1.4 Inter, system-ui, sans-serif;
+  letter-spacing: 0.4px;
+  color: #9aa0b8;
+  background: #ffffff0d;
+  border: 1px solid #ffffff14;
+  border-radius: 999px;
+  padding: 1px 6px;
+  pointer-events: none;
+}
+
+.nx-win-ad .adsbygoogle {
+  margin-top: 6px;
+  min-height: 60px;
+}
+
+.nx-win-ad-consent {
+  width: min(850px, calc(100% - 44px));
+  margin: 18px auto 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #a98cff33;
+  background: linear-gradient(135deg, #8b69ff12, #d16bc708);
+  color: #e9e6f7;
+  font: 12px/1.7 'Cairo Variable', Inter, system-ui, sans-serif;
+  text-align: start;
+}
+
+.nx-win-ad-consent strong {
+  display: block;
+  font-size: 12.5px;
+  margin-bottom: 3px;
+}
+
+.nx-win-ad-consent p {
+  margin: 0 0 10px;
+  color: #c3bdd8;
+}
+
+.nx-win-ad-consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.nx-win-ad-consent-actions button,
+.nx-win-ad-consent-actions a {
+  font: 600 11px/1.5 'Cairo Variable', Inter, system-ui, sans-serif;
+  padding: 7px 11px;
+  border-radius: 8px;
+  border: 1px solid #ffffff22;
+  color: #f2efff;
+  background: #ffffff0d;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.nx-win-ad-consent-actions button.primary {
+  background: linear-gradient(110deg, #8b68ff, #d16bc7);
+  border-color: transparent;
+  color: #fff;
+}
+
+.nx-win-ad-consent-actions a {
+  margin-inline-start: auto;
+  color: #c9b8ff;
+  background: transparent;
+}
+
+html[data-theme='light'] .nx-win-ad-consent {
+  color: #1a1915;
+  background: #f4f0ff;
+  border-color: #6d5bc733;
+}
+
+html[data-theme='light'] .nx-win-ad-consent p {
+  color: #4c4840;
+}
+
+html[data-theme='light'] .nx-win-ad {
+  border-color: #e5e1d8;
+  background: #faf9f5;
+}
+
+@media (max-width: 640px) {
+  .nx-win-ad,
+  .nx-win-ad-consent {
+    width: calc(100% - 30px);
+    margin-top: 12px;
+  }
+}

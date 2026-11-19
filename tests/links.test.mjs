@@ -136,6 +136,8 @@ test('خريطة الموقع تطابق الملفات المنشورة في ا
 
   for (const [, file] of pages()) {
     if (/google[0-9a-f]+\.html$/.test(file)) continue; // ملف تحقّق Google
+    // صفحات الخدمة (مثل offline.html) تحمل noindex ولا تُفهرس، فلا تُدرَج في الخريطة.
+    if (/<meta\s+name="robots"[^>]*content="[^"]*noindex/i.test(read(file))) continue;
     const url = file === 'index.html' ? '/' : `/${file.replace(/^public\//, '')}`;
     assert.ok(locs.includes(url), `${url}: صفحة منشورة غير مذكورة في الخريطة`);
   }

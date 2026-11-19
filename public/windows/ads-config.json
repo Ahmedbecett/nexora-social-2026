@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "provider": "none",
+  "placement": "ai-home-banner",
+  "format": "responsive-banner",
+  "allowedSurfaces": [
+    "web",
+    "windows-browser"
+  ],
+  "allowInMsix": false,
+  "reserve": {
+    "minHeight": 96,
+    "maxHeight": 140
+  },
+  "frequency": {
+    "minIntervalMinutes": 30,
+    "maxPerDay": 3,
+    "visibleSeconds": 15
+  },
+  "consent": {
+    "required": true,
+    "storageKey": "nx_ads_consent",
+    "policyUrl": "/windows/privacy.html#ads",
+    "providerDisclosure": "Google AdSense"
+  },
+  "providers": {
+    "adsense": {
+      "client": "",
+      "slot": "",
+      "allowedSurfaces": [
+        "web",
+        "windows-browser"
+      ],
+      "notes": "AdSense is a website advertising product. It is not enabled in the installed Windows app or the MSIX/WebView2 package; written confirmation for any broader use is required. See docs/windows/ADS-INTEGRATION.md."
+    },
+    "monetag": {
+      "enabled": false,
+      "zone": "",
+      "allowedSurfaces": [],
+      "notes": "Not integrated. Monetag tag compatibility with the MSIX/WebView2 package has not been verified in writing."
+    },
+    "adsterra": {
+      "enabled": false,
+      "allowedSurfaces": [],
+      "notes": "Existing website banner loader stays on the public web pages only; not enabled in the Windows app shell."
+    },
+    "mgads": {
+      "enabled": false,
+      "sdk": "MG Ads SDK for UWP",
+      "allowedSurfaces": [],
+      "notes": "MG Ads is a UWP SDK (Miracle Games). A PWABuilder MSIX is a Win32/PWA host, not a UWP app, so this SDK cannot be attached to it. See the investigation in docs/windows/ADS-INTEGRATION.md."
+    }
+  }
+}

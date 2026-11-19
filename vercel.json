@@ -386,6 +386,53 @@
       ]
     },
     {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/javascript; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/offline.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0, must-revalidate"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    },
+    {
+      "source": "/windows/ads-config.json",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/manifest.webmanifest",
       "headers": [
         {

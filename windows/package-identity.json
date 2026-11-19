@@ -1,0 +1,20 @@
+{
+  "displayName": "NEXORA AI",
+  "publisherDisplayName": "BECETTI",
+  "identityName": "REPLACE-WITH-PARTNER-CENTER-PACKAGE-NAME",
+  "publisher": "CN=REPLACE-WITH-PARTNER-CENTER-PUBLISHER-ID",
+  "version": "4.4.0.0",
+  "applicationId": "App",
+  "startPage": "https://nexora-social-2026.vercel.app/?nx_surface=msix",
+  "architectures": ["x64", "arm64"],
+  "minWindowsVersion": "10.0.19041.0",
+  "maxVersionTested": "10.0.26100.0",
+  "productId": "",
+  "packageFamilyName": "",
+  "storeUrl": "",
+  "supportUrl": "https://nexora-social-2026.vercel.app/windows/#support",
+  "privacyPolicyUrl": "https://nexora-social-2026.vercel.app/windows/privacy.html",
+  "websiteUrl": "https://nexora-social-2026.vercel.app/",
+  "contactEmail": "ahmedbecetti35@gmail.com",
+  "category": "Productivity"
+}

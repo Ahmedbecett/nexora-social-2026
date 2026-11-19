@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  NEXORA AI — REFERENCE Windows package manifest (Hosted App Model).
+  ==================================================================
+  هذا ملف مرجعي يوضّح الشكل المتوقع لحزمة MSIX التي ينتجها PWABuilder
+  لـ PWA يعمل داخل WebView2. الحزمة الفعلية يجب أن تُبنى بـ PWABuilder
+  (الذي يولّد pwa_builder.exe وresources.pri) ثم تُوقَّع بشهادة الشريك.
+  لا تستخدم هذا الملف وحده لبناء حزمة: لا يحتوي على executable ولا على
+  حزمة WebView2 host. استخدمه للمراجعة ومقارنة الحقول، وللاختبارات.
+  القيم الحقيقية (Identity Name وPublisher) تُنسخ من Partner Center فقط.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  IgnorableNamespaces="uap uap3">
+
+  <Identity
+    Name="REPLACE-WITH-PARTNER-CENTER-PACKAGE-NAME"
+    Publisher="CN=REPLACE-WITH-PARTNER-CENTER-PUBLISHER-ID"
+    Version="4.4.0.0" />
+
+  <Properties>
+    <DisplayName>NEXORA AI</DisplayName>
+    <PublisherDisplayName>BECETTI</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>NEXORA AI — Windows edition of the AI workspace and app builder.</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.19041.0"
+      MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="ar" />
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application
+      Id="App"
+      StartPage="https://nexora-social-2026.vercel.app/?nx_surface=msix">
+      <uap:VisualElements
+        DisplayName="NEXORA AI"
+        Description="AI conversations, writing, coding and NEXORA Studio in a native Windows window."
+        BackgroundColor="#120C30"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile
+          Wide310x150Logo="Assets\Wide310x150Logo.png"
+          Square310x310Logo="Assets\Square310x310Logo.png"
+          Square71x71Logo="Assets\Square71x71Logo.png">
+          <uap:ShowNameOnTiles>
+            <uap:ShowOn Tile="wide310x150Logo" />
+            <uap:ShowOn Tile="square150x150Logo" />
+          </uap:ShowNameOnTiles>
+        </uap:DefaultTile>
+        <uap:SplashScreen
+          Image="Assets\SplashScreen.png"
+          BackgroundColor="#120C30" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <!-- يربط روابط الموقع بالتطبيق المثبّت (web-to-app linking). -->
+        <uap3:Extension Category="windows.appUriHandler">
+          <uap3:AppUriHandler>
+            <uap3:Host Name="nexora-social-2026.vercel.app" />
+          </uap3:AppUriHandler>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <Capability Name="internetClientServer" />
+  </Capabilities>
+</Package>

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#120c30" />
+<title>NEXORA AI لـ Windows — تطبيق Microsoft Store و PWA</title>
+<meta name="description" content="نسخة NEXORA AI الرسمية لـ Windows: ثبّتها كتطبيق PWA من Edge أو Chrome، أو من Microsoft Store. نفس الحساب والمحادثات وNEXORA Studio والخدمات السحابية." />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://nexora-social-2026.vercel.app/windows/" />
+<link rel="alternate" hreflang="ar" href="https://nexora-social-2026.vercel.app/windows/" />
+<link rel="alternate" hreflang="en" href="https://nexora-social-2026.vercel.app/windows/en.html" />
+<link rel="alternate" hreflang="x-default" href="https://nexora-social-2026.vercel.app/windows/en.html" />
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<style>
+  :root { color-scheme: dark; --bg:#0b0918; --panel:#141225; --line:#ffffff1f; --ink:#f6f3ff; --muted:#c2b9dc; --accent:#b7a0ff; --accent2:#f19bd7; }
+  * { box-sizing: border-box; }
+  body { margin:0; background: radial-gradient(ellipse at 70% -10%, #4a2a8a55, transparent 46%), var(--bg); color: var(--ink); font: 16px/1.75 'Segoe UI', system-ui, Tahoma, sans-serif; }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  .wrap { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
+  header.site { border-bottom: 1px solid var(--line); background: #0b0918cc; backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 5; }
+  .bar { display:flex; align-items:center; gap:16px; min-height:64px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.5px; color:var(--ink); text-decoration:none; }
+  .brand img { width:36px; height:36px; border-radius:10px; }
+  .brand span b { background: linear-gradient(100deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  nav.top { display:flex; gap:16px; margin-inline-start:auto; flex-wrap:wrap; font-size:14px; }
+  nav.top a { color: var(--muted); text-decoration:none; }
+  nav.top a:hover { color: var(--ink); }
+  .lang { border:1px solid var(--line); border-radius:999px; padding:5px 11px; font-size:13px; text-decoration:none; color:var(--ink); }
+  main { padding: 46px 0 60px; }
+  .hero { display:grid; grid-template-columns: 1.15fr .85fr; gap: 32px; align-items:center; }
+  .eyebrow { display:inline-flex; align-items:center; gap:8px; border:1px solid #b7a0ff44; background:#b7a0ff12; color:#d9ccff; border-radius:999px; padding:7px 12px; font-size:12.5px; font-weight:700; }
+  h1 { font-size: clamp(30px, 4.4vw, 48px); line-height:1.25; letter-spacing:-.8px; margin:16px 0 12px; }
+  h1 b { background: linear-gradient(100deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .lead { color: var(--muted); font-size: 17px; margin:0 0 22px; max-width: 60ch; }
+  .actions { display:flex; flex-wrap:wrap; gap:10px; }
+  .btn { display:inline-flex; align-items:center; gap:8px; padding:12px 18px; border-radius:12px; text-decoration:none; font-weight:700; font-size:14px; border:1px solid var(--line); color:var(--ink); background:#ffffff0d; cursor:pointer; font-family:inherit; }
+  .btn.primary { background: linear-gradient(110deg,#8b68ff,#d16bc7); border-color:transparent; color:#fff; }
+  .btn[disabled], .btn.is-pending { opacity:.72; cursor:not-allowed; }
+  .note { font-size:12.5px; color:#a99fc4; margin-top:10px; }
+  .shot { border-radius:20px; border:1px solid var(--line); background:linear-gradient(160deg,#211b3d,#100d20); padding:16px; box-shadow:0 30px 80px #0007; }
+  .shot img { width:100%; border-radius:14px; display:block; }
+  .shot figcaption { text-align:center; font-size:11.5px; color:#9d93ba; margin-top:10px; }
+  section { margin-top: 46px; }
+  h2 { font-size: clamp(21px, 2.6vw, 28px); margin:0 0 6px; }
+  .sub { color: var(--muted); margin:0 0 18px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .card { border:1px solid var(--line); border-radius:16px; background:linear-gradient(150deg,#ffffff0b,#ffffff03); padding:18px; }
+  .card h3 { margin:0 0 6px; font-size:16px; }
+  .card p { margin:0; color:var(--muted); font-size:14px; }
+  .steps { counter-reset: step; display:grid; gap:10px; margin:16px 0 0; padding:0; list-style:none; }
+  .steps li { counter-increment: step; position:relative; padding:12px 44px 12px 14px; border:1px solid var(--line); border-radius:12px; background:#ffffff06; font-size:14.5px; }
+  .steps li::before { content: counter(step); position:absolute; inset-inline-start:14px; top:12px; width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:#8b68ff2e; border:1px solid #b7a0ff55; color:#e3d9ff; font:700 11px/1 'Segoe UI',sans-serif; }
+  .notice { border:1px solid #ffd18a3d; background:#ffd18a0e; border-radius:14px; padding:14px 16px; color:#f3e3c6; font-size:14px; }
+  .notice strong { color:#ffe3b3; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:start; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:#d8cff2; font-size:12.5px; font-weight:700; }
+  td { color:var(--muted); }
+  .support { display:grid; grid-template-columns: 1.1fr .9fr; gap:18px; }
+  .support .card { padding:20px; }
+  footer.site { border-top:1px solid var(--line); padding:22px 0 32px; color:#9c92b8; font-size:13px; }
+  footer.site nav { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:8px; }
+  footer.site a { color:#c6b8ea; text-decoration:none; }
+  .sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+  @media (max-width: 860px) { .hero, .support { grid-template-columns:1fr; } .shot { order:-1; } }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto !important; transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+<a class="sr" href="#main">انتقل إلى المحتوى</a>
+<header class="site">
+  <div class="wrap bar">
+    <a class="brand" href="/"><img src="/icon-192.png" alt="" width="36" height="36" /><span>NEXORA <b>AI</b></span></a>
+    <nav class="top" aria-label="التنقل">
+      <a href="#install">التثبيت</a>
+      <a href="#features">الميزات</a>
+      <a href="#requirements">المتطلبات</a>
+      <a href="#support">الدعم</a>
+      <a href="/windows/privacy.html">الخصوصية</a>
+      <a class="lang" href="/windows/en.html" lang="en" hreflang="en">English</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <div class="hero">
+    <div>
+      <span class="eyebrow">Windows 10 و11 · PWA و Microsoft Store</span>
+      <h1>NEXORA AI <b>على Windows</b></h1>
+      <p class="lead">نسخة سطح المكتب الرسمية من NEXORA AI. نفس الحساب، نفس المحادثات، نفس NEXORA Studio، ونفس الخدمات السحابية — في نافذة Windows أصلية تتكامل مع شريط العنوان.</p>
+      <div class="actions">
+        <button class="btn primary" id="install-btn" type="button" hidden>ثبّت التطبيق من المتصفح</button>
+        <a class="btn" id="store-link" href="#install" aria-describedby="store-note">Microsoft Store</a>
+        <a class="btn" href="/">افتح NEXORA على الويب</a>
+      </div>
+      <p class="note" id="store-note">حزمة Microsoft Store قيد التحضير والاعتماد. لا يوجد رابط متجر رسمي قبل نشر المنتج في Partner Center — لا تستخدم أي رابط متجر آخر.</p>
+    </div>
+    <figure class="shot">
+      <img src="/mascot-ui.webp" width="176" height="176" alt="شعار NEXORA AI على خلفية داكنة" style="width:190px;margin:14px auto 4px;height:auto" />
+      <figcaption>NEXORA AI · الإصدار 4.4.0 · Windows Edition</figcaption>
+    </figure>
+  </div>
+
+  <section id="install">
+    <h2>ثبّت NEXORA AI على Windows</h2>
+    <p class="sub">طريقتان رسميتان، وكلتاهما تتصل بنفس الخادم الآمن <code>nexora-social-2026.vercel.app</code>.</p>
+    <div class="grid">
+      <article class="card">
+        <h3>1 · PWA من المتصفح (متاح الآن)</h3>
+        <p>افتح الموقع في Microsoft Edge أو Google Chrome على Windows، ثم اختر «تثبيت» من شريط العنوان أو من قائمة المتصفح. يظهر التطبيق في قائمة ابدأ ويعمل في نافذة مستقلة.</p>
+      </article>
+      <article class="card">
+        <h3>2 · Microsoft Store (قيد الاعتماد)</h3>
+        <p>حزمة MSIX تُبنى من هذا المستودع وتُوقَّع بشهادة الشريك. بعد قبول المنتج في Store يصبح رابط التثبيت متاحًا هنا وفي صفحة المنتج.</p>
+      </article>
+    </div>
+    <ol class="steps">
+      <li>افتح <a href="/">nexora-social-2026.vercel.app</a> في Edge على Windows 10 (2004 أو أحدث) أو Windows 11.</li>
+      <li>انتظر حتى يكتمل تحميل التطبيق، ثم اضغط أيقونة «تثبيت» في شريط العنوان (أو قائمة ⋯ ← التطبيقات ← تثبيت هذا الموقع كتطبيق).</li>
+      <li>سجّل الدخول بحسابك الحالي — لا حاجة إلى حساب جديد. تظهر محادثاتك ومشاريعك كما هي.</li>
+      <li>للتحديث: يستخدم التطبيق خدمة العمل (service worker) وينبّهك عند توفّر نسخة جديدة. ثبّت التحديث من الشريط السفلي.</li>
+    </ol>
+    <div class="notice" style="margin-top:16px">
+      <strong>ملاحظة صادقة:</strong> لا يتوفر ملف MSIX موقّع للتنزيل المباشر في هذا المستودع. بناؤه يتطلب شهادة توقيع من حساب Partner Center الخاص بالناشر؛ الخطوات والملفات جاهزة في <code>windows/</code> و<code>docs/windows/MSIX.md</code>.
+    </div>
+  </section>
+
+  <section id="features">
+    <h2>ما الذي تحصل عليه على Windows؟</h2>
+    <p class="sub">النسخة ليست عرضًا تجريبيًا ولا واجهة ثابتة: كل طلب يمرّ عبر الـ API الإنتاجي نفسه.</p>
+    <div class="grid">
+      <article class="card"><h3>محادثات وسياق محفوظ</h3><p>ابدأ محادثة جديدة، تابع في نفس السياق، وارجع إلى سجلّك من حسابك على أي جهاز.</p></article>
+      <article class="card"><h3>NEXORA Studio</h3><p>ابنِ تطبيقًا بالوصف، عدّل الملفات في محرر حقيقي، شغّل الطرفية، عاين، ثم انشر على GitHub أو Vercel.</p></article>
+      <article class="card"><h3>نافذة Windows أصلية</h3><p>شريط عنوان متكامل مع أزرار النافذة، قائمة تطبيق، واختصارات <kbd>Ctrl</kbd>+<kbd>N</kbd> و<kbd>Ctrl</kbd>+<kbd>,</kbd> و<kbd>F1</kbd>.</p></article>
+      <article class="card"><h3>وضع فاتح وداكن</h3><p>يتبع تفضيلك المحفوظ أو إعداد النظام، مع حالات تحميل وخطأ واضحة بدل الشاشة البيضاء.</p></article>
+      <article class="card"><h3>عمل بلا اتصال</h3><p>تفتح الواجهة المخزّنة عند انقطاع الشبكة، وتُخبرك بوضوح أن المحادثات الجديدة تحتاج اتصالًا.</p></article>
+      <article class="card"><h3>لوحة مفاتيح وفأرة</h3><p>تركيز مرئي، قوائم قابلة للتنقل بالأسهم، وإعادة تحميل آمنة عند وصول تحديث.</p></article>
+    </div>
+  </section>
+
+  <section id="requirements">
+    <h2>المتطلبات والتوافق</h2>
+    <table>
+      <thead><tr><th>البند</th><th>الحد الأدنى</th></tr></thead>
+      <tbody>
+        <tr><td>نظام التشغيل</td><td>Windows 10 الإصدار 2004 (بنية 19041) أو أحدث، أو Windows 11. المعماريات: x64 وARM64.</td></tr>
+        <tr><td>PWA</td><td>Microsoft Edge أو Google Chrome حديث. التثبيت يتطلب HTTPS (متوفر على النطاق الرسمي).</td></tr>
+        <tr><td>MSIX</td><td>حزمة موقّعة من Publisher معتمد؛ تعمل عبر Edge WebView2 المضمّن في Windows 10/11.</td></tr>
+        <tr><td>الاتصال</td><td>HTTPS فقط. لا تعمل المحادثات والذكاء الاصطناعي دون إنترنت.</td></tr>
+        <tr><td>الحساب</td><td>نفس حساب NEXORA على الويب أو أندرويد — لا حسابات منفصلة ولا بيانات تجريبية.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="privacy">
+    <h2>الخصوصية والإعلانات</h2>
+    <p class="sub">سياسة منفصلة ومكتوبة لنسخة Windows، وتشرح ما يخزّنه التطبيق محليًا وما لا يفعله.</p>
+    <div class="grid">
+      <article class="card"><h3>البيانات والحساب</h3><p>محادثاتك ومشاريعك مرتبطة بحسابك ولا تُعرض لمستخدمين آخرين. تُرسَل الطلبات إلى الخادم الآمن لتوليد الرد فقط. <a href="/windows/privacy.html#data">التفاصيل</a></p></article>
+      <article class="card"><h3>الإعلانات</h3><p>لا توجد إعلانات طرف ثالث مفعّلة داخل تطبيق Windows حاليًا. المساحة محجوزة في التصميم، وأي مزوّد مستقبلي يمرّ بموافقة صريحة وتحقق كتابي من توافقه مع نوع الحزمة. <a href="/windows/privacy.html#ads">سياسة الإعلانات</a></p></article>
+      <article class="card"><h3>الأمان</h3><p>HTTPS فقط، لا مفاتيح سرية داخل الواجهة، والجلسات قابلة للإبطال من «الحساب والأمان». <a href="/windows/privacy.html#security">التفاصيل</a></p></article>
+    </div>
+  </section>
+
+  <section id="support">
+    <h2>الدعم والمساعدة</h2>
+    <p class="sub">فريق NEXORA يجيب عبر البريد الإلكتروني. اذكر إصدار Windows ورقم إصدار التطبيق (يظهر في ⋯ ← حول).</p>
+    <div class="support">
+      <div class="card">
+        <h3>راسلنا</h3>
+        <p><a href="mailto:ahmedbecetti35@gmail.com">ahmedbecetti35@gmail.com</a></p>
+        <p>الأسئلة الشائعة: <a href="/faq.html">صفحة FAQ</a> · الميزات: <a href="/features.html">صفحة الميزات</a></p>
+        <p>للإبلاغ عن مشكلة أمنية، اكتب «أمن» في عنوان الرسالة ولا تُرفق كلمات مرور أو رموز جلسة.</p>
+      </div>
+      <div class="card">
+        <h3>قبل أن تراسلنا</h3>
+        <p>1) تحقق من الاتصال بالإنترنت. 2) أعد تحميل النافذة (<kbd>Ctrl</kbd>+<kbd>R</kbd>). 3) تحقق من التحديثات من قائمة ⋯. 4) جرّب نفس الحساب في المتصفح لمعرفة إن كانت المشكلة في الجهاز أم في الشبكة.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <nav aria-label="روابط التذييل">
+      <a href="/">NEXORA AI</a><a href="/about.html">حول</a><a href="/features.html">الميزات</a><a href="/download.html">تحميل</a><a href="/faq.html">الأسئلة</a><a href="/privacy.html">الخصوصية العامة</a><a href="/windows/privacy.html">خصوصية Windows</a><a href="/windows/en.html" lang="en">English</a>
+    </nav>
+    <div>NEXORA AI · Windows Edition · الإصدار 4.4.0 · الناشر: BECETTI · <a href="mailto:ahmedbecetti35@gmail.com">الدعم</a></div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var btn = document.getElementById('install-btn');
+  var deferred = null;
+  function standalone() {
+    try {
+      return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: window-controls-overlay)').matches || navigator.standalone === true;
+    } catch (e) { return false; }
+  }
+  if (standalone() || !btn) return;
+  addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferred = e;
+    btn.hidden = false;
+  });
+  btn.addEventListener('click', async function () {
+    if (!deferred) return;
+    deferred.prompt();
+    try { await deferred.userChoice; } catch (e) { /* المستخدم أغلق النافذة */ }
+    deferred = null;
+    btn.hidden = true;
+  });
+  addEventListener('appinstalled', function () { btn.hidden = true; });
+})();
+</script>
+</body>
+</html>

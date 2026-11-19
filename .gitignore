@@ -21,3 +21,9 @@ android/app/google-services.local.json
 .nexora/
 public/studio/esbuild.wasm
 public/studio/vendor/
+
+# Windows package signing material — never commit certificates or generated store screenshots
+*.pfx
+*.cer
+certs/
+windows/store/screenshots/

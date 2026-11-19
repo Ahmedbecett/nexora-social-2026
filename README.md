@@ -61,6 +61,30 @@
 
 ---
 
+## نسخة Windows 4.4.0 (PWA + MSIX)
+
+- **نفس المنصة، لا نسخة تجريبية:** تعمل نسخة Windows على تطبيق الويب الإنتاجي نفسه
+  (`https://nexora-social-2026.vercel.app`) بنفس الحساب وقاعدة البيانات والـ API ومحادثات الذكاء
+  الاصطناعي وNEXORA Studio. لا خادم وهمي ولا مستخدمون مزيفون.
+- **قابلة للتثبيت الآن كـ PWA:** من Edge/Chrome على Windows 10 (2004+) وWindows 11، مع خدمة عمل
+  (service worker) لا تخزّن `/api/` ولا الجلسات، وصفحة عدم اتصال، وتحديث آمن بموافقة المستخدم.
+- **إحساس Windows:** شريط عنوان Window Controls Overlay، قائمة تطبيق، اختصارات `Ctrl+N` و`Ctrl+,`
+  و`F1`، أوضاع فاتح/داكن، RTL/LTR، وحالات تحميل وخطأ واضحة.
+- **حزمة MSIX:** مانيفست مرجعي، 53 أصلًا (شعارات/مربعات/Splash/Unplated)، وهوية `NEXORA AI` /
+  `BECETTI` بإصدار `4.4.0.0`. بناء الحزمة وتوقيعها يحتاجان Package Identity وشهادة من Partner Center؛
+  **لا يوجد Product ID ولا رابط متجر مخترع في المستودع**.
+- **الإعلانات معطّلة بصدق:** AdMob لا يدعم Windows، وMG Ads خاص بـ UWP ولا يعمل مع حزمة WebView2،
+  وAdSense ممنوع في أغلفة التطبيقات. لذلك `enabled: false` و`provider: none` مع خانة محجوزة وموافقة
+  جاهزتين — التفاصيل في [`docs/windows/ADS-INTEGRATION.md`](docs/windows/ADS-INTEGRATION.md).
+- **أندرويد لم يتغيّر:** تسجيل خدمة العمل محصور في الويب، و`Capacitor` يمنع أي تسجيل داخل التطبيق الأصلي.
+- **الوثائق:** [`docs/windows/README.md`](docs/windows/README.md) · البناء [`BUILD-AND-DEPLOY.md`](docs/windows/BUILD-AND-DEPLOY.md)
+  · MSIX [`MSIX.md`](docs/windows/MSIX.md) · تقرير الاختبار [`TEST-REPORT.md`](docs/windows/TEST-REPORT.md)
+  · قائمة الإصدار [`RELEASE-CHECKLIST.md`](docs/windows/RELEASE-CHECKLIST.md).
+- **تحقق سريع:** `npm test` · `npm run build` · `node windows/tools/check-windows.mjs` ·
+  `node windows/tools/sync-version.mjs --check`.
+
+---
+
 ## النسخة البسيطة (Android · v4.3 · بلا اشتراك وبلا نقاط)
 
 - **الاشتراك والنقاط حُذفا من الواجهة بالكامل** (v4.2): لا أزرار رصيد، لا خطط، لا نافذة دفع — تطبيق ذكاء اصطناعي بسيط ومجاني.

@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#120c30" />
+<title>NEXORA AI for Windows — Privacy Policy</title>
+<meta name="description" content="Privacy policy for the NEXORA AI Windows edition (PWA and MSIX): data collected, local storage, advertising status, security, retention, Microsoft Store specifics and your rights." />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://nexora-social-2026.vercel.app/windows/privacy.html" />
+<link rel="alternate" hreflang="en" href="https://nexora-social-2026.vercel.app/windows/privacy.html" />
+<link rel="alternate" hreflang="ar" href="https://nexora-social-2026.vercel.app/windows/privacy.html#ar" />
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<style>
+  :root { color-scheme: light; --bg:#fbfaf7; --panel:#ffffff; --line:#e5e1d8; --ink:#1a1915; --muted:#5b564c; --accent:#5b46b8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.75 'Segoe UI', system-ui, Tahoma, sans-serif; }
+  a { color:var(--accent); text-underline-offset:3px; }
+  .wrap { width:min(860px, calc(100% - 40px)); margin:0 auto; }
+  header.site { border-bottom:1px solid var(--line); background:#ffffffd9; backdrop-filter:blur(8px); position:sticky; top:0; z-index:5; }
+  .bar { display:flex; align-items:center; gap:14px; min-height:60px; flex-wrap:wrap; }
+  .brand { display:flex; align-items:center; gap:9px; font-weight:800; color:var(--ink); text-decoration:none; }
+  .brand img { width:30px; height:30px; border-radius:8px; }
+  nav.top { margin-inline-start:auto; display:flex; gap:14px; font-size:13.5px; flex-wrap:wrap; }
+  nav.top a { color:var(--muted); text-decoration:none; }
+  nav.top a:hover { color:var(--ink); }
+  main { padding:34px 0 56px; }
+  .eyebrow { color:var(--accent); font-weight:700; font-size:13px; letter-spacing:.4px; text-transform:uppercase; }
+  h1 { font-size:clamp(27px,4vw,38px); line-height:1.25; margin:8px 0 10px; letter-spacing:-.5px; }
+  .lead { color:var(--muted); font-size:17px; margin:0 0 8px; }
+  .updated { color:var(--muted); font-size:13px; }
+  .toc { border:1px solid var(--line); border-radius:14px; background:var(--panel); padding:14px 18px; margin:24px 0 30px; }
+  .toc strong { display:block; margin-bottom:6px; }
+  .toc ol { margin:0; padding-inline-start:20px; columns:2; column-gap:28px; font-size:13.5px; }
+  @media (max-width:640px) { .toc ol { columns:1; } }
+  section { margin:30px 0; scroll-margin-top:80px; }
+  h2 { font-size:21px; margin:0 0 8px; }
+  h3 { font-size:16px; margin:18px 0 6px; }
+  p, li { color:var(--muted); }
+  li { margin:4px 0; }
+  strong { color:var(--ink); }
+  code { font:13px/1.5 ui-monospace, Consolas, monospace; background:#00000008; border:1px solid var(--line); border-radius:5px; padding:1px 4px; }
+  .callout { border:1px solid #6d5bc733; background:#f4f0ff; border-radius:14px; padding:14px 16px; }
+  .callout p { margin:0; color:#3f3658; }
+  .ar { direction:rtl; text-align:right; font-family:'Cairo Variable','Segoe UI',Tahoma,sans-serif; }
+  .divider { margin:48px 0 26px; border:0; border-top:2px solid var(--line); }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:10px 0; }
+  th, td { text-align:start; padding:9px 11px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--ink); font-size:12.5px; }
+  td { color:var(--muted); }
+  footer.site { border-top:1px solid var(--line); padding:20px 0 32px; color:#6b655a; font-size:13px; }
+  footer.site nav { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:6px; }
+  footer.site a { color:#5b46b8; text-decoration:none; }
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="wrap bar">
+    <a class="brand" href="/"><img src="/icon-192.png" alt="" width="30" height="30" />NEXORA AI · Windows</a>
+    <nav class="top" aria-label="Policy navigation">
+      <a href="/windows/en.html">Windows app</a>
+      <a href="/windows/privacy.html#en">English</a>
+      <a href="/windows/privacy.html#ar" lang="ar" hreflang="ar">العربية</a>
+      <a href="/privacy.html">General policy</a>
+      <a href="mailto:ahmedbecetti35@gmail.com">Support</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="en" lang="en" dir="ltr">
+    <p class="eyebrow">NEXORA AI · Windows Edition</p>
+    <h1>Privacy Policy for Windows</h1>
+    <p class="lead">This policy covers the official NEXORA AI application for Windows, distributed as an installable PWA and, when published, as an MSIX package in the Microsoft Store.</p>
+    <p class="updated">Version 1.0 · Effective 19 November 2026 · Applies to NEXORA AI 4.4.0 (Windows)</p>
+
+    <div class="callout">
+      <p><strong>In one paragraph:</strong> NEXORA AI uses the same account and production backend as the website and Android app. It stores your session and preferences on your device, sends your prompts over HTTPS to the NEXORA backend and the configured AI providers, and does not sell your data. No third-party advertising is currently enabled inside the Windows app. Settings that require consent stay off until you accept them.</p>
+    </div>
+
+    <nav class="toc" aria-label="Contents">
+      <strong>Contents</strong>
+      <ol>
+        <li><a href="#who">Who we are and scope</a></li>
+        <li><a href="#data">Data we process</a></li>
+        <li><a href="#local">What is stored on your PC</a></li>
+        <li><a href="#use">Why we use data</a></li>
+        <li><a href="#sharing">Processors and sharing</a></li>
+        <li><a href="#ads">Advertising</a></li>
+        <li><a href="#store">Microsoft Store specifics</a></li>
+        <li><a href="#security">Security</a></li>
+        <li><a href="#retention">Retention and deletion</a></li>
+        <li><a href="#rights">Your rights</a></li>
+        <li><a href="#children">Children</a></li>
+        <li><a href="#ai">AI output and acceptable use</a></li>
+        <li><a href="#transfers">International transfers</a></li>
+        <li><a href="#changes">Changes</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ol>
+    </nav>
+
+    <section id="who">
+      <h2>1. Who we are and scope</h2>
+      <p><strong>NEXORA AI</strong> is developed and operated by <strong>Ahmed Becetti (AI BECETTI)</strong>, the data controller for the processing described here. The Windows app is published under the publisher name <strong>BECETTI</strong>.</p>
+      <p>This policy applies to the NEXORA AI Windows edition: the Progressive Web App installed through Microsoft Edge or Google Chrome, and the MSIX package distributed through the Microsoft Store once certified. It supplements the general <a href="/privacy.html">NEXORA privacy and cookie policy</a>. Where the two differ for the Windows app, this page applies to the Windows app.</p>
+      <p>It does not cover third-party websites or services you open from NEXORA (for example GitHub, Vercel, Google or Microsoft), each of which has its own privacy policy.</p>
+    </section>
+
+    <section id="data">
+      <h2>2. Data we process</h2>
+      <h3>Account and identity</h3>
+      <ul>
+        <li>Name, username, email address or phone number, optional profile image and interface language.</li>
+        <li>Login method (password, Google or phone), account creation date, last sign-in and internal account identifiers.</li>
+        <li>Passwords are stored only as a one-way hash and cannot be recovered by us.</li>
+      </ul>
+      <h3>Content you submit</h3>
+      <ul>
+        <li>Prompts, messages, generated answers and saved conversations.</li>
+        <li>Files you choose to upload (PDF, DOCX, text or images) and the text extracted to answer your request.</li>
+        <li>NEXORA Studio projects, files, terminal commands, checkpoints and deployment links.</li>
+        <li>Preferences such as selected model, answer style, theme and language.</li>
+      </ul>
+      <h3>Optional integrations and subscriptions</h3>
+      <ul>
+        <li>If you connect Google, GitHub or Vercel, we store the access tokens needed for the scopes you approve, encrypted on the server, and only use them for the action you request.</li>
+        <li>Subscription state, plan and payment reference from the payment provider. We do not store full card numbers or banking verification codes.</li>
+      </ul>
+      <h3>Technical data</h3>
+      <ul>
+        <li>IP address, browser/WebView2 version, operating system, pages and times, error messages and request identifiers, used for security, rate limiting and diagnosing failures.</li>
+        <li>We do not collect GPS location, contacts, SMS or call logs. The Windows app does not request camera or microphone access; the web AI screen requests microphone access only when you press the voice button.</li>
+      </ul>
+    </section>
+
+    <section id="local">
+      <h2>3. What is stored on your PC</h2>
+      <p>The Windows app runs in the browser engine (Edge/WebView2) with an origin-scoped storage area. The following keys are stored locally on your device:</p>
+      <table>
+        <thead><tr><th>Storage key</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>nx_token</code></td><td>Your current session token, sent only to the NEXORA backend over HTTPS.</td></tr>
+          <tr><td><code>nx_accounts</code></td><td>Usernames and tokens of accounts you added for quick switching on this device.</td></tr>
+          <tr><td><code>nx_me</code></td><td>Cached basic profile so the app can open faster.</td></tr>
+          <tr><td><code>nx_theme</code>, <code>nx_lang</code>, <code>nx_view</code></td><td>Theme, language and last screen preferences.</td></tr>
+          <tr><td><code>nx_surface</code></td><td>Marks that the app was opened from the MSIX package, so Windows-specific rules apply.</td></tr>
+          <tr><td><code>nx_ads_consent</code>, <code>nx_ads_frequency</code></td><td>Your advertising choice and a local frequency limit. See the advertising section.</td></tr>
+        </tbody>
+      </table>
+      <p>A service worker caches static application files (the interface shell, icons and the offline page) so the app can open without a network. It does not cache API responses, conversation content or requests carrying an authentication header.</p>
+      <p>You can clear this local data at any time from Windows Settings or the browser’s site-data settings. Clearing it signs you out on that device; server-side data is unaffected.</p>
+    </section>
+
+    <section id="use">
+      <h2>4. Why we use data</h2>
+      <ul>
+        <li><strong>To provide the service:</strong> authenticate you, keep your conversations and projects, run AI requests and return answers.</li>
+        <li><strong>To operate and secure it:</strong> prevent abuse, enforce usage limits, debug failures, protect accounts and comply with legal obligations.</li>
+        <li><strong>To honour your choices:</strong> remember language, theme and consent settings and apply them on this device.</li>
+        <li><strong>With consent only:</strong> show personalised advertising if a provider is enabled in the future, and only after you accept.</li>
+      </ul>
+      <p>We do not sell personal data, and we do not use your conversations or uploaded files to train our own models.</p>
+    </section>
+
+    <section id="sharing">
+      <h2>5. Processors and sharing</h2>
+      <p>We share only what is necessary with service providers acting under our instructions or under their own terms:</p>
+      <ul>
+        <li><strong>Hosting and delivery:</strong> Vercel (application and API hosting).</li>
+        <li><strong>Database:</strong> Neon (managed PostgreSQL).</li>
+        <li><strong>AI providers:</strong> the configured model providers used to generate answers, images or embeddings for your request.</li>
+        <li><strong>Authentication:</strong> Google and Firebase where you choose Google or phone sign-in.</li>
+        <li><strong>Optional integrations:</strong> Google Docs/Drive, GitHub and Vercel, only when you connect them and trigger an action.</li>
+        <li><strong>Distribution:</strong> Microsoft, for Store installation, updates and any Store-provided diagnostics you enabled in Windows.</li>
+        <li><strong>Advertising:</strong> a named ad provider only if advertising is enabled and you consent; see below.</li>
+      </ul>
+      <p>We may also disclose data if required by law or to protect the rights and safety of users and the service. The general privacy policy lists the categories and links in more detail.</p>
+    </section>
+
+    <section id="ads">
+      <h2>6. Advertising</h2>
+      <div class="callout">
+        <p><strong>Current status:</strong> no third-party advertising network is enabled inside the NEXORA AI Windows app (PWA or MSIX) in version 4.4.0. No ad request is sent, no impression is counted and no advertising identifier is created by the app.</p>
+      </div>
+      <p>A responsive banner area is reserved in the interface so a legitimate provider can be added without covering the main content; when present it occupies its own space in the layout. Advertising configuration is kept outside the application code in a separate configuration file and fails closed: if the provider, surface or consent is not valid, nothing is shown.</p>
+      <p>If a provider is enabled in a future release:</p>
+      <ul>
+        <li>You will be asked for consent before the first ad request, with an equally clear option to decline. Declining does not limit the AI features.</li>
+        <li>The provider will be named in the consent prompt and in this policy.</li>
+        <li>Impressions and clicks will be measured by that provider under its own policy. The app will not generate impressions, clicks or statistics locally.</li>
+        <li>Advertising will not be enabled for the MSIX/WebView2 package unless the provider has confirmed in writing that its product is permitted in that environment and Microsoft Store requirements are met.</li>
+      </ul>
+      <p>Google AdSense is used on the public website only. It is not enabled inside the Windows app, because AdSense program policies restrict ads in desktop application wrappers and WebView technologies. Mobile SDKs such as Google AdMob do not support Windows desktop, and the MG Ads SDK is a UWP-only SDK that cannot be attached to a Win32/WebView2 PWA package.</p>
+      <p>You can withdraw advertising consent at any time by clearing the <code>nx_ads_consent</code> value for this app; the prompt will appear again the next time advertising is eligible.</p>
+    </section>
+
+    <section id="store">
+      <h2>7. Microsoft Store specifics</h2>
+      <ul>
+        <li>The app is distributed under the publisher name <strong>BECETTI</strong>. The Store listing states the app name <strong>NEXORA AI</strong>.</li>
+        <li>Microsoft processes installation, updates and Store account information under the <a href="https://privacy.microsoft.com/" target="_blank" rel="noopener noreferrer">Microsoft Privacy Statement</a>. We do not receive your Microsoft account password.</li>
+        <li>If the app is offered free of charge, Microsoft does not receive payment data from us. Paid NEXORA subscriptions, if purchased, are handled by the payment provider shown at checkout; they are not processed by the Windows app.</li>
+        <li>The app does not use Windows diagnostic telemetry beyond ordinary web requests to the NEXORA backend. Windows and Edge may collect their own diagnostics according to your Windows settings.</li>
+        <li>Uninstalling the MSIX package removes the package and its app data. A browser-installed PWA is removed from the browser; its site data may remain in your browser profile until you clear site data.</li>
+      </ul>
+    </section>
+
+    <section id="security">
+      <h2>8. Security</h2>
+      <ul>
+        <li>All communication with the NEXORA backend uses HTTPS. The app refuses to call an insecure API origin.</li>
+        <li>No backend secrets, database credentials or AI provider keys are shipped in the Windows front end. AI requests use the authenticated NEXORA API, never a provider key in the client.</li>
+        <li>Session tokens are stored in the app’s origin-scoped storage and sent only to the NEXORA backend over HTTPS. They are not readable by other websites, but they are not protected by a separate OS credential vault because a PWA/MSIX hosted app has no equivalent of a native credential locker. Anyone who can use your unlocked Windows session and read the app profile may be able to use the session. Protect your Windows account with a password or Windows Hello and sign out on shared devices.</li>
+        <li>You can end all sessions from <em>Account &amp; Security → End sessions on all devices</em>, and delete your account permanently from the danger zone.</li>
+        <li>API responses are validated by the app; errors are shown without exposing internal secrets.</li>
+      </ul>
+    </section>
+
+    <section id="retention">
+      <h2>9. Retention and deletion</h2>
+      <ul>
+        <li>Account, conversations and project data are kept until you delete them or delete your account.</li>
+        <li>Deleting your account removes your account, conversations, generated images and Studio data, and cannot be undone. Backups and security logs may take a short additional period to expire.</li>
+        <li>Local settings and caches remain on your PC until you clear site data or uninstall the app.</li>
+        <li>Payment and tax records may be retained where required by law.</li>
+      </ul>
+    </section>
+
+    <section id="rights">
+      <h2>10. Your rights</h2>
+      <p>Depending on your location, you may have the right to access, correct, export or delete your personal data, to object to or restrict certain processing, and to withdraw consent at any time. You can exercise most rights directly in the app, or email <a href="mailto:ahmedbecetti35@gmail.com">ahmedbecetti35@gmail.com</a>. We may need to verify that you control the account. You also have the right to complain to your local data protection authority.</p>
+    </section>
+
+    <section id="children">
+      <h2>11. Children</h2>
+      <p>NEXORA AI is not directed to children under 13 (or under the minimum age required in your country). We do not knowingly collect data from children. If you believe a child created an account, contact us so we can remove it.</p>
+    </section>
+
+    <section id="ai">
+      <h2>12. AI output and acceptable use</h2>
+      <p>AI answers can be wrong or incomplete. Check important information before relying on it, especially for medical, legal, financial or safety decisions. Do not use the app to violate rights, distribute illegal content or evade security controls. Generated content is your responsibility when you publish it.</p>
+    </section>
+
+    <section id="transfers">
+      <h2>13. International transfers</h2>
+      <p>Our providers may process data in countries other than yours. Where required, transfers rely on appropriate safeguards such as standard contractual clauses offered by those providers.</p>
+    </section>
+
+    <section id="changes">
+      <h2>14. Changes</h2>
+      <p>We update this policy when the Windows app or its providers change. The effective date at the top changes with it, and material changes will be announced in the app or on this page. Continuing to use the app after an update means you accept the revised policy.</p>
+    </section>
+
+    <section id="contact">
+      <h2>15. Contact</h2>
+      <p><strong>Controller and support:</strong> Ahmed Becetti (BECETTI) · <a href="mailto:ahmedbecetti35@gmail.com">ahmedbecetti35@gmail.com</a><br />
+      <strong>App:</strong> NEXORA AI for Windows · version 4.4.0 · <a href="/windows/en.html">Windows app page</a> · <a href="/privacy.html">general privacy policy</a></p>
+    </section>
+  </div>
+
+  <hr class="divider" />
+
+  <div id="ar" class="ar" lang="ar" dir="rtl">
+    <p class="eyebrow">NEXORA AI · نسخة Windows</p>
+    <h1>سياسة الخصوصية لنسخة Windows</h1>
+    <p class="lead">تغطي هذه السياسة تطبيق NEXORA AI الرسمي على Windows، سواء ثبّته كتطبيق ويب تقدّمي (PWA) أو حصلت عليه كحزمة MSIX من Microsoft Store بعد اعتمادها.</p>
+    <p class="updated">الإصدار 1.0 · سارية من 19 نوفمبر 2026 · تنطبق على NEXORA AI 4.4.0 (Windows)</p>
+
+    <div class="callout">
+      <p><strong>باختصار:</strong> يستخدم تطبيق Windows نفس الحساب ونفس الخادم الإنتاجي للموقع وتطبيق أندرويد. يخزّن جلستك وتفضيلاتك على جهازك، ويرسل طلباتك عبر HTTPS إلى خادم NEXORA ومزوّدي الذكاء الاصطناعي المضبوطين، ولا يبيع بياناتك. لا توجد إعلانات طرف ثالث مفعّلة داخل التطبيق حاليًا، وأي إعداد يحتاج موافقة يبقى متوقفًا حتى توافق.</p>
+    </div>
+
+    <nav class="toc" aria-label="المحتويات">
+      <strong>المحتويات</strong>
+      <ol>
+        <li><a href="#who-ar">من نحن ونطاق السياسة</a></li>
+        <li><a href="#data-ar">البيانات التي نعالجها</a></li>
+        <li><a href="#local-ar">ما يُخزَّن على جهازك</a></li>
+        <li><a href="#use-ar">لماذا نستخدم البيانات</a></li>
+        <li><a href="#sharing-ar">المزوّدون والمشاركة</a></li>
+        <li><a href="#ads-ar">الإعلانات</a></li>
+        <li><a href="#store-ar">خصوصية Microsoft Store</a></li>
+        <li><a href="#security-ar">الأمان</a></li>
+        <li><a href="#retention-ar">الاحتفاظ والحذف</a></li>
+        <li><a href="#rights-ar">حقوقك</a></li>
+        <li><a href="#children-ar">الأطفال</a></li>
+        <li><a href="#ai-ar">مخرجات الذكاء الاصطناعي</a></li>
+        <li><a href="#transfers-ar">النقل الدولي</a></li>
+        <li><a href="#changes-ar">التغييرات</a></li>
+        <li><a href="#contact-ar">التواصل</a></li>
+      </ol>
+    </nav>
+
+    <section id="who-ar">
+      <h2>١. من نحن ونطاق السياسة</h2>
+      <p><strong>NEXORA AI</strong> يطوّره ويشغّله <strong>أحمد بسيتي (AI BECETTI)</strong>، وهو المتحكّم في معالجة البيانات الموضّحة هنا. تُنشَر نسخة Windows باسم الناشر <strong>BECETTI</strong>.</p>
+      <p>تنطبق هذه السياسة على نسخة Windows من NEXORA AI: تطبيق الويب التقدّمي المثبَّت عبر Microsoft Edge أو Google Chrome، وحزمة MSIX الموزَّعة عبر Microsoft Store بعد اعتمادها. وهي مكمّلة لـ<a href="/privacy.html">سياسة الخصوصية العامة</a>؛ وعند اختلافهما في ما يخص تطبيق Windows تسري هذه الصفحة.</p>
+      <p>لا تغطي هذه السياسة المواقع والخدمات الخارجية التي تفتحها من NEXORA (مثل GitHub أو Vercel أو Google أو Microsoft)، ولكل منها سياسة مستقلة.</p>
+    </section>
+
+    <section id="data-ar">
+      <h2>٢. البيانات التي نعالجها</h2>
+      <h3>بيانات الحساب</h3>
+      <ul>
+        <li>الاسم واسم المستخدم والبريد الإلكتروني أو رقم الهاتف وصورة الملف الشخصي الاختيارية ولغة الواجهة.</li>
+        <li>طريقة الدخول (كلمة مرور أو Google أو هاتف)، وتاريخ إنشاء الحساب وآخر دخول ومعرّفات الحساب الداخلية.</li>
+        <li>كلمة المرور تُحفظ كبصمة أحادية الاتجاه ولا يمكن استخراجها.</li>
+      </ul>
+      <h3>المحتوى الذي ترسله</h3>
+      <ul>
+        <li>الرسائل والطلبات والردود المولّدة والمحادثات المحفوظة.</li>
+        <li>الملفات التي تختار رفعها (PDF أو DOCX أو نص أو صور) والنص المستخرج للإجابة عن طلبك.</li>
+        <li>مشاريع NEXORA Studio وملفاتها وأوامر الطرفية ونقاط الاستعادة وروابط النشر.</li>
+        <li>تفضيلات مثل النموذج وأسلوب الرد والسمة واللغة.</li>
+      </ul>
+      <h3>التكاملات والاشتراكات الاختيارية</h3>
+      <ul>
+        <li>عند ربط Google أو GitHub أو Vercel نخزّن رموز الوصول اللازمة للنطاقات التي توافق عليها مشفّرة على الخادم، ونستخدمها فقط لتنفيذ الإجراء الذي تطلبه.</li>
+        <li>حالة الاشتراك والخطة ومرجع الدفع من مزوّد الدفع. لا نخزّن أرقام البطاقات كاملة ولا رموز التحقق البنكية.</li>
+      </ul>
+      <h3>بيانات تقنية</h3>
+      <ul>
+        <li>عنوان IP وإصدار المتصفح/WebView2 ونظام التشغيل والصفحات والأوقات ورسائل الأخطاء ومعرّفات الطلبات — للأمان وتحديد المعدّل وتشخيص الأعطال.</li>
+        <li>لا نجمع الموقع الجغرافي ولا جهات الاتصال ولا الرسائل النصية ولا سجل المكالمات. لا يطلب تطبيق Windows الكاميرا أو الميكروفون؛ وتطلب شاشة المحادثة الميكروفون فقط عند الضغط على زر الصوت.</li>
+      </ul>
+    </section>
+
+    <section id="local-ar">
+      <h2>٣. ما يُخزَّن على جهازك</h2>
+      <p>يعمل تطبيق Windows داخل محرّك المتصفح (Edge/WebView2) بمساحة تخزين مرتبطة بأصل التطبيق. تُخزَّن المفاتيح التالية محليًا على جهازك:</p>
+      <table>
+        <thead><tr><th>المفتاح</th><th>الغرض</th></tr></thead>
+        <tbody>
+          <tr><td><code>nx_token</code></td><td>رمز جلستك الحالية، ويُرسَل إلى خادم NEXORA فقط عبر HTTPS.</td></tr>
+          <tr><td><code>nx_accounts</code></td><td>أسماء ورموز الحسابات التي أضفتها للتبديل السريع على هذا الجهاز.</td></tr>
+          <tr><td><code>nx_me</code></td><td>نسخة مخزّنة من ملفك الأساسي لفتح أسرع.</td></tr>
+          <tr><td><code>nx_theme</code> و<code>nx_lang</code> و<code>nx_view</code></td><td>تفضيلات السمة واللغة وآخر شاشة.</td></tr>
+          <tr><td><code>nx_surface</code></td><td>يشير إلى أن التطبيق فُتح من حزمة MSIX لتطبيق قواعد Windows.</td></tr>
+          <tr><td><code>nx_ads_consent</code> و<code>nx_ads_frequency</code></td><td>اختيارك في الإعلانات وحدّ التكرار المحلي. راجع قسم الإعلانات.</td></tr>
+        </tbody>
+      </table>
+      <p>تخزّن خدمة العمل (service worker) ملفات الواجهة الثابتة والأيقونات وصفحة عدم الاتصال حتى يفتح التطبيق بلا شبكة. لا تخزّن ردود الـ API ولا المحادثات ولا أي طلب يحمل ترويسة مصادقة.</p>
+      <p>يمكنك مسح هذه البيانات المحلية في أي وقت من إعدادات Windows أو من إعدادات بيانات الموقع في المتصفح. مسحها يسجّل خروجك على هذا الجهاز فقط، ولا يحذف بياناتك على الخادم.</p>
+    </section>
+
+    <section id="use-ar">
+      <h2>٤. لماذا نستخدم البيانات</h2>
+      <ul>
+        <li><strong>لتقديم الخدمة:</strong> مصادقة الحساب وحفظ المحادثات والمشاريع وتنفيذ طلبات الذكاء الاصطناعي وإرجاع الردود.</li>
+        <li><strong>للتشغيل والحماية:</strong> منع إساءة الاستخدام وتطبيق حدود الاستخدام وتشخيص الأعطال وحماية الحسابات والامتثال للالتزامات القانونية.</li>
+        <li><strong>لاحترام اختياراتك:</strong> تذكّر اللغة والسمة والموافقات وتطبيقها على هذا الجهاز.</li>
+        <li><strong>بموافقتك فقط:</strong> عرض إعلانات مخصّصة إذا فُعِّل مزوّد في المستقبل، وبعد قبولك فقط.</li>
+      </ul>
+      <p>لا نبيع البيانات الشخصية، ولا نستخدم محادثاتك أو ملفاتك لتدريب نماذجنا.</p>
+    </section>
+
+    <section id="sharing-ar">
+      <h2>٥. المزوّدون والمشاركة</h2>
+      <p>نشارك فقط ما يلزم مع مزوّدي الخدمة الذين يعملون بتعليماتنا أو وفق شروطهم:</p>
+      <ul>
+        <li><strong>الاستضافة والتوصيل:</strong> Vercel (استضافة التطبيق والـ API).</li>
+        <li><strong>قاعدة البيانات:</strong> Neon (PostgreSQL مُدار).</li>
+        <li><strong>مزوّدو الذكاء الاصطناعي:</strong> المزوّدون المضبوطون لتوليد الردود أو الصور أو التضمينات لطلبك.</li>
+        <li><strong>المصادقة:</strong> Google وFirebase عند اختيار الدخول بـ Google أو الهاتف.</li>
+        <li><strong>التكاملات الاختيارية:</strong> Google Docs/Drive وGitHub وVercel، فقط عند ربطها وطلب إجراء.</li>
+        <li><strong>التوزيع:</strong> Microsoft لتثبيت حزمة Store وتحديثاتها وأي تشخيص فعّلته في Windows.</li>
+        <li><strong>الإعلانات:</strong> مزوّد مسمّى فقط إذا فُعِّلت الإعلانات ووافقت؛ راجع القسم التالي.</li>
+      </ul>
+      <p>قد نكشف البيانات إذا أوجب القانون ذلك أو لحماية حقوق المستخدمين والخدمة وأمنهم. تورد السياسة العامة الفئات والروابط بمزيد من التفصيل.</p>
+    </section>
+
+    <section id="ads-ar">
+      <h2>٦. الإعلانات</h2>
+      <div class="callout">
+        <p><strong>الحالة الحالية:</strong> لا توجد شبكة إعلانات طرف ثالث مفعّلة داخل تطبيق Windows (PWA أو MSIX) في الإصدار 4.4.0. لا يُرسَل أي طلب إعلان، ولا يُحتسب أي انطباع، ولا يُنشئ التطبيق معرّفًا إعلانيًا.</p>
+      </div>
+      <p>المساحة الإعلانية محجوزة في التصميم ليُضاف مزوّد شرعي لاحقًا دون تغطية المحتوى أو إزاحته. إعداد الإعلانات منفصل عن كود التطبيق في ملف تهيئة مستقل، ويعمل بمبدأ «الفشل المغلق»: إذا لم يكن المزوّد أو السطح أو الموافقة صالحًا لا يُعرض شيء.</p>
+      <p>إذا فُعِّل مزوّد في إصدار مستقبلي:</p>
+      <ul>
+        <li>سيُطلب منك الإذن قبل أول طلب إعلان، مع خيار رفض واضح بالقدر نفسه. الرفض لا يحدّ من ميزات الذكاء الاصطناعي.</li>
+        <li>سيُسمّى المزوّد في نافذة الموافقة وفي هذه السياسة.</li>
+        <li>يقيس المزوّد الانطباعات والنقرات وفق سياسته. لا يولّد التطبيق انطباعات أو نقرات أو إحصاءات محليًا.</li>
+        <li>لن تُفعَّل الإعلانات في حزمة MSIX/WebView2 إلا إذا أكّد المزوّد كتابيًا السماح بمنتجه في هذه البيئة واستيفاء متطلبات Microsoft Store.</li>
+      </ul>
+      <p>يُستخدم Google AdSense على صفحات الموقع العامة فقط، ولا يُفعَّل داخل تطبيق Windows لأن سياسات AdSense تمنع الإعلانات في أغلفة تطبيقات سطح المكتب وتقنيات WebView. ولا تدعم حزم AdMob للهواتف سطح مكتب Windows، وMG Ads SDK مخصّص لتطبيقات UWP ولا يمكن ربطه بحزمة PWA من نوع Win32/WebView2.</p>
+      <p>يمكنك سحب موافقة الإعلانات في أي وقت بمسح قيمة <code>nx_ads_consent</code> لهذا التطبيق، وستظهر نافذة الموافقة مجددًا عند أول إعلان مؤهل.</p>
+    </section>
+
+    <section id="store-ar">
+      <h2>٧. خصوصية Microsoft Store</h2>
+      <ul>
+        <li>يُوزَّع التطبيق باسم الناشر <strong>BECETTI</strong>، ويظهر في المتجر باسم <strong>NEXORA AI</strong>.</li>
+        <li>تعالج Microsoft التثبيت والتحديثات وبيانات حساب المتجر وفق <a href="https://privacy.microsoft.com/" target="_blank" rel="noopener noreferrer">بيان خصوصية Microsoft</a>. لا نتلقّى كلمة مرور حساب Microsoft الخاص بك.</li>
+        <li>إذا كان التطبيق مجانيًا فلا تتلقّى Microsoft بيانات دفع منّا. اشتراكات NEXORA المدفوعة، إن وُجدت، يعالجها مزوّد الدفع الظاهر عند الشراء ولا يعالجها تطبيق Windows.</li>
+        <li>لا يستخدم التطبيق تشخيصات Windows التقنية بما يتجاوز طلبات الويب العادية إلى خادم NEXORA. وقد تجمع Windows وEdge تشخيصاتهما وفق إعداداتك.</li>
+        <li>إزالة حزمة MSIX تحذف الحزمة وبياناتها. أما PWA المثبَّت من المتصفح فتُزال من المتصفح، وقد تبقى بيانات الموقع في ملفك التعريفي حتى تمسحها.</li>
+      </ul>
+    </section>
+
+    <section id="security-ar">
+      <h2>٨. الأمان</h2>
+      <ul>
+        <li>كل اتصال بخادم NEXORA يستخدم HTTPS، ويرفض التطبيق مخاطبة أصل API غير آمن.</li>
+        <li>لا تُشحن أي أسرار خادم أو بيانات قاعدة بيانات أو مفاتيح مزوّدي الذكاء الاصطناعي في واجهة Windows. طلبات الذكاء الاصطناعي تمرّ عبر API NEXORA الموثّق، ولا يُستعمل مفتاح مزوّد في العميل.</li>
+        <li>رموز الجلسة تُخزَّن في مساحة التطبيق المرتبطة بأصله وتُرسَل إلى خادم NEXORA فقط عبر HTTPS. لا تستطيع مواقع أخرى قراءتها، لكنها ليست محمية بخزنة اعتماد مستقلة في نظام التشغيل لأن تطبيق PWA/MSIX المستضاف لا يملك مثيلًا لخزنة بيانات اعتماد أصلية. من يستطيع استخدام جلسة Windows غير المقفلة وقراءة ملف التطبيق قد يتمكن من استخدام الجلسة؛ احمِ حساب Windows بكلمة مرور أو Windows Hello وسجّل الخروج على الأجهزة المشتركة.</li>
+        <li>يمكنك إنهاء كل الجلسات من «الحساب والأمان ← إنهاء الجلسات على كل الأجهزة»، وحذف حسابك نهائيًا من منطقة الخطر.</li>
+        <li>يتحقق التطبيق من ردود الـ API ويعرض الأخطاء دون كشف أسرار داخلية.</li>
+      </ul>
+    </section>
+
+    <section id="retention-ar">
+      <h2>٩. الاحتفاظ والحذف</h2>
+      <ul>
+        <li>تبقى بيانات الحساب والمحادثات والمشاريع حتى تحذفها أو تحذف حسابك.</li>
+        <li>حذف الحساب يمحو حسابك ومحادثاتك والصور المولّدة وبيانات Studio، ولا يمكن التراجع. قد تحتاج النسخ الاحتياطية وسجلات الأمان فترة قصيرة إضافية حتى تنتهي.</li>
+        <li>تبقى الإعدادات والكاش المحلي على جهازك حتى تمسح بيانات الموقع أو تُزيل التطبيق.</li>
+        <li>قد تُحفظ سجلات الدفع والضرائب حيث يوجب القانون ذلك.</li>
+      </ul>
+    </section>
+
+    <section id="rights-ar">
+      <h2>١٠. حقوقك</h2>
+      <p>بحسب موقعك، قد يحق لك الوصول إلى بياناتك الشخصية وتصحيحها وتصديرها وحذفها، والاعتراض على بعض المعالجة أو تقييدها، وسحب الموافقة في أي وقت. يمكنك ممارسة معظم الحقوق داخل التطبيق، أو مراسلة <a href="mailto:ahmedbecetti35@gmail.com">ahmedbecetti35@gmail.com</a>. قد نحتاج إلى التحقق من سيطرتك على الحساب. ولك الحق في تقديم شكوى إلى هيئة حماية البيانات المحلية.</p>
+    </section>
+
+    <section id="children-ar">
+      <h2>١١. الأطفال</h2>
+      <p>NEXORA AI ليس موجّهًا للأطفال دون 13 عامًا (أو دون السن الدنيا المعتمدة في بلدك). لا نجمع بيانات الأطفال عن قصد. إذا اعتقدت أن طفلًا أنشأ حسابًا، راسلنا لإزالته.</p>
+    </section>
+
+    <section id="ai-ar">
+      <h2>١٢. مخرجات الذكاء الاصطناعي والاستخدام المقبول</h2>
+      <p>قد تكون إجابات الذكاء الاصطناعي خاطئة أو ناقصة. تحقق من المعلومات المهمة قبل الاعتماد عليها، خصوصًا في القرارات الطبية أو القانونية أو المالية أو المتعلقة بالسلامة. لا تستخدم التطبيق لانتهاك الحقوق أو نشر محتوى غير قانوني أو التحايل على ضوابط الأمان. أنت مسؤول عن المحتوى المولّد عندما تنشره.</p>
+    </section>
+
+    <section id="transfers-ar">
+      <h2>١٣. النقل الدولي</h2>
+      <p>قد يعالج مزوّدونا البيانات في بلدان غير بلدك. حيث يلزم، تعتمد عمليات النقل على ضمانات مناسبة مثل الشروط التعاقدية القياسية التي يوفّرها أولئك المزوّدون.</p>
+    </section>
+
+    <section id="changes-ar">
+      <h2>١٤. التغييرات</h2>
+      <p>نحدّث هذه السياسة عند تغيّر تطبيق Windows أو مزوّديه. يتغيّر تاريخ السريان في الأعلى مع كل تحديث، وتُعلَن التغييرات الجوهرية داخل التطبيق أو على هذه الصفحة. استمرارك في استخدام التطبيق بعد التحديث يعني قبولك السياسة المعدّلة.</p>
+    </section>
+
+    <section id="contact-ar">
+      <h2>١٥. التواصل</h2>
+      <p><strong>المتحكّم والدعم:</strong> أحمد بسيتي (BECETTI) · <a href="mailto:ahmedbecetti35@gmail.com">ahmedbecetti35@gmail.com</a><br />
+      <strong>التطبيق:</strong> NEXORA AI لـ Windows · الإصدار 4.4.0 · <a href="/windows/">صفحة نسخة Windows</a> · <a href="/privacy.html">سياسة الخصوصية العامة</a></p>
+    </section>
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <nav aria-label="Footer">
+      <a href="/windows/">Windows app</a>
+      <a href="/windows/en.html">English page</a>
+      <a href="/privacy.html">General privacy</a>
+      <a href="/">NEXORA AI</a>
+      <a href="mailto:ahmedbecetti35@gmail.com">Support</a>
+    </nav>
+    <div>NEXORA AI · Windows Edition · Version 4.4.0 · Publisher BECETTI · Effective 19 November 2026</div>
+  </div>
+</footer>
+</body>
+</html>
