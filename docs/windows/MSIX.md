@@ -181,7 +181,17 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 - أن الحزمة Hosted App Model: `HostId=PWA` و`Microsoft.MicrosoftEdge.Stable`،
   وأن `--app-fallback-url` يبدأ بـ HTTPS ويحتوي `?nx_surface=msix`،
   وأن `--app-id` مكوّن من 32 حرفًا بين a وp ومطابق للمشتق من Manifest ID.
-- وجود `internetClient` و`runFullTrust` وأصول الشعارات و`resources.pri`.
+- وجود `internetClient` فقط، وغياب `runFullTrust`، وأصول الشعارات و`resources.pri`.
+
+### الصلاحيات: `internetClient` فقط
+
+الحزمة **Hosted App Model** بلا `Executable` أو `EntryPoint` أو `FullTrustProcessLauncher`،
+ولا تحتوي أي Win32/.NET binary. لذلك لا تعلن `runFullTrust` ولا يوجد ما يبررها في Partner Center.
+`RuntimeBehavior` و`TrustLevel` يعلنهما مضيف Edge في حزمته، ويطبّقهما Windows على تطبيقنا عبر
+`uap10:HostId="PWA"`؛ إضافتهما إلى `Application` هنا غير صحيحة.
+
+> تحذير: هذه إزالة تحتاج اختبار تثبيت وتشغيل فعلي على Windows 10 2004+ وWindows 11
+> قبل رفع الحزمة إلى المتجر أو استبدال أصول Release.
 - أن `.msixupload` يحتوي bundle ثم msix ثم `AppxBlockMap.xml` و`[Content_Types].xml`،
   وأن نسخة المتجر بلا `AppxSignature.p7x`.
 - عدم وجود أي أثر لمفاتيح/أسرار خادم في ملفات الحزمة.

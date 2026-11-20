@@ -5,6 +5,11 @@ name: Build Windows Store package
 # locally on a Windows runner with the Microsoft Windows SDK.
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish/replace the public release assets (only after a successful Windows install test)'
+        type: boolean
+        default: false
   push:
     paths:
       - '.github/workflows/windows-store-package.yml'
@@ -49,7 +54,10 @@ jobs:
           path: dist/windows/*
           if-no-files-found: error
 
+      # لا تُستبدل أصول Release تلقائياً من فرع تجريبي. النشر يتطلب
+      # تشغيلاً يدوياً مع publish_release=true بعد اختبار التثبيت على Windows.
       - name: Publish GitHub release assets
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release == true
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

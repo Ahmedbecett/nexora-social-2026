@@ -18,8 +18,7 @@
     "maxVersionTested": "10.0.26100.0"
   },
   "capabilities": [
-    "internetClient",
-    "runFullTrust"
+    "internetClient"
   ],
   "generateSignedPackage": false,
   "signingNote": "Use a test certificate for local install. For Store submission follow Partner Center requirements; never commit a certificate.",

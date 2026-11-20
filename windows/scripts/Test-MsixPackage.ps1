@@ -1,8 +1,8 @@
 <#
   NEXORA AI - Inspect an MSIX package without installing it.
   Checks: AppxManifest presence, identity values, 4-part version, StartPage,
-  internetClient capability, required tile/splash assets, and obvious secret
-  leakage in text files.
+  internetClient capability (and no runFullTrust), required tile/splash assets,
+  and obvious secret leakage in text files.
 #>
 [CmdletBinding()]
 param(
@@ -80,8 +80,15 @@ try {
   }
   elseif ($app.StartPage -notmatch '\?nx_surface=msix') { $errors.Add('StartPage must include ?nx_surface=msix so MSIX-only policies apply.') }
   if (-not $hostId -and $app.StartPage -notmatch '^https://') { $errors.Add('StartPage must use HTTPS.') }
-  if (-not ($manifest.Package.Capabilities.ChildNodes | Where-Object { $_.Name -eq 'internetClient' })) {
+  $capabilityNames = @(
+    $manifest.Package.Capabilities.SelectNodes("*[local-name()='Capability']") |
+      ForEach-Object { $_.GetAttribute('Name') }
+  )
+  if ($capabilityNames -notcontains 'internetClient') {
     $errors.Add('internetClient capability is missing.')
+  }
+  if ($capabilityNames -contains 'runFullTrust') {
+    $errors.Add('runFullTrust must not be declared: the package has no full-trust executable.')
   }
 
   $required = @(

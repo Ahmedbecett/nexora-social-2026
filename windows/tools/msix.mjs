@@ -157,7 +157,8 @@ export function validateManifestXml(xml, identity = {}) {
   }
   if (!text.includes('Name="Windows.Desktop"')) errors.push('manifest-target-family');
   if (!text.includes('<Capability Name="internetClient"')) errors.push('manifest-internet-capability');
-  if (!text.includes('<rescap:Capability Name="runFullTrust"')) errors.push('manifest-run-full-trust');
+  // Hosted App Model بلا executable: runFullTrust غير مبرَّر ولا يُسمح بعودته.
+  if (text.includes('runFullTrust')) errors.push('manifest-unexpected-run-full-trust');
   if (!text.includes('Assets\\StoreLogo.png')) errors.push('manifest-store-logo');
   if (!text.includes('Assets\\SplashScreen.png')) errors.push('manifest-splash');
   if (!text.includes('windows.appUriHandler')) errors.push('manifest-uri-handler');

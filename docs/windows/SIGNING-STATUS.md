@@ -75,9 +75,8 @@ Partner Center؛ تلك النسخة للاختبار المحلي فقط.
 3. في **Packages** ارفع ملف `.msixupload`. لا تغيّر امتداده ولا تفتحه/تعيد ضغطه.
 4. أكمل **Store listing** و**Properties** و**Privacy** و**Support** من
    [`STORE-LISTING.md`](STORE-LISTING.md)، ثم أرسل للاعتماد.
-5. إذا طلب المُراجع توضيحًا لصلاحية `runFullTrust`: الحزمة hosted PWA تعتمد على
-   Edge Stable كمضيف (وفق Hosted App Model من Microsoft)، والتطبيق لا يثبّت
-   برامج أخرى ولا يقرأ ملفات المستخدم.
+5. الحزمة لا تعلن `runFullTrust`؛ لا يوجد executable ولا full-trust process.
+   إن ظهر تحذير قديم، فتأكد أنك رفعت البناء الجديد وليس الحزمة السابقة.
 6. `storeUrl` في `windows/package-identity.json` يبقى فارغًا حتى ظهور صفحة المتجر.
    لا تضع رابطًا قبل النشر.
 

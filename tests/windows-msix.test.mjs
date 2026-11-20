@@ -123,7 +123,6 @@ test('مانيفست الحزمة يستخدم Hosted App Model وليس StartPa
     '--app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix',
     '--windows-store-app',
     '<Capability Name="internetClient"',
-    '<rescap:Capability Name="runFullTrust"',
     'Assets\\StoreLogo.png',
     'Assets\\SplashScreen.png',
     'windows.appUriHandler',
@@ -133,6 +132,20 @@ test('مانيفست الحزمة يستخدم Hosted App Model وليس StartPa
   assert.doesNotMatch(manifest, /StartPage=/);
   assert.doesNotMatch(manifest, /ProductId="9[A-Z0-9]{11}"/);
   assert.match(manifest, /Hosted App Model/);
+});
+
+test('الحزمة لا تعلن runFullTrust: الشبكة فقط', () => {
+  assert.doesNotMatch(manifest, /runFullTrust/);
+  assert.doesNotMatch(manifest, /rescap:/);
+  assert.match(manifest, /<Capability Name="internetClient" \/>/);
+
+  // أي عودة للصلاحية يجب أن يرفضها المدقق قبل البناء.
+  const withFullTrust = manifest.replace(
+    '<Capability Name="internetClient" />',
+    '<Capability Name="internetClient" />\n    <rescap:Capability Name="runFullTrust" />',
+  );
+  const result = validateManifestXml(withFullTrust, identity);
+  assert.ok(result.errors.includes('manifest-unexpected-run-full-trust'));
 });
 
 test('سكربتات Windows ترفض Product ID مخترعًا وتشترط التوقيع عند الطلب', () => {

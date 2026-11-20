@@ -89,6 +89,9 @@ Assert-TextContains $manifestText "Publisher=`"$($identity.publisher)`"" 'Manife
 Assert-TextContains $manifestText 'uap10:HostId="PWA"' 'Manifest is not a Hosted App Model package.'
 Assert-TextContains $manifestText 'Name="Microsoft.MicrosoftEdge.Stable"' 'Manifest does not declare the Edge stable host.'
 Assert-TextContains $manifestText '--windows-store-app' 'Manifest is missing the Store launch flag.'
+if ($manifestText.Contains('runFullTrust')) {
+  throw 'runFullTrust is not allowed: this Hosted App Model package has no full-trust executable.'
+}
 
 $appIdMatch = [regex]::Match($manifestText, '--app-id=([a-p]{32})\b')
 if (-not $appIdMatch.Success) { throw 'Manifest has no valid --app-id (32 characters a-p).' }
@@ -256,6 +259,7 @@ Web App ID:         $appId
 Fallback URL:       $($identity.startPage)
 Target family:      Windows.Desktop, MinVersion $($identity.minWindowsVersion)
 Host:               Microsoft.MicrosoftEdge.Stable (HostId PWA)
+Capabilities:       internetClient only (no runFullTrust, no local executable)
 Built (UTC):        $([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'))
 
 Store upload:  $([System.IO.Path]::GetFileName($uploadPath)) (UNSIGNED; Store re-signs it)
