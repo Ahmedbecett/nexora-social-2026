@@ -34,7 +34,12 @@ try {
   Write-Host "  Version:     $($identity.Version)"
   Write-Host "  DisplayName: $($manifest.Package.Properties.DisplayName)"
   Write-Host "  PublisherDN: $($manifest.Package.Properties.PublisherDisplayName)"
-  Write-Host "  StartPage:   $($app.StartPage)"
+  $uap10Ns = 'http://schemas.microsoft.com/appx/manifest/uap/windows10/10'
+  $hostId = $app.GetAttribute('HostId', $uap10Ns)
+  $parameters = $app.GetAttribute('Parameters', $uap10Ns)
+  if ($hostId) { Write-Host "  HostId:      $hostId" }
+  if ($parameters) { Write-Host "  Parameters:  $parameters" }
+  if ($app.StartPage) { Write-Host "  StartPage:   $($app.StartPage)" }
 
   if ($identity.Version -notmatch '^\d{1,5}\.\d{1,5}\.\d{1,5}\.\d{1,5}$') { $errors.Add('Version is not four numeric parts.') }
   if ($identity.Name -match 'REPLACE|PARTNER-CENTER|TODO') { $errors.Add('Identity Name is still a placeholder.') }
@@ -48,15 +53,27 @@ try {
     if ($identity.Version -ne $expected.version) { $errors.Add("Version does not match package-identity.json: $($identity.Version)") }
     if ($manifest.Package.Properties.DisplayName -ne $expected.displayName) { $errors.Add("DisplayName does not match package-identity.json: $($manifest.Package.Properties.DisplayName)") }
     if ($manifest.Package.Properties.PublisherDisplayName -ne $expected.publisherDisplayName) { $errors.Add("PublisherDisplayName does not match package-identity.json: $($manifest.Package.Properties.PublisherDisplayName)") }
-    if ($app.StartPage -ne $expected.startPage) { $errors.Add("StartPage does not match package-identity.json: $($app.StartPage)") }
+    if ($hostId) {
+      if ($parameters -notmatch '--app-fallback-url=(?<url>https://\S+)') { $errors.Add('Hosted package has no --app-fallback-url.') }
+      elseif ($Matches['url'] -ne $expected.startPage) { $errors.Add("Fallback URL does not match package-identity.json: $($Matches['url'])") }
+      if ($parameters -notmatch '--app-id=[a-p]{32}') { $errors.Add('Hosted package has no valid --app-id.') }
+      if ($parameters -notmatch '--ip-edge-aumid=Microsoft\.MicrosoftEdge\.stable_8wekyb3d8bbwe!MSEDGE') { $errors.Add('Hosted package does not target Microsoft Edge stable.') }
+    }
+    elseif ($app.StartPage -ne $expected.startPage) { $errors.Add("StartPage does not match package-identity.json: $($app.StartPage)") }
   }
   else {
     Write-Warning "Identity file not found ($IdentityFile); only structural identity checks were performed."
   }
   if ($manifest.Package.Properties.DisplayName -ne 'NEXORA AI') { $errors.Add('DisplayName must be "NEXORA AI".') }
   if ($manifest.Package.Properties.PublisherDisplayName -ne 'Ahmedbecetti') { $errors.Add('PublisherDisplayName must be "Ahmedbecetti" (Partner Center).') }
-  if ($app.StartPage -notmatch '\?nx_surface=msix') { $errors.Add('StartPage must include ?nx_surface=msix so MSIX-only policies apply.') }
-  if ($app.StartPage -notmatch '^https://') { $errors.Add('StartPage must use HTTPS.') }
+  if ($hostId) {
+    if ($hostId -ne 'PWA') { $errors.Add("Unsupported HostId: $hostId") }
+    if ($parameters -notmatch '--app-fallback-url=https://\S*\?nx_surface=msix') { $errors.Add('Fallback URL must include ?nx_surface=msix so MSIX-only policies apply.') }
+    if ($parameters -notmatch '--app-id=[a-p]{32}\b') { $errors.Add('Hosted package must carry a 32-character a-p web app id.') }
+    if ($parameters -notmatch '--windows-store-app') { $errors.Add('Hosted package must include --windows-store-app.') }
+  }
+  elseif ($app.StartPage -notmatch '\?nx_surface=msix') { $errors.Add('StartPage must include ?nx_surface=msix so MSIX-only policies apply.') }
+  if (-not $hostId -and $app.StartPage -notmatch '^https://') { $errors.Add('StartPage must use HTTPS.') }
   if (-not ($manifest.Package.Capabilities.ChildNodes | Where-Object { $_.Name -eq 'internetClient' })) {
     $errors.Add('internetClient capability is missing.')
   }

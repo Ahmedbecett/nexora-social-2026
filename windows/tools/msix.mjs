@@ -9,6 +9,7 @@
    ========================================================================== */
 
 import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
 export const REQUIRED_ASSETS = [
@@ -51,6 +52,23 @@ export function isValidMsixVersion(value) {
   return parts[3] === 0;
 }
 
+/**
+ * معرّف تطبيق الويب الذي يتوقعه Edge في uap10:Parameters.
+ * نفس خوارزمية Chromium GenerateId: SHA-256 للمعرّف المطلق، أول 16 بايت،
+ * ثم تحويل كل nibble hexadecimal إلى حرف بين a وp.
+ */
+export function webAppIdFromManifestId(manifestId) {
+  const value = String(manifestId || '').trim();
+  if (!/^https:\/\//.test(value)) throw new Error(`manifest-id-must-be-https:${value}`);
+  const hex = createHash('sha256').update(value, 'utf8').digest('hex').slice(0, 32);
+  return [...hex]
+    .map((c) => {
+      const code = c.charCodeAt(0);
+      return String.fromCharCode(code <= 57 ? code + 49 : code + 10);
+    })
+    .join('');
+}
+
 const IDENTITY_PLACEHOLDER = /REPLACE|PARTNER-CENTER|TODO|CHANGEME/i;
 const OFFICIAL_PUBLISHER_DISPLAY_NAME = 'Ahmedbecetti';
 
@@ -79,6 +97,15 @@ export function validateIdentity(identity) {
   const start = String(id.startPage || '');
   if (!/^https:\/\//.test(start)) errors.push('start-page-must-be-https');
   if (!/[?&]nx_surface=msix/.test(start)) errors.push('start-page-missing-msix-surface');
+
+  const webAppManifestId = String(id.webAppManifestId || '');
+  if (webAppManifestId) {
+    if (!/^https:\/\//.test(webAppManifestId)) errors.push('web-app-manifest-id-must-be-https');
+    const expected = webAppIdFromManifestId(webAppManifestId);
+    if (String(id.webAppId || '') !== expected) errors.push('web-app-id-mismatch');
+  } else if (id.webAppId && !/^[a-p]{32}$/.test(String(id.webAppId))) {
+    errors.push('web-app-id-invalid');
+  }
 
   // يُسمح بالمعرّف الحقيقي بعد Partner Center؛ نرفض فقط القيم غير الصالحة.
   if (id.productId && !looksLikeStoreProductId(id.productId)) errors.push('product-id-invalid');
@@ -112,9 +139,21 @@ export function validateManifestXml(xml, identity = {}) {
   if (!text.includes(`<PublisherDisplayName>${OFFICIAL_PUBLISHER_DISPLAY_NAME}</PublisherDisplayName>`)) errors.push('manifest-publisher-display-name');
   if (identity.identityName && !text.includes(`Name="${identity.identityName}"`)) errors.push('manifest-identity-name');
   if (identity.publisher && !text.includes(`Publisher="${identity.publisher}"`)) errors.push('manifest-publisher');
-  if (!text.includes('StartPage="https://nexora-social-2026.vercel.app/?nx_surface=msix"')) errors.push('manifest-start-page');
+  if (!text.includes('StartPage=')) {
+    // Hosted App Model: لا يوجد StartPage، والرابط في --app-fallback-url.
+    if (!text.includes('uap10:HostId="PWA"')) errors.push('manifest-host-id');
+    if (!text.includes('uap10:HostRuntimeDependency')) errors.push('manifest-host-runtime-dependency');
+    if (!text.includes('Name="Microsoft.MicrosoftEdge.Stable"')) errors.push('manifest-edge-host');
+    if (!/--app-id=[a-p]{32}\b/.test(text)) errors.push('manifest-web-app-id');
+    if (identity.webAppId && !text.includes(`--app-id=${identity.webAppId}`)) errors.push('manifest-web-app-id-mismatch');
+    if (!text.includes('--app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix')) errors.push('manifest-fallback-url');
+    if (!text.includes('--windows-store-app')) errors.push('manifest-store-launch-flag');
+  } else {
+    errors.push('manifest-must-use-hosted-app-model');
+  }
   if (!text.includes('Name="Windows.Desktop"')) errors.push('manifest-target-family');
   if (!text.includes('<Capability Name="internetClient"')) errors.push('manifest-internet-capability');
+  if (!text.includes('<rescap:Capability Name="runFullTrust"')) errors.push('manifest-run-full-trust');
   if (!text.includes('Assets\\StoreLogo.png')) errors.push('manifest-store-logo');
   if (!text.includes('Assets\\SplashScreen.png')) errors.push('manifest-splash');
   if (!text.includes('windows.appUriHandler')) errors.push('manifest-uri-handler');
@@ -127,6 +166,7 @@ export default {
   REQUIRED_ASSETS,
   toMsixVersion,
   isValidMsixVersion,
+  webAppIdFromManifestId,
   validateIdentity,
   findMissingAssets,
   looksLikeStoreProductId,

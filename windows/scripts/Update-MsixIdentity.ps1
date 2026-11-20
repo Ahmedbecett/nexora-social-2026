@@ -10,7 +10,7 @@
     1. Refuses to embed an invented Store Product ID.
     2. Extracts the .msix (it is a ZIP container) to a temporary folder.
     3. Replaces Identity Name/Publisher/Version, DisplayName, PublisherDisplayName
-       and the Application StartPage (adds ?nx_surface=msix).
+       and the hosted PWA fallback URL (keeps ?nx_surface=msix) or StartPage.
     4. Repacks with makeappx.exe and optionally signs with signtool.exe.
 
   Requirements: Windows 10/11, Windows SDK (makeappx/signtool), a .msix produced
@@ -94,7 +94,24 @@ try {
 
   $app = @($package.Applications.Application)[0]
   if (-not $app) { throw 'The package has no Application element.' }
-  $app.StartPage = [string]$identity.startPage
+  $uap10Ns = 'http://schemas.microsoft.com/appx/manifest/uap/windows10/10'
+  $hostId = $app.GetAttribute('HostId', $uap10Ns)
+  if ($hostId) {
+    if ($hostId -ne 'PWA') { throw "Unsupported hosted app HostId: $hostId" }
+    $parameters = $app.GetAttribute('Parameters', $uap10Ns)
+    if (-not $parameters) { throw 'Hosted package has no uap10:Parameters.' }
+    if ($parameters -notmatch '--app-id=[a-p]{32}') { throw 'Hosted package has no valid --app-id.' }
+    if ($parameters -notmatch '--app-fallback-url=') { throw 'Hosted package has no --app-fallback-url.' }
+    $parameters = [regex]::Replace($parameters, '--app-fallback-url=\S+', "--app-fallback-url=$([string]$identity.startPage)")
+    $app.SetAttribute('Parameters', $uap10Ns, $parameters) | Out-Null
+    Write-Host "Hosted App Model: HostId=PWA, fallback URL set to $($identity.startPage)"
+  }
+  elseif ($app.StartPage) {
+    $app.StartPage = [string]$identity.startPage
+  }
+  else {
+    throw 'Application has neither uap10:HostId nor StartPage; refusing to guess the launch URL.'
+  }
 
   # Keep tile/splash paths valid relative to the package root.
   foreach ($asset in @(

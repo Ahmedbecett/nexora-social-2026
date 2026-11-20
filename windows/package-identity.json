@@ -6,6 +6,8 @@
   "version": "4.4.0.0",
   "applicationId": "App",
   "startPage": "https://nexora-social-2026.vercel.app/?nx_surface=msix",
+  "webAppManifestId": "https://nexora-social-2026.vercel.app/",
+  "webAppId": "pkojfojlpmhfnldcmaemlmpbkcdmihle",
   "architectures": [
     "x64",
     "arm64"

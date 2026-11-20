@@ -14,6 +14,7 @@ import {
   REQUIRED_ASSETS,
   toMsixVersion,
   isValidMsixVersion,
+  webAppIdFromManifestId,
   validateIdentity,
   findMissingAssets,
   validateManifestXml,
@@ -48,6 +49,10 @@ test('هوية المنتج الحقيقية من Partner Center مثبّتة ف
   assert.equal(identity.storeUrl, '', 'لا رابط متجر قبل النشر');
   assert.equal(identity.applicationId, 'App');
   assert.equal(identity.startPage, 'https://nexora-social-2026.vercel.app/?nx_surface=msix');
+  assert.equal(identity.webAppManifestId, 'https://nexora-social-2026.vercel.app/');
+  assert.equal(identity.webAppId, 'pkojfojlpmhfnldcmaemlmpbkcdmihle');
+  assert.equal(webAppIdFromManifestId(identity.webAppManifestId), identity.webAppId);
+  assert.equal(webAppIdFromManifestId('https://nexora-social-2026.vercel.app/?nx_surface=pwa'), 'khpbciolabiceimodlbidabjnmgijghj');
   assert.match(identity.privacyPolicyUrl, /\/windows\/privacy\.html$/);
   assert.match(identity.supportUrl, /\/windows\/#support$/);
   assert.equal(identity.contactEmail, 'ahmedbecetti35@gmail.com');
@@ -93,7 +98,7 @@ test('أصول MSIX المطلوبة موجودة فعلًا وغير فارغة
   }
 });
 
-test('مانيفست المرجع يستوفي Store: HTTPS، MSIX surface، Windows.Desktop، وروابط تطبيق', () => {
+test('مانيفست الحزمة يستخدم Hosted App Model وليس StartPage', () => {
   // تعليقات XML لا يجوز أن تحتوي على «--» وإلا يفشل تحليل الحزمة
   const commentStart = manifest.indexOf('<!--') + 4;
   const commentEnd = manifest.indexOf('-->');
@@ -107,15 +112,23 @@ test('مانيفست المرجع يستوفي Store: HTTPS، MSIX surface، Win
     'Publisher="CN=A5D5DC31-4A15-4059-8030-D96C51054596"',
     'Name="Windows.Desktop"',
     'MinVersion="10.0.19041.0"',
+    'uap10:HostId="PWA"',
+    'uap10:HostRuntimeDependency',
+    'Name="Microsoft.MicrosoftEdge.Stable"',
+    `--app-id=${identity.webAppId}`,
+    '--app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix',
+    '--windows-store-app',
     '<Capability Name="internetClient"',
+    '<rescap:Capability Name="runFullTrust"',
     'Assets\\StoreLogo.png',
     'Assets\\SplashScreen.png',
     'windows.appUriHandler',
   ]) {
     assert.ok(manifest.includes(fragment), fragment);
   }
+  assert.doesNotMatch(manifest, /StartPage=/);
   assert.doesNotMatch(manifest, /ProductId="9[A-Z0-9]{11}"/);
-  assert.match(manifest, /REFERENCE/);
+  assert.match(manifest, /Hosted App Model/);
 });
 
 test('سكربتات Windows ترفض Product ID مخترعًا وتشترط التوقيع عند الطلب', () => {
