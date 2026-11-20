@@ -19,10 +19,39 @@
 | Store URL | pending publication | Do not publish a link before certification |
 | Category | Productivity | Partner Center |
 | Pricing | Free to download | Confirm in Partner Center |
-| Privacy policy URL | `https://nexora-social-2026.vercel.app/windows/privacy.html` | Deployed page |
-| Support URL | `https://nexora-social-2026.vercel.app/windows/#support` | Deployed page |
+| Privacy policy URL | `https://nexora-social-2026.vercel.app/windows/privacy.html` | في الفرع فقط — لم تُنشر على `main` بعد |
+| Support URL | `https://nexora-social-2026.vercel.app/windows/#support` | في الفرع فقط — لم تُنشر على `main` بعد |
 | Support email | `ahmedbecetti35@gmail.com` | Public contact |
 | Website | `https://nexora-social-2026.vercel.app/` | Production |
+
+## Partner Center Properties — القيم الجاهزة
+
+> **تحذير قبل الإرسال:** صفحة `/windows/privacy.html` موجودة في فرع العمل فقط، وليست في
+> `main` الذي تُبنى منه نسخة الإنتاج الحالية. لا تضع رابط Windows في Partner Center قبل
+> نشر الفرع، وإلا سجّل المراجع رابطًا غير موجود. الرابط العام الحي مؤقتًا هو
+> `https://nexora-social-2026.vercel.app/privacy.html`، لكنه لا يخصّ Windows بالتفصيل.
+
+| حقل Properties | القيمة |
+|---|---|
+| Category | **Productivity** (لا توجد فئة فرعية لها) |
+| Secondary category | اتركه فارغًا (اختياري: Developer tools) |
+| Does this product access/collect/transmit personal information? | **Yes** |
+| Privacy policy URL | `https://nexora-social-2026.vercel.app/windows/privacy.html` بعد نشر الفرع |
+| Website | `https://nexora-social-2026.vercel.app/` |
+| Support contact info | `ahmedbecetti35@gmail.com` (أو رابط الدعم بعد نشره) |
+| Phone / address | اتركه فارغًا لحساب فردي |
+| Display mode | **اترك كل الخيارات غير محددة** — التطبيق ثنائي الأبعاد وليس Mixed Reality |
+| System requirements | اترك الأجهزة «Not specified»؛ لا تدّعِ حدًا أدنى لم تُختبره |
+
+**Product declarations:**
+
+- «This product allows users to make purchases…» — **لا** (لا مشتريات داخل نسخة Windows).
+- «Tested to meet accessibility guidelines» — **لا** (لم يُجرَّب Narrator/AccChecker بعد).
+- «Install to alternate drives…» — **نعم** (الافتراضي).
+- «Windows can include data in OneDrive backups» — اتركه افتراضيًا (نعم).
+- «Record and broadcast clips of this game» — **لا** (ليس لعبة).
+- «Supports pen and ink input» — **لا** (لا حبر رقمي).
+- «This product incorporates generative AI features» — **نعم إلزاميًّا** (يولّد نصًا/صورًا/كودًا).
 
 ## Short description
 
