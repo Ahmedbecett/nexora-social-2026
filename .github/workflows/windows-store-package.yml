@@ -138,6 +138,9 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
+          if (Test-Path dist/runfulltrust-experiment/experiment-status.json) {
+            Get-Content dist/runfulltrust-experiment/experiment-status.json -Raw | Write-Host
+          }
           if (Test-Path dist/runfulltrust-experiment/install-test-no-fulltrust.json) {
             Get-Content dist/runfulltrust-experiment/install-test-no-fulltrust.json -Raw
             $json = Get-Content dist/runfulltrust-experiment/install-test-no-fulltrust.json -Raw | ConvertFrom-Json
