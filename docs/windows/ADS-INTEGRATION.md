@@ -71,7 +71,7 @@
 
 ### الأسطح (Surfaces)
 
-`runtimeSurface()` يقرأ معامل `?nx_surface=msix` الذي يضعه ملف الحزمة في `StartPage`، ويحفظه في
+`runtimeSurface()` يقرأ معامل `?nx_surface=msix` الذي تضعه الحزمة في `--app-fallback-url`، ويحفظه في
 `sessionStorage`، ويميّز:
 
 | السطح | الوصف | الإعلانات |

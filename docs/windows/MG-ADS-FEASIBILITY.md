@@ -40,16 +40,16 @@ Banner Ad ولم تُدخل مفاتيح MG Ads**. أي ادعاء بأن الإ
 > ملاحظة مهمة: استخدام MG لـ WebView2 داخليًا لعرض صفحات تسجيل الدخول/الدفع/الإعلان **لا يجعله**
 > SDK ويب. الكود الذي يستدعي الإعلان يبقى C#/UWP (أو C++ في نسخة Win32)، ولا يُستدعى من DOM.
 
-## ٣) لماذا لا يعمل داخل حزمة PWABuilder الحالية؟
+## ٣) لماذا لا يعمل داخل حزمة Hosted App Model الحالية؟
 
-حزمة PWABuilder لتطبيق PWA هي **Hosted Web App**:
+حزمة NEXORA AI هي **Hosted App Model** تعتمد على Edge Stable:
 
-- تحتوي `AppxManifest.xml` على `StartPage` يشير إلى الموقع، وليس على صفحة XAML أو `Executable` خاص
-  بتطبيق UWP أو Win32 مملوك لنا.
+- تحتوي `AppxManifest.xml` على `uap10:HostId="PWA"` و`--app-fallback-url` يشير إلى الموقع، وليس على
+  صفحة XAML أو `Executable` خاص بتطبيق UWP أو Win32 مملوك لنا.
 - الصفحة تعمل داخل WebView2 بواجهة الويب فقط؛ لا توجد مساحة أسماء `MiracleGames.*` ولا تحميل
   لحزم NuGet الخاصة بـ UWP، ولا مشروع C++ نضيف إليه مكتبة Win32.
-- إضافة ملفات SDK إلى مجلد الحزمة لا تكفي: يجب وجود عملية أصلية تستدعي الواجهة البرمجية. مشروع
-  PWABuilder المضيف يُولَّد خارج المستودع، وليس لدينا مصدره هنا لتعديله أو لإضافة جسر أصلي.
+- إضافة ملفات SDK إلى مجلد الحزمة لا تكفي: يجب وجود عملية أصلية تستدعي الواجهة البرمجية. المضيف
+  هو Edge Stable نفسه، وليس مشروعًا نملك مصدره أو نضيف إليه جسرًا أصليًا.
 - حتى لو أضفنا DLL إلى الحزمة، فلن تستطيع JavaScript استدعاء واجهات WinRT/UWP أو C++ الخاصة به
   دون جسر أصلي مُعرَّف في المضيف (وهو غير موجود في هذه الحزمة).
 - نسخة H5 SDK مرتبطة بمنصة **H5 Microsoft Store** التابعة لـ MG؛ لا يوجد دليل عام على أنها تُحمَّل في
@@ -121,9 +121,9 @@ MG Ads is a family, not a single API:
 - **H5 SDK** — for MG's own "H5 Microsoft Store" channel; its documentation page currently fails to load,
   and the download link on MG's Advertising SDK page points back to the UWP SDK page.
 
-NEXORA AI is a **PWABuilder hosted PWA MSIX** (Win32/WebView2, `StartPage`), not a UWP app, not a native
-C++/Win32 app, and not an MG-hosted H5 Store game. This repository does not own the generated PWABuilder
-host source, and there is no native bridge for `MiracleGames.*`. WebView2 inside the MG SDK is an internal
+NEXORA AI is a **Hosted App Model PWA MSIX** (Edge-hosted, no local executable, no `StartPage`), not a UWP app,
+not a native C++/Win32 app, and not an MG-hosted H5 Store game. The host is Edge Stable, and there is no
+native bridge for `MiracleGames.*` in this package. WebView2 inside the MG SDK is an internal
 browser for MG's own login/payment/ad pages; it is not a JavaScript API for third-party web content.
 
 Therefore an MG Ads banner **cannot** be integrated into the current package without a separate native host

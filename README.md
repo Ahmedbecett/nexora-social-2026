@@ -70,10 +70,12 @@
   (service worker) لا تخزّن `/api/` ولا الجلسات، وصفحة عدم اتصال، وتحديث آمن بموافقة المستخدم.
 - **إحساس Windows:** شريط عنوان Window Controls Overlay، قائمة تطبيق، اختصارات `Ctrl+N` و`Ctrl+,`
   و`F1`، أوضاع فاتح/داكن، RTL/LTR، وحالات تحميل وخطأ واضحة.
-- **حزمة MSIX:** مانيفست مرجعي، 53 أصلًا (شعارات/مربعات/Splash/Unplated)، وهوية Partner Center الحقيقية
-  `Ahmedbecetti.NEXORAAIbyBECETTI` (Publisher Display: `Ahmedbecetti`) وإصدار `4.4.0.0`، مع
-  Product ID `9ND09PBRDPKZ` كمسودة غير منشورة. بناء الحزمة وتوقيعها يحتاجان Windows وشهادة؛
-  **لا يوجد رابط متجر قبل الاعتماد**.
+- **حزمة MSIX جاهزة للرفع:** بُنيت فعليًا على Windows SDK بنموذج Hosted App Model، بهوية
+  `Ahmedbecetti.NEXORAAIbyBECETTI` (Publisher Display: `Ahmedbecetti`) وإصدار `4.4.0.0`،
+  و53 أصلًا و`resources.pri`. حمّل `NEXORA-AI_4.4.0.0_neutral.msixupload` من
+  [Release Windows](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.0.0)
+  وارفعه إلى Partner Center؛ الحزمة غير موقّعة عمدًا لأن المتجر يعيد توقيعها.
+  Product ID `9ND09PBRDPKZ` ما زال مسودة؛ **لا يوجد رابط متجر قبل الاعتماد**.
 - **الإعلانات معطّلة بصدق:** AdMob لا يدعم Windows، وMG Ads UWP SDK لا يعمل مع حزمة WebView2،
   ونسختا MG C++/H5 غير موثقتين لهذه البيئة، وAdSense ممنوع في أغلفة التطبيقات. لذلك `enabled: false` و`provider: none` مع خانة محجوزة وموافقة
   جاهزتين — التفاصيل في [`docs/windows/ADS-INTEGRATION.md`](docs/windows/ADS-INTEGRATION.md).

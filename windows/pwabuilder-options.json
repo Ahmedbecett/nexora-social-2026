@@ -1,5 +1,5 @@
 {
-  "_note": "Reference values from Partner Center (2026-11-19). This is NOT an official PWABuilder import file. Product ID is recorded but the listing is still a draft; do not publish a Store link until certification.",
+  "_note": "Reference values from Partner Center (2026-11-19). The actual package is built by windows/scripts/Build-Msix.ps1 (Hosted App Model, neutral architecture); this file is kept only as a readable identity snapshot. Product ID is recorded but the listing is still a draft; do not publish a Store link until certification.",
   "webAppUrl": "https://nexora-social-2026.vercel.app/",
   "appName": "NEXORA AI",
   "shortName": "NEXORA AI",
@@ -10,8 +10,7 @@
   "displayMode": "standalone",
   "startPage": "https://nexora-social-2026.vercel.app/?nx_surface=msix",
   "architectures": [
-    "x64",
-    "arm64"
+    "neutral"
   ],
   "targetDeviceFamily": {
     "name": "Windows.Desktop",
@@ -19,7 +18,8 @@
     "maxVersionTested": "10.0.26100.0"
   },
   "capabilities": [
-    "internetClient"
+    "internetClient",
+    "runFullTrust"
   ],
   "generateSignedPackage": false,
   "signingNote": "Use a test certificate for local install. For Store submission follow Partner Center requirements; never commit a certificate.",

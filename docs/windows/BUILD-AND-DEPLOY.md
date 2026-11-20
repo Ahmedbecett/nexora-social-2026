@@ -7,7 +7,7 @@
 - Node.js 20 أو أحدث (المشروع مختبر على Node 22).
 - npm 10+.
 - للتحقق من Windows: جهاز Windows 10 (2004/19041+) أو Windows 11، وMicrosoft Edge.
-- لبناء MSIX: Windows 10/11 + Windows SDK (يوفر `makeappx.exe` و`signtool.exe`) + شهادة توقيع من Partner Center.
+- لبناء MSIX: Windows 10/11 + Windows SDK (يوفر `makeappx.exe` و`makepri.exe` و`signtool.exe`). شهادة التوقيع ليست مطلوبة للمتجر؛ المتجر يعيد توقيع الحزمة.
 - لا تحتاج تغيير أي متغير بيئة خادم. الواجهة تستخدم القيم الإنتاجية:
   `VITE_API_BASE=https://nexora-social-2026.vercel.app` و`VITE_WEB_URL` نفس النطاق (في `.env.production`).
 
@@ -108,14 +108,14 @@ npm run build                # dist/ with sw.js, offline.html, /windows/
 npx vercel --prod            # deploy (or merge to main)
 ```
 
-Then on Windows:
+Then on Windows, build the real Hosted App Model package:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\windows\scripts\Update-MsixIdentity.ps1 `
-  -SourceMsix .\NEXORA.msix -OutputMsix .\dist\NEXORA-AI-Windows.msix `
-  -CertificatePath .\nexora.pfx -RequireSignature
-powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 `
-  -MsixPath .\dist\NEXORA-AI-Windows.msix
+powershell -ExecutionPolicy Bypass -File .\windows\scripts\Build-Msix.ps1 `
+  -OutputDirectory .\dist\windows
 ```
 
-Never commit the certificate. Never deploy an unsigned package to the Store. Never add a fake Product ID.
+Upload `dist\windows\NEXORA-AI_4.4.0.0_neutral.msixupload` to Partner Center. It is
+unsigned by design; Microsoft Store re-signs it. The test-signed `.msix` is only for
+local sideload. Never commit the certificate. Never upload a test-signed package or a
+fake Product ID.

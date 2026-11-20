@@ -3,14 +3,14 @@
 **Date:** 19 November 2026
 **Branch:** `arena/1ca98629-nexora-social-2026` (base `cfd80a8`)
 **App version:** 4.4.0 · **MSIX version:** 4.4.0.0
-**Environment:** Linux build sandbox, Node.js 22.22.3, npm 10.9.8, no Windows host, no signing certificate.
-Partner Center identity values are recorded and validated, but no package has been signed or submitted.
+**Environment:** Linux workspace for source checks; GitHub Actions `windows-2025` runner with Windows SDK for the real package build. No interactive Windows host and no Partner Center submission.
+An unsigned Store package and a self-signed sideload test package were built; nothing has been submitted to Microsoft.
 Browser checks used `curl` and static analysis; **no headless browser is available in this sandbox**, so
 real-window screenshots were not produced.
 
 > This report separates **automated results** from **manual Windows verification**. The manual matrix below
-> is **pending** and must be completed on Windows before any Store submission. Nothing in this file claims
-> a signed MSIX or a Store listing exists.
+> is **pending** and must be completed on Windows before relying on the package. A real unsigned `.msixupload`
+> exists, but this file does not claim Store certification or an interactive install test.
 
 ## 1 · Automated results
 
@@ -21,6 +21,7 @@ real-window screenshots were not produced.
 | `npm run build` | ✅ | Vite production build; `dist/` verified |
 | `node windows/tools/sync-version.mjs --check` | ✅ | `package.json 4.4.0` → MSIX `4.4.0.0` |
 | `npm run windows:check` | ✅ exit 0 | Partner Center identity verified; 1 warning: Store URL pending publication |
+| Windows package build | ✅ | `Build-Msix.ps1` on Windows Server 2025: `makepri`, `makeappx pack/bundle`, `.msixupload` structure check, `Test-MsixPackage.ps1` |
 | Dev server route check | ✅ 9/9 HTTP 200 | `/`, `/windows/`, `/windows/en.html`, `/windows/privacy.html`, `/windows/ads-config.json`, `/sw.js`, `/offline.html`, `/manifest.webmanifest`, `/version.json` |
 
 ### What the new tests cover (`tests/windows-*.test.mjs`)
@@ -52,11 +53,11 @@ This is exactly the kind of bug a Store reviewer would hit by reopening the app 
 - Production bundle contains **no** Google test ad units (`6300978111`, `1033173712`, `5224354917`,
   `3347511713` absent); test IDs are build-time dev-only now.
 - `windows/msix/Assets/` contains 53 PNGs (icons, tiles, splash scales, unplated variants).
-- `windows/msix/AppxManifest.reference.xml` is a **reference**, not a buildable package manifest.
+- `windows/msix/AppxManifest.reference.xml` is the **actual Hosted App Model manifest** copied into the package. The built artifacts are attached to the [Windows release](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.0.0).
 
 ## 3 · Manual Windows test matrix (pending)
 
-Complete on a real Windows machine with Edge, the installed PWA, and (when available) a signed MSIX.
+Complete on a real Windows machine with Edge and the test-signed `.msix` (or the installed PWA). The Store-upload package is unsigned by design.
 Statuses start as **Pending** — do not change to Pass without evidence.
 
 | # | Test | Steps | Expected | Status |
@@ -77,7 +78,7 @@ Statuses start as **Pending** — do not change to Pass without evidence.
 | 14 | Network failure | Disable network, open/reload | Offline page/banner, retry works, no white screen | Pending |
 | 15 | Slow network | Throttle to Slow 3G | Loading state, no duplicate submissions | Pending |
 | 16 | Update PWA | Deploy new build, reopen | Update prompt once, reload applies new build | Pending |
-| 17 | MSIX install | `Add-AppxPackage` signed package | Installs on Win10 2004+ and Win11 | Pending |
+| 17 | MSIX install | Trust the test certificate, then `Add-AppxPackage` test-signed `.msix` | Installs on Win10 2004+ and Win11 | Pending |
 | 18 | MSIX surface | Launch MSIX | `nx_surface=msix` reflected; ads stay off | Pending |
 | 19 | MSIX update | Higher version package | Updates in place, data intact | Pending |
 | 20 | Uninstall | Uninstall app | No crash leftovers; server account intact | Pending |
@@ -87,15 +88,16 @@ Statuses start as **Pending** — do not change to Pass without evidence.
 ## 4 · What is not verified (must not be claimed)
 
 - Store submission, certification or publication.
-- A signed MSIX (no certificate, no Windows SDK in this environment).
+- An interactive installation on a physical Windows machine (the package was structurally verified, not installed interactively).
+- Production Store signing (Microsoft signs during certification; the test-signed copy is not for the Store).
 - Real advertising (disabled by design; no provider verified for PWA/MSIX).
-- Screenshots, promotional art, age rating, Store URL/publication, and MSIX signing.
+- Screenshots, promotional art, age rating, Store URL/publication.
 - MG Ads is **not integrated**: its current UWP SDK cannot run in this package type, and its C++/Win32 and
   H5 SDKs have no verified WebView2 path; see `MG-ADS-FEASIBILITY.md`.
 - Windows 10/11 behaviour beyond static checks. The matrix above is the evidence gate.
 
 ## 5 · Sign-off
 
-Automated engineering checks pass. **Manual Windows verification and Store identity/signing are still
-required.** Advertising is **not operational**. A Store submission before completing
+Automated engineering checks pass and the unsigned Store package was built successfully. **Interactive
+Windows verification and Store submission/certification are still required.** Advertising is **not operational**. A Store submission before completing
 [`RELEASE-CHECKLIST.md`](RELEASE-CHECKLIST.md) would be premature.

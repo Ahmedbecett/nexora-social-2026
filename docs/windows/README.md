@@ -15,8 +15,8 @@
 | `src/WindowsShell.jsx` + `src/windows.css` | شريط عنوان Windows أصلي، قائمة تطبيق، اختصارات، حالة عدم الاتصال، نافذة تحديث |
 | `src/pwa.js` + `src/pwaCore.js` | تسجيل خدمة العمل والتحديث والتثبيت — معطّل تمامًا داخل تطبيق أندرويد |
 | `src/ads/` + `public/windows/ads-config.json` | خانة إعلان مخصّصة تظهر عند التفعيل فقط، موافقة، بوابات أسطح، **معطّلة افتراضيًا** |
-| `windows/msix/` | مرجع AppxManifest وكل شعارات MSIX وSplash |
-| `windows/scripts/` | أدوات Windows: توليد الأصول، تطبيق هوية Store، فحص الحزمة |
+| `windows/msix/` | AppxManifest الفعلي (Hosted App Model) وكل شعارات MSIX وSplash |
+| `windows/scripts/` | أدوات Windows: بناء الحزمة، توليد الأصول، تطبيق الهوية، فحص الحزمة |
 | `windows/package-identity.json` | هوية الحزمة والإصدار الرباعي (4.4.0.0) وقيم Partner Center |
 | `public/windows/` | صفحة Windows العامة + سياسة خصوصية مكتوبة لنسخة Windows |
 
@@ -26,6 +26,7 @@
 - ✅ شريط عنوان Window Controls Overlay وقائمة تطبيق واختصارات لوحة مفاتيح.
 - ✅ حالات تحديث/عدم اتصال/خطأ احترافية دون شاشة بيضاء.
 - ✅ أصول MSIX كاملة (StoreLogo، مربعات بكل المقاييس، Wide، Splash، Unplated).
+- ✅ حزمة MSIX مبنية فعليًا على Windows SDK (`.msixupload` غير موقّعة للمتجر + نسخة اختبار موقّعة).
 - ✅ سكربتات بناء/توقيع/فحص MSIX تعمل على Windows SDK.
 - ✅ سياسة خصوصية Windows وروابط الدعم جاهزة لـ Partner Center.
 - ✅ إعدادات إعلانات منفصلة عن الكود، بموافقة وبوابات أسطح، ومعطّلة افتراضيًا.
@@ -34,11 +35,14 @@
 
 هذه ليست نواقص مخفية، بل خطوات تحتاج حسابك أو جهازك:
 
-1. **شهادة توقيع MSIX** تصدر من Partner Center بعد التحقق من هوية الناشر. لا توجد شهادة في المستودع، ولا يجب أن تكون.
-2. **توليد الحزمة وتوقيعها** يحتاج Windows SDK أو PWABuilder + شهادة. الهوية الحقيقية مسجّلة، لكن الحزمة الموقّعة لا تُبنى على Linux.
+1. **رفع الحزمة إلى Partner Center** يحتاج تسجيل دخولك وحسابك. الحزمة نفسها جاهزة في
+   [Release Windows](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.0.0).
+2. **شهادة توقيع الإنتاج** لا تُشحن؛ Microsoft Store يوقّع الحزمة أثناء الاعتماد. الشهادة
+   الموجودة في Release للاختبار المحلي فقط.
 3. **رابط المتجر** لا يُضاف قبل اجتياز الاعتماد والنشر. Product ID الحقيقي مسجّل، والمنتج ما زال **Draft**.
-4. **لقطات شاشة Store** يجب التقاطها من التطبيق الحقيقي على Windows (السكربت جاهز في `docs/windows/SCREENSHOTS.md`).
-5. **إعلانات MG Ads** غير قابلة للدمج في حزمة PWABuilder الحالية (Win32/WebView2) دون مضيف أصلي أو توثيق H5/WebView2 من MG؛ التحقق الكامل في [`MG-ADS-FEASIBILITY.md`](MG-ADS-FEASIBILITY.md).
+4. **اعتماد المتجر واختبار التثبيت الفعلي** يحدثان عند Microsoft/على جهاز Windows؛ لم ندّعِ نجاحهما.
+5. **لقطات شاشة Store** يجب التقاطها من التطبيق الحقيقي على Windows (السكربت جاهز في `docs/windows/SCREENSHOTS.md`).
+6. **إعلانات MG Ads** غير قابلة للدمج في حزمة PWA/MSIX الحالية (Win32/WebView2) دون مضيف أصلي أو توثيق H5/WebView2 من MG؛ التحقق الكامل في [`MG-ADS-FEASIBILITY.md`](MG-ADS-FEASIBILITY.md).
 
 ## ابدأ من هنا
 
@@ -64,6 +68,7 @@ same account, database, API, AI conversations and Studio. There is no mock backe
 keyboard shortcuts, update/offline/error states, complete MSIX icon and splash assets, MSIX build/patch/sign
 scripts, a Windows privacy policy, and a fail-closed advertising configuration that ships disabled.
 
-**Requires your account or Windows machine:** package generation and signing certificate, real Store
-screenshots, Store publication, and a verified ad provider. The Partner Center identity and Product ID are
-recorded; the listing is still a draft and no Store URL is live.
+**Requires your account:** uploading the ready unsigned `.msixupload` to Partner Center, Store certification,
+real Store screenshots, publication, and a verified ad provider. Package generation already runs on the
+Windows runner; the Partner Center identity and Product ID are recorded, the listing is still a draft,
+and no Store URL is live.
