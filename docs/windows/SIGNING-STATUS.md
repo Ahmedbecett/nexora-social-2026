@@ -1,5 +1,11 @@
 # حالة بناء الحزمة والتوقيع — NEXORA AI by BECETTI · Windows Edition 4.4.0
 
+> **بناء تجريبي بدون `runFullTrust` (20 نوفمبر 2026):** المصدر في هذا الفرع يعلن
+> `internetClient` فقط. Run [`44663704164`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44663704164)
+> نجح، والحزمة في **Actions artifact** فقط. لم تُنشر في Release ولم تُختبر بالتثبيت
+> على Windows بعد. الأقسام التالية تصف بناء Release السابق (الذي يحمل الصلاحية)
+> حتى تكتمل إعادة البناء والتحقق.
+
 **Display Name:** `NEXORA AI by BECETTI` (الاسم المحجوز في Partner Center)
 **الهوية:** `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596`
 **Publisher Display Name:** `Ahmedbecetti` · **Product ID:** `9ND09PBRDPKZ` (Draft)

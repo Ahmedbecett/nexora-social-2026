@@ -198,6 +198,11 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 
 ## ٨) الرفع إلى Microsoft Store
 
+> **مهم:** المصدر الحالي لا يعلن `runFullTrust`، لكن بناء الإزالة موجود في
+> **Actions artifact** فقط ولم يُنشر في Release ولم يُختبر تثبيتًا. لا ترفع ملف
+> Release القديم على أنه البناء الجديد، ولا تستبدل أصول Release قبل اجتياز
+> اختبارات التثبيت والتشغيل على Windows.
+
 1. نزّل `NEXORA-AI_4.4.0.0_neutral.msixupload` من
    [Release Windows](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.0.0).
 2. في Partner Center: **Submissions → New submission**.

@@ -18,12 +18,13 @@ real-window screenshots were not produced.
 | Command | Result | Notes |
 |---|---|---|
 | `npm ci` | ✅ | 439 packages, lockfile respected |
-| `npm test` | ✅ **224/224** | 189 pre-existing + 35 Windows/PWA/privacy tests |
+| `npm test` | ✅ **225/225** | No-runFullTrust guard added; Windows/PWA/privacy tests |
 | `npm run build` | ✅ | Vite production build; `dist/` verified |
 | `node windows/tools/sync-version.mjs --check` | ✅ | `package.json 4.4.0` → MSIX `4.4.0.0` |
 | `npm run windows:check` | ✅ exit 0 | Partner Center identity verified; 1 warning: Store URL pending publication |
 | Windows package build | ✅ | `Build-Msix.ps1` on Windows Server 2025: `makepri`, `makeappx pack/bundle`, `.msixupload` structure check, `Test-MsixPackage.ps1` |
 | Store-name rebuild | ✅ | Run `44654597475`; `Test-MsixPackage.ps1` matched `DisplayName`/`VisualElements DisplayName` = `NEXORA AI by BECETTI` and unchanged Name/Publisher/version; release asset `c2adc350…a88d` |
+| No-`runFullTrust` build | ✅ structural only | Run `44663704164`: `makeappx` accepted the manifest; `Test-MsixPackage.ps1` confirmed `internetClient` only. **Not installed or Store-tested**; kept as an Actions artifact, release not replaced |
 | Dev server route check | ✅ 9/9 HTTP 200 | `/`, `/windows/`, `/windows/en.html`, `/windows/privacy.html`, `/windows/ads-config.json`, `/sw.js`, `/offline.html`, `/manifest.webmanifest`, `/version.json` |
 
 ### What the new tests cover (`tests/windows-*.test.mjs`)
@@ -70,6 +71,19 @@ This is exactly the kind of bug a Store reviewer would hit by reopening the app 
 - **Not verified:** interactive Windows install, the Store listing UI, and Partner Center acceptance.
   Those remain manual steps and must not be reported as done.
 
+### No-`runFullTrust` build (20 November 2026)
+
+- `windows/msix/AppxManifest.reference.xml` now declares **only** `internetClient`; the `rescap`
+  namespace and `runFullTrust` capability were removed.
+- `Build-Msix.ps1` and `Test-MsixPackage.ps1` now fail if `runFullTrust` reappears.
+- Run [`44663704164`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44663704164)
+  succeeded: `makeappx` accepted the manifest, the bundle/upload were created, and
+  `Test-MsixPackage.ps1` passed.
+- The build is available only as the Actions artifact `nexora-windows-4.4.0.0`; **the public release
+  was not replaced** and no package was uploaded to Partner Center.
+- **Not verified:** install, first launch, app URI handler, sign-in, offline mode, update path, and
+  Store acceptance. Do not treat this build as compatible until those pass on Windows.
+
 ## 3 · Manual Windows test matrix (pending)
 
 Complete on a real Windows machine with Edge and the test-signed `.msix` (or the installed PWA). The Store-upload package is unsigned by design.
@@ -99,11 +113,15 @@ Statuses start as **Pending** — do not change to Pass without evidence.
 | 20 | Uninstall | Uninstall app | No crash leftovers; server account intact | Pending |
 | 21 | Accessibility | Keyboard-only, Narrator, 200% scale | Focus visible, labels announced, no traps | Pending |
 | 22 | Security scan | `Test-MsixPackage.ps1`; Defender scan | No secrets; no malware flags | Pending |
+| 23 | No-`runFullTrust` install | Install the artifact from run `44663704164` on clean Win10 2004 and Win11 | Installs without capability errors; app appears in Start | Pending |
+| 24 | No-`runFullTrust` launch | Launch from Start, then open an `https://nexora-social-2026.vercel.app/...` link | Edge host activates under the package identity; app URI handler opens the app | Pending |
+| 25 | Installed capabilities | `Get-AppxPackageManifest` on the installed package | `<Capabilities>` contains `internetClient` only; no `runFullTrust` | Pending |
 
 ## 4 · What is not verified (must not be claimed)
 
 - Store submission, certification or publication.
 - An interactive installation on a physical Windows machine (the package was structurally verified, not installed interactively).
+- Activation of the no-`runFullTrust` build through the Edge PWA host, including the app URI handler and update path.
 - Production Store signing (Microsoft signs during certification; the test-signed copy is not for the Store).
 - Real advertising (disabled by design; no provider verified for PWA/MSIX).
 - Screenshots, promotional art, age rating, Store URL/publication.
