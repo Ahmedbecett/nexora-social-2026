@@ -12,7 +12,7 @@
 | Publisher display name | **Ahmedbecetti** | Partner Center |
 | Package/Identity/Name | `Ahmedbecetti.NEXORAAIbyBECETTI` | Partner Center |
 | Package/Identity/Publisher | `CN=A5D5DC31-4A15-4059-8030-D96C51054596` | Partner Center |
-| Version | `4.4.0.0` | `windows/package-identity.json` (synced from `package.json`) |
+| Version | `4.4.1.0` | `windows/package-identity.json` (synced from `package.json`) |
 | Product ID | `9ND09PBRDPKZ` | Partner Center (product is Draft) |
 | Package family name | `Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm` | Partner Center |
 | Store listing status | **Draft — not published** | Partner Center |
@@ -29,8 +29,8 @@
 > أدناه يمكن أن تذكر العلامة المختصرة «NEXORA AI»، لكن اسم المتجر نفسه يبقى `NEXORA AI by BECETTI`.
 > لم يتغيّر `Package/Identity/Name` أو `Publisher` أو `Product ID`.
 >
-> **الإصدار:** أُعيد بناء `4.4.0.0` بهذا الاسم. إن كان Partner Center قد قبل `4.4.0.0` سابقًا،
-> فارفع الإصدار إلى `4.4.1.0` قبل الإرسال.
+> **الإصدار:** `4.4.1.0` مع الاسم المحجوز والهوية نفسها. إن كان Partner Center قد قبل
+> `4.4.1.0` سابقًا، فارفع الإصدار إلى `4.4.2.0` قبل الإرسال.
 
 ## Partner Center Properties — القيم الجاهزة
 
@@ -153,7 +153,7 @@
 
 `NEXORA`, `AI`, `assistant`, `chat`, `Arabic`, `writing`, `coding`, `productivity`, `app builder`, `Studio`
 
-## What's new in 4.4.0
+## What's new in 4.4.1
 
 - Store display name updated to the reserved name **NEXORA AI by BECETTI**.
 - Official Windows edition built on the production NEXORA AI app.

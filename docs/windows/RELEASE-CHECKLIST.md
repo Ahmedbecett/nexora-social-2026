@@ -1,10 +1,10 @@
-# Windows release checklist — NEXORA AI by BECETTI 4.4.0
+# Windows release checklist — NEXORA AI by BECETTI 4.4.1
 
 Copy this into the release issue and tick every item. Do not mark a section complete by assumption.
 
 ## 0 · Source and version
 
-- [ ] `package.json` version is `4.4.0` (or a newer approved version).
+- [ ] `package.json` version is `4.4.1` (or a newer approved version).
 - [ ] `node windows/tools/sync-version.mjs --check` passes; MSIX version is four parts ending `.0`.
 - [ ] `npm ci` clean.
 - [ ] `npm test` all green.

@@ -2,7 +2,7 @@
 
 <div dir="rtl">
 
-**الحزمة:** `NEXORA AI by BECETTI` — `4.4.0.0`
+**الحزمة:** `NEXORA AI by BECETTI` — `4.4.1.0`
 **المانيفست:** [`windows/msix/AppxManifest.reference.xml`](../../windows/msix/AppxManifest.reference.xml)
 **تاريخ التدقيق:** 20 نوفمبر 2026
 
@@ -28,7 +28,7 @@
 |---|---|---|
 | `Identity/Name` | `Ahmedbecetti.NEXORAAIbyBECETTI` | من Partner Center، لم يتغيّر |
 | `Identity/Publisher` | `CN=A5D5DC31-4A15-4059-8030-D96C51054596` | لم يتغيّر |
-| `Identity/Version` | `4.4.0.0` | لم يتغيّر |
+| `Identity/Version` | `4.4.1.0` | رُفع من `4.4.0.0`؛ الاسم والناشر كما هما |
 | `Identity/ProcessorArchitecture` | `neutral` | حزمة واحدة |
 | `TargetDeviceFamily` | `Windows.Desktop`, `MinVersion=10.0.19041.0` | الحد الأدنى لـ Hosted App Model |
 | `Dependencies/uap10:HostRuntimeDependency` | `Microsoft.MicrosoftEdge.Stable` | تبعية مضيف Edge Stable |
@@ -161,7 +161,7 @@ PWABuilder يشرح أن تحذير Partner Center «يمكن تجاهله بأ�
 | ظهور التطبيق في Start | ✅ |
 | بدء مضيف Edge | ✅ |
 | إزالة الحزمة | ✅ |
-| هوية الحزمة والإصدار | لم تتغيّر: `4.4.0.0` |
+| الهوية | الاسم والناشر وPFN وProduct ID لم تتغيّر؛ الإصدار رُفع إلى `4.4.1.0` |
 | أصول Release العامة | لم تُستبدل |
 
 **لم يُتحقق بعد:** التشغيل التفاعلي الكامل على جهاز المستخدم، app URI handler، تسجيل الدخول،

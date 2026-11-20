@@ -28,15 +28,15 @@ const identity = JSON.parse(read('windows/package-identity.json'));
 const manifest = read('windows/msix/AppxManifest.reference.xml');
 
 test('إصدار MSIX رباعي مشتق من package.json لا مكتوب يدويًا', () => {
-  assert.equal(pkg.version, '4.4.0');
-  assert.equal(toMsixVersion('4.4.0'), '4.4.0.0');
+  assert.equal(pkg.version, '4.4.1');
+  assert.equal(toMsixVersion('4.4.1'), '4.4.1.0');
   assert.equal(toMsixVersion('12.0.7'), '12.0.7.0');
-  assert.equal(isValidMsixVersion('4.4.0.0'), true);
-  assert.equal(isValidMsixVersion('4.4.0'), false);
-  assert.equal(isValidMsixVersion('4.4.0.1'), false, 'المراجعة تبقى صفرًا وقت البناء');
-  assert.throws(() => toMsixVersion('4.4'));
+  assert.equal(isValidMsixVersion('4.4.1.0'), true);
+  assert.equal(isValidMsixVersion('4.4.1'), false);
+  assert.equal(isValidMsixVersion('4.4.1.1'), false, 'المراجعة تبقى صفرًا وقت البناء');
+  assert.throws(() => toMsixVersion('4.5'));
   assert.equal(identity.version, toMsixVersion(pkg.version));
-  assert.match(manifest, /Version="4\.4\.0\.0"/);
+  assert.match(manifest, /Version="4\.4\.1\.0"/);
 });
 
 test('هوية المنتج الحقيقية من Partner Center مثبّتة في الحزمة', () => {
@@ -73,7 +73,7 @@ test('رفض الهويات غير الصالحة أو غير المتطابقة
   assert.equal(validateIdentity({ ...base, displayName: 'Nexora' }).ok, false);
   assert.equal(validateIdentity({ ...base, displayName: 'NEXORA AI' }).ok, false, 'الاسم القديم لم يعد مقبولًا');
   assert.equal(validateIdentity({ ...base, publisherDisplayName: 'BECETTI' }).ok, false);
-  assert.equal(validateIdentity({ ...base, version: '4.4.0' }).ok, false);
+  assert.equal(validateIdentity({ ...base, version: '4.4.1' }).ok, false);
   assert.equal(validateIdentity({ ...base, startPage: 'http://nexora-social-2026.vercel.app/' }).ok, false);
   assert.equal(validateIdentity({ ...base, startPage: 'https://nexora-social-2026.vercel.app/' }).ok, false);
   assert.equal(validateIdentity({ ...base, productId: '9FAKE' }).ok, false);
@@ -203,7 +203,7 @@ test('لا شهادات توقيع ولا مفاتيح في المستودع', (
 test('أدوات النسخة تعمل: sync-version --check وcheck-windows', async () => {
   const { execFileSync } = await import('node:child_process');
   const sync = execFileSync(process.execPath, ['windows/tools/sync-version.mjs', '--check'], { encoding: 'utf8' });
-  assert.match(sync, /MSIX version OK: 4\.4\.0\.0/);
+  assert.match(sync, new RegExp(`MSIX version OK: ${identity.version.replace(/\./g, '\\.')}`));
   const check = execFileSync(process.execPath, ['windows/tools/check-windows.mjs'], { encoding: 'utf8' });
   assert.match(check, /OK — Partner Center identity is integrated; 1 warning/);
   assert.match(check, /Store URL pending publication/);
@@ -214,7 +214,7 @@ test('الوثائق تحمل الهوية الحقيقية ولا تدّعي ح
   assert.match(docs, /Ahmedbecetti\.NEXORAAIbyBECETTI/);
   assert.match(docs, /9ND09PBRDPKZ/);
   assert.match(docs, /Partner Center/);
-  assert.match(docs, /4\.4\.0\.0/);
+  assert.match(docs, new RegExp(identity.version.replace(/\./g, '\\.')));
   assert.match(docs, /signtool/);
   assert.match(docs, /لا تغيّر هذه القيم يدويًا|لا تغير هذه القيم يدويًا/);
   assert.match(docs, /draft|مسودة/);

@@ -2,7 +2,7 @@
    NEXORA AI — أدوات MSIX مشتركة (Node، تعمل على Linux وWindows)
    --------------------------------------------------------------------------
    لا تُشغّل هذه الأدوات أي أمر بناء أو توقيع؛ تتحقق فقط من:
-     • تحويل 4.4.0 ⟹ 4.4.0.0 (إصدار الحزمة الرباعي)
+     • تحويل 4.4.1 ⟹ 4.4.1.0 (إصدار الحزمة الرباعي)
      • أن هوية الحزمة لا تزال Placeholder قبل Partner Center
      • أن أصول الشعارات المطلوبة موجودة فعلًا
      • أن المرجع AppxManifest يحتوي القيم الصحيحة ولا يحتوي Product ID مخترعًا
@@ -40,7 +40,7 @@ export const REQUIRED_ASSETS = [
   'LockScreenLogo.scale-200.png',
 ];
 
-/** 4.4.0 → 4.4.0.0؛ الإصدار الرابع (revision) صفر دائمًا عند البناء. */
+/** 4.4.1 → 4.4.1.0؛ الإصدار الرابع (revision) صفر دائمًا عند البناء. */
 export function toMsixVersion(version) {
   const raw = String(version || '').trim();
   const match = raw.match(/^(\d{1,5})\.(\d{1,5})\.(\d{1,5})$/);
@@ -135,7 +135,7 @@ export function looksLikeStoreProductId(value) {
 export function validateManifestXml(xml, identity = {}) {
   const text = String(xml || '');
   const errors = [];
-  const version = identity.version || '4.4.0.0';
+  const version = identity.version || '4.4.1.0';
 
   if (!text.includes(`Version="${version}"`)) errors.push('manifest-version-mismatch');
   if (!text.includes(`<DisplayName>${OFFICIAL_DISPLAY_NAME}</DisplayName>`)) errors.push('manifest-display-name');

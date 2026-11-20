@@ -1,4 +1,4 @@
-# Unsupported features and known limitations — Windows Edition 4.4.0
+# Unsupported features and known limitations — Windows Edition 4.4.1
 
 This list is deliberately explicit. A Store-ready release must not hide gaps behind vague wording.
 

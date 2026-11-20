@@ -40,17 +40,17 @@
 
 ```bash
 # 1) زامن إصدار MSIX الرباعي مع package.json
-node windows/tools/sync-version.mjs        # 4.4.0 → 4.4.0.0
+node windows/tools/sync-version.mjs        # 4.4.1 → 4.4.1.0
 node windows/tools/sync-version.mjs --check
 # 2) افحص الهوية والمانيفست والأصول والإعلانات وSW
 node windows/tools/check-windows.mjs       # أو npm run windows:check
 ```
 
-- إصدار الحزمة **أربعة أجزاء** وينتهي بـ `.0` عند البناء: `4.4.0.0`.
+- إصدار الحزمة **أربعة أجزاء** وينتهي بـ `.0` عند البناء: `4.4.1.0`.
 - `displayName` هو الاسم المحجوز في Partner Center: **`NEXORA AI by BECETTI`**. لا تغيّره إلا باسم جديد محجوز؛
   ويجب أن يطابق `Package/Properties/DisplayName` و`uap:VisualElements DisplayName` حرفيًا.
-- هذه إعادة بناء أولى بالاسم المحجوز، لذا بقي الإصدار `4.4.0.0` كما هو ضمن الحفاظ على الهوية.
-  إن كان Partner Center قد قبل حزمة `4.4.0.0` سابقًا، فارفع الإصدار إلى `4.4.1.0` قبل الإرسال.
+- هذا البناء يرفع الإصدار إلى `4.4.1.0` مع الحفاظ على الاسم والهوية.
+  إن كان Partner Center قد قبل حزمة `4.4.1.0` سابقًا، فارفع الإصدار إلى `4.4.2.0` قبل الإرسال.
 - بعد قبول أول حزمة، كل إرسال جديد يتطلب رقمًا أكبر من السابق؛ لا تعد استخدام نفس الرقم.
 - `check-windows` يجب أن يخرج 0؛ التحذير الوحيد المسموح حاليًا هو أن **رابط المتجر بانتظار النشر**.
 
@@ -78,17 +78,17 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Build-Msix.ps1 `
 
 | الملف | المعنى |
 |---|---|
-| `NEXORA-AI_4.4.0.0_neutral.msixupload` | ارفعه إلى Partner Center |
-| `NEXORA-AI_4.4.0.0_neutral.msixbundle` | فحص/بديل |
-| `NEXORA-AI_4.4.0.0_neutral.msix` | فحص/بديل |
-| `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` | اختبار محلي فقط |
+| `NEXORA-AI_4.4.1.0_neutral.msixupload` | ارفعه إلى Partner Center |
+| `NEXORA-AI_4.4.1.0_neutral.msixbundle` | فحص/بديل |
+| `NEXORA-AI_4.4.1.0_neutral.msix` | فحص/بديل |
+| `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | اختبار محلي فقط |
 | `NEXORA-AI-test-certificate.cer` | شهادة الاختبار العامة |
 
 > **مهم:** ملف المتجر غير موقّع عمدًا؛ Microsoft Store يعيد توقيعه. لا ترفع نسخة
 > الاختبار ولا شهادتها. لا تعِد تسمية `.msix` إلى `.msixupload` أو العكس.
 
 رابط الأصول الحالية:
-<https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.0.0>
+<https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.1.0>
 
 `Update-MsixIdentity.ps1` يبقى أداة مساعدة لحزمة موجودة، ويدعم الآن الحزم
 المضيفة عبر تعديل `--app-fallback-url` بدل إضافة `StartPage` غير صالح.
@@ -214,8 +214,8 @@ content requires the main package to have the runFullTrust capability.
 
 ## ٨) الرفع إلى Microsoft Store
 
-1. نزّل `NEXORA-AI_4.4.0.0_neutral.msixupload` من
-   [Release Windows](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.0.0).
+1. نزّل `NEXORA-AI_4.4.1.0_neutral.msixupload` من
+   [Release Windows](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.1.0).
 2. في Partner Center: **Submissions → New submission**.
 3. **Packages**: ارفع `.msixupload` كما هو. إن رفض Partner Center سببًا، اقرأ الرسالة حرفيًا
    ولا تغيّر الامتداد يدويًا؛ يمكنك تجربة `.msixbundle` كبديل إن طُلب.

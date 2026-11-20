@@ -14,6 +14,7 @@ const read = (p) => readFileSync(p, 'utf8');
 const ar = read('public/windows/index.html');
 const en = read('public/windows/en.html');
 const privacy = read('public/windows/privacy.html');
+const pkg = JSON.parse(read('package.json'));
 const adsDoc = read('docs/windows/ADS-INTEGRATION.md');
 
 const ids = (html) => new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
@@ -60,7 +61,7 @@ test('صفحات Windows تقدّم دعوى دعم ورابط خصوصية صح
     assert.ok(page.includes('href="/windows/privacy.html"'), 'رابط السياسة');
     assert.ok(page.includes('mailto:ahmedbecetti35@gmail.com'), 'بريد الدعم');
     assert.match(page, /Windows 10/);
-    assert.match(page, /4\.4\.0/);
+    assert.ok(page.includes(pkg.version), `صفحة Windows يجب أن تعرض الإصدار ${pkg.version}`);
   }
   // نقطة الدعم التي يستخدمها المتجر موجودة في الصفحة العربية
   assert.ok(ids(ar).has('support'));

@@ -3,7 +3,7 @@
   "publisherDisplayName": "Ahmedbecetti",
   "identityName": "Ahmedbecetti.NEXORAAIbyBECETTI",
   "publisher": "CN=A5D5DC31-4A15-4059-8030-D96C51054596",
-  "version": "4.4.0.0",
+  "version": "4.4.1.0",
   "applicationId": "App",
   "startPage": "https://nexora-social-2026.vercel.app/?nx_surface=msix",
   "webAppManifestId": "https://nexora-social-2026.vercel.app/",

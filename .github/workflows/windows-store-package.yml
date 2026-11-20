@@ -36,9 +36,30 @@ jobs:
         with:
           node-version: 20
 
+      - name: Read package version
+        id: meta
+        shell: pwsh
+        run: |
+          $identity = Get-Content windows/package-identity.json -Raw | ConvertFrom-Json
+          Write-Host "version=$($identity.version)"
+          "version=$($identity.version)" >> $env:GITHUB_OUTPUT
+
       - name: Verify Windows readiness
         shell: pwsh
         run: node windows/tools/check-windows.mjs
+
+      - name: Smoke-test the hosted PWA
+        timeout-minutes: 2
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $page = Invoke-WebRequest -Uri 'https://nexora-social-2026.vercel.app/?nx_surface=msix' -UseBasicParsing -TimeoutSec 45 -Headers @{ 'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+          if ($page.StatusCode -ne 200) { throw "Hosted PWA returned HTTP $($page.StatusCode)." }
+          if ($page.Content -notmatch 'NEXORA') { throw 'Hosted PWA HTML does not contain the NEXORA app shell.' }
+          $webManifest = Invoke-WebRequest -Uri 'https://nexora-social-2026.vercel.app/manifest.webmanifest' -UseBasicParsing -TimeoutSec 45 -Headers @{ 'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+          $webJson = $webManifest.Content | ConvertFrom-Json
+          if (-not $webJson.name) { throw 'Web app manifest has no name.' }
+          Write-Host "Hosted PWA OK: $($webJson.name) · HTTP $($page.StatusCode)"
 
       - name: Build unsigned Store package and test-signed copy
         shell: pwsh
@@ -51,7 +72,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nexora-windows-4.4.0.0
+          name: nexora-windows-${{ steps.meta.outputs.version }}
           path: dist/windows/*
           if-no-files-found: error
 
@@ -87,7 +108,17 @@ jobs:
           Write-Host "Installed: $($pkg.PackageFullName)"
           Write-Host "Status:    $($pkg.Status)"
 
+          $identity = Get-Content windows/package-identity.json -Raw | ConvertFrom-Json
+          if ($pkg.Name -ne $identity.identityName) { throw "Identity Name mismatch: $($pkg.Name)" }
+          if ($pkg.Publisher -ne $identity.publisher) { throw "Publisher mismatch: $($pkg.Publisher)" }
+          if ($pkg.Version.ToString() -ne $identity.version) { throw "Version mismatch: $($pkg.Version)" }
+          if ($pkg.PackageFamilyName -ne $identity.packageFamilyName) { throw "PFN mismatch: $($pkg.PackageFamilyName)" }
+          if ($identity.productId -ne '9ND09PBRDPKZ') { throw "Product ID changed: $($identity.productId)" }
+          Write-Host "Identity OK: $($pkg.Name) · $($pkg.Version) · $($pkg.PackageFamilyName)"
+
           $manifest = Get-AppxPackageManifest -Package $pkg.PackageFullName
+          if ($manifest.Package.Properties.DisplayName -ne 'NEXORA AI by BECETTI') { throw "DisplayName mismatch: $($manifest.Package.Properties.DisplayName)" }
+          if ($manifest.Package.Properties.PublisherDisplayName -ne 'Ahmedbecetti') { throw "PublisherDisplayName mismatch: $($manifest.Package.Properties.PublisherDisplayName)" }
           $caps = @(
             $manifest.Package.Capabilities.SelectNodes("*[local-name()='Capability']") |
               ForEach-Object { $_.GetAttribute('Name') }
@@ -107,19 +138,22 @@ jobs:
             Write-Warning 'Get-StartApps is unavailable; Start-menu registration was not verified.'
           }
 
-      - name: Launch through the Edge PWA host (best effort)
+      - name: Launch through the Edge PWA host
         timeout-minutes: 3
         shell: powershell
-        continue-on-error: true
         run: |
           $pkg = Get-AppxPackage -Name 'Ahmedbecetti.NEXORAAIbyBECETTI'
           if (-not $pkg) { throw 'Package is not installed.' }
           $before = @(Get-Process -Name msedge -ErrorAction SilentlyContinue).Count
           Start-Process "shell:AppsFolder\$($pkg.PackageFamilyName)!App"
-          Start-Sleep -Seconds 15
-          $after = @(Get-Process -Name msedge -ErrorAction SilentlyContinue).Count
+          $after = $before
+          for ($i = 0; $i -lt 30 -and $after -le $before; $i++) {
+            Start-Sleep -Seconds 1
+            $after = @(Get-Process -Name msedge -ErrorAction SilentlyContinue).Count
+          }
           Write-Host "Edge processes before=$before after=$after"
-          if ($after -le $before) { throw 'Edge host did not start within 15 seconds.' }
+          if ($after -le $before) { throw 'Edge host did not start within 30 seconds.' }
+          Write-Host 'Edge PWA host is running under the package activation.'
 
       - name: Uninstall
         timeout-minutes: 2
@@ -137,24 +171,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'windows-v4.4.0.0'
+          $version = '${{ steps.meta.outputs.version }}'
+          $tag = "windows-v$version"
           $notes = @'
           حزمة Windows الحقيقية لـ **NEXORA AI by BECETTI** (Hosted App Model).
 
-          - `NEXORA-AI_4.4.0.0_neutral.msixupload` — ارفع هذا الملف إلى Partner Center. غير موقّع عمدًا؛ Microsoft Store يعيد توقيعه.
-          - `NEXORA-AI_4.4.0.0_neutral.msixbundle` و`.msix` — نسخ فحص غير موقّعة.
-          - `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` + `NEXORA-AI-test-certificate.cer` — للاختبار المحلي فقط (تثبيت الشهادة في Trusted People). لا ترفعها إلى المتجر.
+          - `NEXORA-AI___VERSION___neutral.msixupload` — ارفع هذا الملف إلى Partner Center. غير موقّع عمدًا؛ Microsoft Store يعيد توقيعه.
+          - `NEXORA-AI___VERSION___neutral.msixbundle` و`.msix` — نسخ فحص غير موقّعة.
+          - `NEXORA-AI___VERSION___neutral.test-signed.msix` + `NEXORA-AI-test-certificate.cer` — للاختبار المحلي فقط (تثبيت الشهادة في Trusted People). لا ترفعها إلى المتجر.
           - `SHA256SUMS.txt` و`BUILD-INFO.txt` — البصمات وتفاصيل البناء.
 
-          الاسم المحجوز: `NEXORA AI by BECETTI` · الهوية: `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596` · الإصدار `4.4.0.0`.
+          الاسم المحجوز: `NEXORA AI by BECETTI` · الهوية: `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596` · الإصدار `__VERSION__`.
           '@
+          $notes = $notes.Replace('__VERSION__', $version)
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "NEXORA AI by BECETTI · Windows 4.4.0.0" --notes $notes --target $env:GITHUB_SHA
+            gh release create $tag --title "NEXORA AI by BECETTI · Windows $version" --notes $notes --target $env:GITHUB_SHA
             if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
           }
           else {
-            gh release edit $tag --title "NEXORA AI by BECETTI · Windows 4.4.0.0" --notes $notes
+            gh release edit $tag --title "NEXORA AI by BECETTI · Windows $version" --notes $notes
             if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit code $LASTEXITCODE" }
           }
           gh release upload $tag dist/windows/* --clobber
