@@ -5,6 +5,11 @@ name: Build Windows Store package
 # locally on a Windows runner with the Microsoft Windows SDK.
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/windows-store-package.yml'
+      - 'windows/**'
+      - 'public/manifest.webmanifest'
 
 permissions:
   contents: write
