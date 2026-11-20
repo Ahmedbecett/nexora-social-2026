@@ -162,7 +162,7 @@ jobs:
           if-no-files-found: error
 
       - name: Commit packages and verification to the branch (optional)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_artifacts }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.commit_artifacts) || contains(github.event.head_commit.message, '[commit-artifacts]') }}
         shell: pwsh
         run: |
           $target = 'windows/release/4.4.1.0'
