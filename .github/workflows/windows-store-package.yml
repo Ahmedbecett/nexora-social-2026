@@ -50,6 +50,11 @@ jobs:
           try {
             Import-Certificate -FilePath dist/windows/NEXORA-AI-test-certificate.cer `
               -CertStoreLocation Cert:\CurrentUser\TrustedPeople | Out-Null
+            # A self-signed code-signing certificate is its own root. Windows
+            # requires that root in the current user's Root store for MSIX
+            # deployment; TrustedPeople alone is not enough (0x800B0109).
+            Import-Certificate -FilePath dist/windows/NEXORA-AI-test-certificate.cer `
+              -CertStoreLocation Cert:\CurrentUser\Root | Out-Null
             Add-AppxPackage -Path dist/windows/NEXORA-AI_4.4.0.0_neutral.test-signed.msix -ErrorAction Stop
             $pkg = Get-AppxPackage -Name Ahmedbecetti.NEXORAAIbyBECETTI
             if (-not $pkg) { throw 'Package was not registered after Add-AppxPackage.' }
