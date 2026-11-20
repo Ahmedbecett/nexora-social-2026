@@ -93,7 +93,7 @@ jobs:
           $msix = "dist/windows/$($env:PKG_BASE)_$($env:PKG_VERSION)_neutral.test-signed.msix"
           $cer = 'dist/windows/NEXORA-AI-test-certificate.cer'
           ./windows/scripts/Test-MsixInstall.ps1 -MsixPath $msix -CertificatePath $cer `
-            -AllowLaunchFailure -OutputJson dist/windows/install-test.json
+            -TrustMachineRoot -AllowLaunchFailure -OutputJson dist/windows/install-test.json
 
       - name: Upload install-test evidence (always)
         if: always()

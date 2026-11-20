@@ -36,6 +36,10 @@ param(
   [switch]$SkipLaunch,
   [switch]$KeepInstalled,
   [switch]$AllowLaunchFailure,
+  # On a headless runner the self-signed test certificate must also be trusted by
+  # the machine root, otherwise Add-AppxPackage fails with 0x800B0109. Machine-store
+  # writes never open the consent dialog that CurrentUser\Root opens.
+  [switch]$TrustMachineRoot,
   # Expected capability set. Defaults to package-identity.json; the runFullTrust
   # experiment passes a reduced set on purpose.
   [string[]]$ExpectedCapabilities
@@ -86,12 +90,24 @@ catch {
 if ($CertificatePath) {
   try {
     if (-not (Test-Path -LiteralPath $CertificatePath)) { throw "Certificate not found: $CertificatePath" }
-    # TrustedPeople is the documented store for sideloaded packages and it never
-    # opens a modal dialog. Importing into CurrentUser\Root prompts for consent on
-    # interactive desktops and hangs a headless runner, so it is never automated.
-    Import-Certificate -FilePath $CertificatePath -CertStoreLocation Cert:\CurrentUser\TrustedPeople | Out-Null
-    Info 'trust-test-certificate-root' 'test cert added to TrustedPeople only (never to Root: the import dialog would hang a headless run)'
-    $cer = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2((Resolve-Path -LiteralPath $CertificatePath).Path)
+    $cerPath = (Resolve-Path -LiteralPath $CertificatePath).Path
+    # TrustedPeople is the documented store for sideloaded packages; the machine
+    # store needs administrator rights but never shows the consent dialog.
+    Import-Certificate -FilePath $cerPath -CertStoreLocation Cert:\CurrentUser\TrustedPeople | Out-Null
+    $stores = @('CurrentUser\TrustedPeople')
+    try {
+      Import-Certificate -FilePath $cerPath -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+      $stores += 'LocalMachine\TrustedPeople'
+    }
+    catch { Info 'trust-test-certificate-machine' ("LocalMachine\TrustedPeople unavailable: " + $_.Exception.Message) }
+    if ($TrustMachineRoot) {
+      & certutil.exe -addstore -f Root $cerPath | Out-Null
+      if ($LASTEXITCODE -eq 0) { $stores += 'LocalMachine\Root' }
+      else { Info 'trust-test-certificate-root' "certutil -addstore Root exited with $LASTEXITCODE" }
+    }
+    Info 'trust-test-certificate' ("installed into: " + ($stores -join ', '))
+
+    $cer = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($cerPath)
     if ($cer.Subject -ne [string]$identity.publisher) {
       Fail 'certificate-subject' "certificate subject '$($cer.Subject)' does not match Publisher '$($identity.publisher)'"
     }
