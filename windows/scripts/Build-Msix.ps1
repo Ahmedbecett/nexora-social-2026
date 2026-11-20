@@ -32,10 +32,15 @@ param(
   [string]$IdentityFile = (Join-Path $PSScriptRoot '..\package-identity.json'),
   [string]$ManifestPath = (Join-Path $PSScriptRoot '..\msix\AppxManifest.reference.xml'),
   [string]$AssetsDirectory = (Join-Path $PSScriptRoot '..\msix\Assets'),
-  [switch]$SkipTestSignature
+  [switch]$SkipTestSignature,
+  # اختياري: مجلد يحتوي ملفات .appxsym حقيقية (رموز عامة) لتحليل الأعطال في
+  # Partner Center. الحزمة hosted PWA بلا كود مُصرَّف، لذلك لا رموز لها أصلًا،
+  # وغياب الملف مسموح صراحةً في توثيق Microsoft. لا يُولَّد ملف وهمي أبدًا.
+  [string]$SymbolsDirectory
 )
 
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 function Find-WindowsSdkTool([string]$Name) {
@@ -201,11 +206,58 @@ try {
   & $makeappx bundle /d $bundleInput /p $bundlePath /bv $identity.version /o /v
   if ($LASTEXITCODE -ne 0) { throw "makeappx bundle failed with exit code $LASTEXITCODE" }
 
-  # .msixupload is a plain ZIP containing the bundle; the Store re-signs it.
+  # .msixupload is a plain ZIP at whose root sits exactly one .msixbundle plus,
+  # optionally, real .appxsym symbol archives (Microsoft: optional, crash analytics
+  # only). It is built entry by entry so the archive contains no directory entries,
+  # no raw .pdb, no certificate and no nested archive — the mistakes that make
+  # Partner Center reject an upload.
+  $symbolFiles = @()
+  if ($SymbolsDirectory) {
+    if (-not (Test-Path -LiteralPath $SymbolsDirectory)) { throw "Symbols directory not found: $SymbolsDirectory" }
+    $symbolFiles = @(Get-ChildItem -LiteralPath $SymbolsDirectory -File | Where-Object { $_.Extension -eq '.appxsym' })
+    $rawPdb = @(Get-ChildItem -LiteralPath $SymbolsDirectory -File | Where-Object { $_.Extension -eq '.pdb' })
+    if ($rawPdb.Count -gt 0) {
+      throw "A .msixupload must not contain raw .pdb files ($($rawPdb[0].Name)). Convert public symbols to .appxsym or omit them."
+    }
+    if ($symbolFiles.Count -eq 0) { Write-Warning "No .appxsym files in $SymbolsDirectory; the upload will contain the bundle only (valid)." }
+  }
+
   Write-Host "Creating $uploadPath"
   $uploadZip = Join-Path $work "$baseName.zip"
-  Compress-Archive -LiteralPath $bundlePath -DestinationPath $uploadZip -Force
+  if (Test-Path -LiteralPath $uploadZip) { Remove-Item -LiteralPath $uploadZip -Force }
+  $zipStream = [System.IO.File]::Open($uploadZip, [System.IO.FileMode]::Create, [System.IO.FileAccess]::ReadWrite)
+  try {
+    $archive = [System.IO.Compression.ZipArchive]::new($zipStream, [System.IO.Compression.ZipArchiveMode]::Create, $false)
+    try {
+      $payloads = @(@{ Path = $bundlePath } + @($symbolFiles | ForEach-Object { @{ Path = $_.FullName } }))
+      foreach ($payload in $payloads) {
+        $entry = $archive.CreateEntry([System.IO.Path]::GetFileName($payload.Path), [System.IO.Compression.CompressionLevel]::Optimal)
+        $entryStream = $entry.Open()
+        try {
+          $sourceStream = [System.IO.File]::OpenRead($payload.Path)
+          try { $sourceStream.CopyTo($entryStream) } finally { $sourceStream.Dispose() }
+        }
+        finally { $entryStream.Dispose() }
+      }
+    }
+    finally { $archive.Dispose() }
+  }
+  finally { $zipStream.Dispose() }
   Copy-Item -LiteralPath $uploadZip -Destination $uploadPath -Force
+
+  # Post-conditions: exactly one bundle at the root, nothing else unexpected.
+  $uploadCheck = [System.IO.Compression.ZipFile]::OpenRead($uploadPath)
+  try {
+    $uploadNames = @($uploadCheck.Entries | ForEach-Object { $_.FullName })
+  }
+  finally { $uploadCheck.Dispose() }
+  $bundleEntries = @($uploadNames | Where-Object { $_ -match '\.msixbundle$' })
+  if ($bundleEntries.Count -ne 1) { throw "The .msixupload must contain exactly one .msixbundle (found $($bundleEntries.Count))." }
+  foreach ($forbidden in @($uploadNames | Where-Object { $_ -match '\.(p7x|pdb|cer|pfx|zip|msixupload|appxupload)$' -or $_ -match '[\\/]' })) {
+    throw "Forbidden entry in the .msixupload: $forbidden"
+  }
+  $symbolCount = @($uploadNames | Where-Object { $_ -match '\.appxsym$' }).Count
+  Write-Host "Upload entries: $($uploadNames -join ', ') (symbols: $symbolCount)" 
 
   Write-Host 'Verifying .msixupload content (bundle -> msix -> manifest/blockmap/PRI)'
   $uploadVerify = Join-Path $work 'upload-verify'
@@ -295,6 +347,7 @@ Store upload:  $([System.IO.Path]::GetFileName($uploadPath)) (UNSIGNED; Store re
 Bundle:        $([System.IO.Path]::GetFileName($bundlePath)) (UNSIGNED)
 Package:       $([System.IO.Path]::GetFileName($msixPath)) (UNSIGNED)
 Test package:  $([System.IO.Path]::GetFileName($testMsixPath)) (self-signed, local sideload only)
+Symbols:        $symbolCount .appxsym file(s) (optional; 0 means no crash analytics)
 Test cert:     $([System.IO.Path]::GetFileName($testCerPath)) (public certificate, no private key)
 
 Do NOT upload the test-signed package or the test certificate to Partner Center.
