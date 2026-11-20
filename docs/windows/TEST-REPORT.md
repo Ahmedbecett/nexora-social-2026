@@ -54,10 +54,10 @@ The `.msixupload` is **unsigned by design**. Microsoft Store re-signs accepted p
 | `PublisherDisplayName` | `Ahmedbecetti` | unchanged |
 | Package Family Name | `Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm` | unchanged |
 | Product ID | `9ND09PBRDPKZ` (Draft) | unchanged |
-| Display name | `NEXORA AI by BECETTI` | changed only to the reserved Store name |
+| Display name | `NEXORA AI by BECETTI` | already exact in manifest; verified again after install |
 | Version | `4.4.1.0` | raised from `4.4.0.0` |
 
-`Package/Properties/DisplayName` and `uap:VisualElements DisplayName` both equal `NEXORA AI by BECETTI`.
+`Package/Properties/DisplayName` and `uap:VisualElements DisplayName` both equal `NEXORA AI by BECETTI`. No name edit was needed in this build; the existing source was already correct.
 
 ## 4 · `runFullTrust` still required
 
