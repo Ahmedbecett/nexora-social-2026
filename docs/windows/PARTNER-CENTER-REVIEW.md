@@ -68,6 +68,12 @@ found. The defects were in how the file was produced and proven:
 | 4 | The SDK step validated the source manifest, not the artefact that is uploaded. | real (evidence gap) | new workflow step unpacks **the upload itself**: `makeappx unpack` (upload → bundle → msix), asserts identity/Publisher/DisplayName/capabilities from the extracted `AppxManifest.xml`, `makepri dump` on the extracted `resources.pri`, then `makeappx pack` to re-validate the manifest against the schema |
 | 5 | `.appxsym` policy was undocumented, which invites someone to “fix” the warning by inventing a file. | process | this document + a `Symbols:` line in `BUILD-INFO.txt` + a warning string that carries the reason |
 
+The two CI attempts before the green run failed **in the new assembly code itself** (a PowerShell
+hashtable-addition expression, and an assumption that `makeappx unpack` would open a `.msixbundle`).
+Both were fixed properly — the payload list is built element by element, the bundle is opened with
+`System.IO.Compression` first, and every SDK step now raises a `::error` annotation with its reason.
+No check was silenced or skipped to get a green run.
+
 Nothing in the identity was touched: `Ahmedbecetti.NEXORAAIbyBECETTI`, `CN=A5D5DC31-4A15-4059-8030-D96C51054596`,
 Product ID `9ND09PBRDPKZ`, PFN `Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm`, display name
 `NEXORA AI by BECETTI`, version `4.4.1.0`.
@@ -102,16 +108,18 @@ OK — the upload is structurally valid for Partner Center.
 
 These cases are permanent tests in `tests/windows-store-upload.test.mjs`.
 
-### 4.3 Windows SDK tools (Windows runner, inside the workflow)
+### 4.3 Windows SDK tools (Windows runner, run [`44732511763`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44732511763))
 
 | Tool | Command | Result |
 |---|---|---|
-| `makeappx` | `unpack /p <upload>\…msixbundle /d bundle` | exit 0 |
-| `makeappx` | `unpack /p …msix /d msix` | exit 0 |
+| `.NET ZipFile` | open the upload, list the single `.msixbundle` | exactly 1 entry |
+| `.NET ZipFile` | open the bundle, list the payload `.msix` (bundle is ZIP64) | exactly 1 payload |
+| `makeappx` | `unpack /p <payload>.msix /d layout` | exit 0 |
+| — | `AppxSignature.p7x` in the extracted layout | absent (a Store upload must stay unsigned) |
 | — | extracted `AppxManifest.xml` vs `package-identity.json` | Name/Publisher/Version/DisplayName/PublisherDisplayName/capabilities match |
 | `makepri` | `dump /if resources.pri /of pri.xml /o` | exit 0, non-trivial dump (PRI header `mrm_pri2`) |
+| — | `resources.pri` in the extracted package | present, `mrm_pri2` header verified independently |
 | `makeappx` | `pack /d <layout> /p repacked.msix` | exit 0 — schema accepts the shipped manifest |
-| — | `AppxSignature.p7x` in extracted layout | absent (required for a Store upload) |
 
 ### 4.4 Runtime check (already on record)
 
@@ -142,8 +150,8 @@ host requirement.
 | Property | Value |
 |---|---|
 | File to upload | `NEXORA-AI_4.4.1.0_neutral.msixupload` |
-| Size | 10 455 141 bytes |
-| SHA-256 | `d306d0e8cf967ce5fe767ac1f403349ca183c7724278355934e0d863745e59f2` |
+| Size | 10 455 133 bytes (identical to the release asset byte for byte) |
+| SHA-256 | `b060d1dfc15c4f973e82241c2a7f8fc5e3e8a00b7db45bfead58fdad38f5f0a8` |
 | Signed? | no — by design; the Store signs it. The self-signed copy is for local sideloading only |
 | Symbols | none (optional; see §2) |
 

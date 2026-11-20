@@ -10,8 +10,8 @@
 
 الحزمة مبنية فعليًا على Windows SDK داخل GitHub Actions، وتم **تثبيتها فعليًا** على Windows
 عبر `Add-AppxPackage` وتشغيلها (Edge PWA Host) والتحقق من صلاحياتها وهُويتها ثم إزالتها.
-البناء النهائي: Run [`44727837544`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44727837544)
-— `18/18` فحص تثبيت ناجح، `0` فشل.
+البناء النهائي: Run [`44732511763`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44732511763)
+— `18/18` فحص تثبيت ناجح، `0` فشل، مع تحقّق مستقل من ملف الرفع (`195` كتلة SHA-256) وأدوات SDK.
 
 **صفحة التحميل:**
 <https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.1.0>
@@ -21,13 +21,14 @@
 
 | الملف | الحجم | SHA-256 | الاستخدام |
 |---|---:|---|---|
-| `NEXORA-AI_4.4.1.0_neutral.msixupload` | 10,455,141 | `d306d0e8…745e59f2` | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
-| `NEXORA-AI_4.4.1.0_neutral.msixbundle` | 10,553,805 | `dab10c41…6f090e6b` | bundle بديل/فحص |
-| `NEXORA-AI_4.4.1.0_neutral.msix` | 10,552,021 | `5e36c3c2…49c1aa91` | حزمة أحادية/فحص |
-| `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | 10,556,429 | `2a82bd35…ade1c972` | **اختبار محلي فقط** |
-| `NEXORA-AI-test-certificate.cer` | 818 | — | شهادة الاختبار العامة (بلا مفتاح خاص) |
-| `install-test.json` | 3,678 | — | نتيجة اختبار التثبيت الفعلي |
-| `SHA256SUMS.txt` / `BUILD-INFO.txt` | 514 / 1,138 | — | البصمات وتفاصيل البناء |
+| `NEXORA-AI_4.4.1.0_neutral.msixupload` | 10,455,133 | `b060d1df…5f0a8` | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
+| `NEXORA-AI_4.4.1.0_neutral.msixbundle` | 10,553,808 | `1a12d68e…2a6fca51` | bundle بديل/فحص |
+| `NEXORA-AI_4.4.1.0_neutral.msix` | 10,552,023 | `273f62a6…405cf806d` | حزمة أحادية/فحص |
+| `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | 10,556,435 | `9b3ae380…d7d5336a` | **اختبار محلي فقط** |
+| `NEXORA-AI-test-certificate.cer` | 818 | `c0a1fa01…5400b47c7` | شهادة الاختبار العامة (بلا مفتاح خاص) |
+| `install-test.json` | — | — | نتيجة اختبار التثبيت الفعلي |
+| `upload-verification.json` | — | — | تقرير فحص ملف الرفع (بنية + block map + هوية) |
+| `SHA256SUMS.txt` / `BUILD-INFO.txt` | — | — | البصمات وتفاصيل البناء |
 
 > الحزم نفسها محفوظة أيضًا داخل المستودع في `windows/release/4.4.1.0/`، و
 > `sha256sum -c SHA256SUMS.txt` ينجح على الملفات الأربعة؛ سطر الشهادة `.cer` يخصّ صفحة Release فقط
@@ -43,16 +44,16 @@ Microsoft Store **يعيد توقيع** حزم MSIX أثناء الاعتماد�
 موضوعها `Package/Identity/Publisher`، ويشترط سلسلة موثوقة، ويوقّع SHA-256 مع timestamp،
 ويكتب `SIGNATURE-INFO.txt`. لا تُرفع الشهادات إلى المستودع أبدًا.
 
-## ما تم التحقق منه فعليًا (Run 44727837544)
+## ما تم التحقق منه فعليًا (Run 44732511763)
 
-- `Add-AppxPackage` نجح في **1.1 ثانية**، والحزمة ظهرت مسجّلة:
+- `Add-AppxPackage` نجح في **1.2 ثانية**، والحزمة ظهرت مسجّلة:
   `Ahmedbecetti.NEXORAAIbyBECETTI_4.4.1.0_neutral__y0zvy3a8v70hm` بحالة `Ok`.
 - `Get-AppxPackage` أعاد Name وPublisher وVersion وPFN مطابقة تمامًا لـ
   `windows/package-identity.json`.
 - الصلاحيات المعلنة في **مانيفست الحزمة المثبّتة**: `internetClient` و`runFullTrust` فقط.
 - المدخل `Id=App` مع `HostId=PWA`، والتطبيق ظهر في Start:
   `NEXORA AI by BECETTI → …!App`.
-- التشغيل عبر `explorer.exe shell:AppsFolder\…` أنشأ **13 عملية msedge** بعنوان نافذة حقيقي:
+- التشغيل عبر `explorer.exe shell:AppsFolder\…` أنشأ **11 عملية msedge** بعنوان نافذة حقيقي:
   «NEXORA Studio | ابنِ تطبيقًا كاملًا بالوصف — محرر وطرفية ومعاينة ونشر»، وبلا أخطاء تنشيط.
 - سطح الإنتاج استجاب `HTTP 200` (12,157 بايت) لـ `?nx_surface=msix`.
 - الإزالة (`Remove-AppxPackage`) نظفت التسجيل بلا بقايا.
@@ -106,3 +107,12 @@ Add-AppxPackage -Path .\NEXORA-AI_4.4.1.0_neutral.test-signed.msix
 - اختبار التثبيت: `windows/scripts/Test-MsixInstall.ps1` + بوابة `windows/tools/assert-install-test.mjs`
 - سير العمل: `.github/workflows/windows-store-package.yml` (ينشر Release تلقائيًا)
 - الهوية والصلاحيات: `windows/package-identity.json` + `windows/msix/AppxManifest.reference.xml`
+
+## ملف الرموز `.appxsym` — غير مطلوب
+
+ملف `.msixupload` لا يحتوي `.appxsym`، وهذا **صحيح ومقصود**: Microsoft تنصّ في توثيقها على أن
+الملف اختياري — «You can omit this file, but if you do, no crash analytic or debugging information
+will be available»
+(<https://learn.microsoft.com/en-us/windows/msix/package/packaging-uwp-apps>).
+الحزمة Hosted App Model وتشغّل موقع الويب عبر Edge، فلا تحتوي أي كود مُصرَّف يمكن ترجمته إلى
+رموز. التفصيل الكامل: [`PARTNER-CENTER-REVIEW.md`](PARTNER-CENTER-REVIEW.md).

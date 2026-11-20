@@ -73,7 +73,9 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Build-Msix.ps1 `
 2. ينسخ `AppxManifest.reference.xml` والأصول الـ53؛
 3. يولّد `resources.pri` بـ `makepri`؛
 4. يحزم `.msix` ثم `.msixbundle` بـ `makeappx`؛
-5. يلفّ الـbundle في `.msixupload` (ZIP عادي) **غير موقّع** للمتجر؛
+5. يلفّ الـbundle في `.msixupload` (ZIP عادي) **غير موقّع** للمتجر، ملفًا بملف عبر
+   `System.IO.Compression.ZipArchive`، ثم **يعيد فتح الناتج ويتحقق**: bundle واحد في الجذر
+   بالضبط، ولا `p7x`/`pdb`/`cer`/`zip`/`msixupload`، ولا مسارات متداخلة؛
 6. ينشئ نسخة اختبار موقّعة ذاتيًا في ملف منفصل، ويحذف الشهادة الخاصة من runner.
 
 الناتج المتوقع:
@@ -81,6 +83,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Build-Msix.ps1 `
 | الملف | المعنى |
 |---|---|
 | `NEXORA-AI_4.4.1.0_neutral.msixupload` | ارفعه إلى Partner Center (غير موقّع؛ المتجر يوقّعه) |
+| `upload-verification.json` | تقرير فحص ملف الرفع (بنية + block map + هوية) |
 | `NEXORA-AI_4.4.1.0_neutral.msixbundle` | فحص/بديل |
 | `NEXORA-AI_4.4.1.0_neutral.msix` | فحص/بديل |
 | `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | اختبار محلي فقط |
@@ -220,6 +223,14 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
   المبرَّرة)، ورفض أي صلاحية مقيّدة إضافية، وأصول الشعارات و`resources.pri`.
 - أن `.msixupload` يحتوي bundle ثم msix ثم `AppxBlockMap.xml` و`[Content_Types].xml`،
   وأن نسخة المتجر بلا `AppxSignature.p7x`.
+- `node windows/tools/verify-msix-upload.mjs <upload>`: قارئ ZIP/ZIP64 مستقل يتحقق من CRC32
+  لكل عنصر، ومن شمول `AppxBlockMap.xml` لكل الملفات، ومن بصمات SHA-256 لكل كتلة (195 كتلة)،
+  ومن تطابق الهوية والصلاحيات مع `package-identity.json`؛ يُشغَّل كبوابة في سير العمل.
+- أدوات SDK على **ملف الرفع نفسه**: `makeappx unpack` للحزمة المستخرجة، `makepri dump` على
+  `resources.pri` المستخرج، ثم `makeappx pack` لإعادة التحقق من المخطّط.
+- `.appxsym` **غير مطلوب** لهذه الحزمة (Hosted App Model بلا كود مُصرَّف)؛ غيابه مسجّل كتحذير
+  مبرَّر لا كخطأ، ولا يُصنَّع ملف رموز وهمي. التفصيل:
+  [`PARTNER-CENTER-REVIEW.md`](PARTNER-CENTER-REVIEW.md).
 - عدم وجود أي أثر لمفاتيح/أسرار خادم في ملفات الحزمة.
 
 ## ٨) الرفع إلى Microsoft Store
@@ -229,6 +240,8 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 2. في Partner Center: **Submissions → New submission**.
 3. **Packages**: ارفع `.msixupload` كما هو. إن رفض Partner Center سببًا، اقرأ الرسالة حرفيًا
    ولا تغيّر الامتداد يدويًا؛ يمكنك تجربة `.msixbundle` كبديل إن طُلب.
+   ملف `.appxsym` **ليس مطلوبًا** ولا يُصنَّع: Microsoft تصرّح بأنه اختياري («You can omit this
+   file…»)، وغيابه يعني فقط عدم توفّر تحليلات الأعطال.
 4. **Store listing**: استخدم النصوص من [`STORE-LISTING.md`](STORE-LISTING.md)، ولقطات شاشة حقيقية من [`SCREENSHOTS.md`](SCREENSHOTS.md).
 5. **Properties**: الفئة Productivity، متطلبات Windows 10 2004+، الإعلان عن استخدام الذكاء الاصطناعي عند ظهور الخيار.
 6. **Privacy**: `https://nexora-social-2026.vercel.app/windows/privacy.html`

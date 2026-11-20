@@ -4,7 +4,7 @@
 **Branch:** `arena/cf85f57a-nexora-social-2026`
 **App version:** 4.4.1 · **MSIX version:** 4.4.1.0
 **Store display name:** `NEXORA AI by BECETTI` (reserved in Partner Center)
-**Build + install test:** GitHub Actions run [`44727837544`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44727837544)
+**Build + install test:** GitHub Actions run [`44732511763`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44732511763)
 on `windows-latest` (`Windows NT 10.0.26100.0`, x64)
 **Source checks:** this Linux workspace
 
@@ -26,9 +26,13 @@ on `windows-latest` (`Windows NT 10.0.26100.0`, x64)
 | `Test-MsixInstall.ps1` (`Add-AppxPackage`) | ✅ **18 passed / 0 failed** | `windows/release/4.4.1.0/install-test.json` |
 | `assert-install-test.mjs` (CI gate) | ✅ | all critical checks PASS, no headless exemptions needed |
 | runFullTrust removal experiment | ⛔ **rejected by Windows: `0x80073D2F`** | proves the capability is mandatory — see [`RUNFULLTRUST-REVIEW.md`](RUNFULLTRUST-REVIEW.md) |
+| `node windows/tools/verify-msix-upload.mjs <upload>` | ✅ exit 0 | upload → bundle → msix re-verified: 1 entry, 57 parts, 53 PNG, **195 SHA-256 blocks** over 56 files, identity/capabilities match; sole warning = no `.appxsym` (optional, see [`PARTNER-CENTER-REVIEW.md`](PARTNER-CENTER-REVIEW.md)) |
+| `makeappx unpack` (upload → bundle → msix) | ✅ exit 0 | unpacked from the **uploaded artefact**, not from the source layout |
+| `makepri dump` on the extracted `resources.pri` | ✅ exit 0 | non-trivial dump produced (PRI header `mrm_pri2`) |
+| `makeappx pack` re-validation of the extracted layout | ✅ exit 0 | the shipped manifest is accepted against the schema |
 | Package inspection (Linux, byte level) | ✅ | 57 entries, 53 assets, `resources.pri`, `AppxBlockMap.xml`, `[Content_Types].xml`, **no** `AppxSignature.p7x` |
 
-### 1.1 Install test — every check (run 44727837544, 11:28:54Z)
+### 1.1 Install test — every check (run 44732511763, 12:03:43Z)
 
 | # | Check | Status | Detail |
 |---|---|---|---|
@@ -46,7 +50,7 @@ on `windows-latest` (`Windows NT 10.0.26100.0`, x64)
 | 12 | application-entry | PASS | `Id=App` |
 | 13 | edge-pwa-host | PASS | `HostId=PWA` |
 | 14 | start-menu-entry | PASS | `NEXORA AI by BECETTI → …!App` |
-| 15 | launch-edge-host | PASS | 13 new `msedge` processes; window title `NEXORA Studio \| ابنِ تطبيقًا كاملًا بالوصف …` |
+| 15 | launch-edge-host | PASS | 11 new `msedge` processes; window title `NEXORA Studio \| ابنِ تطبيقًا كاملًا بالوصف …` |
 | 16 | activation-event-log | PASS | no activation errors in the last 2 minutes |
 | 17 | production-surface | PASS | HTTP 200, 12,157 bytes for `https://nexora-social-2026.vercel.app/?nx_surface=msix` |
 | 18 | uninstall | PASS | package removed cleanly (no leftover registration) |
@@ -61,13 +65,19 @@ Download page: <https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/w
 
 | File | Size (bytes) | SHA-256 | Purpose |
 |---|---:|---|---|
-| `NEXORA-AI_4.4.1.0_neutral.msixupload` | 10,455,141 | `d306d0e8cf967ce5fe767ac1f403349ca183c7724278355934e0d863745e59f2` | **upload this to Partner Center** (unsigned; Store re-signs) |
-| `NEXORA-AI_4.4.1.0_neutral.msixbundle` | 10,553,805 | `dab10c41bfe2222c43479d1f369bbbf3bf37951111c4c437db6a38f6f090e6b6` | bundle / alternate upload form |
-| `NEXORA-AI_4.4.1.0_neutral.msix` | 10,552,021 | `5e36c3c2abec52c4c54100d125dce4b72bbdacdfaed8512289bcbca49c1aa919` | single package / inspection |
-| `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | 10,556,429 | `2a82bd3582ac03d972fd34558eb15fcf3785dfc3fb942d72e0ed77ade1c9729a` | local sideload test only |
-| `NEXORA-AI-test-certificate.cer` | 818 | — | public test certificate, no private key |
-| `install-test.json` | 3,678 | — | the measurements in §1.1 |
-| `SHA256SUMS.txt` / `BUILD-INFO.txt` | 514 / 1,138 | — | build record |
+| `NEXORA-AI_4.4.1.0_neutral.msixupload` | 10,455,133 | `b060d1dfc15c4f973e82241c2a7f8fc5e3e8a00b7db45bfead58fdad38f5f0a8` | **upload this to Partner Center** (unsigned; Store re-signs) |
+| `NEXORA-AI_4.4.1.0_neutral.msixbundle` | 10,553,808 | `1a12d68e55bb8abf59b76dfa6f0c84187e1b3a836ddbd8202f1aa2822a6fca51` | bundle / alternate upload form |
+| `NEXORA-AI_4.4.1.0_neutral.msix` | 10,552,023 | `273f62a6ad52e90470c704751fef228658c8c37a5390069b8483740405cf806d` | single package / inspection |
+| `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | 10,556,435 | `9b3ae3801ef4536ef3bc79a323504df9df92dcb44fcbbac1648c69d4a7d5336a` | local sideload test only |
+| `NEXORA-AI-test-certificate.cer` | 818 | `c0a1fa01ce6bbe513c8680f62fc6b15f3a9a451a7709da33579024c5400b47c7` | public test certificate, no private key |
+| `install-test.json` | — | — | the measurements in §1.1 |
+| `upload-verification.json` | — | — | machine-readable upload audit (structure, block map, identity) |
+| `SHA256SUMS.txt` / `BUILD-INFO.txt` | — | — | build record |
+
+Text files are CRLF in the release and LF-normalised in this repository, so their byte size
+differs by one byte per line; only the four binaries carry hashes that matter here. The release
+asset sizes for `NEXORA-AI_4.4.1.0_neutral.msixupload` (10,455,133) and the other binaries match
+the committed copies byte for byte (binaries are never normalised).
 
 The same packages are committed under `windows/release/4.4.1.0/` and attached to the release
 above, together with the runFullTrust experiment output. `sha256sum -c SHA256SUMS.txt` passes for
@@ -76,13 +86,18 @@ committed — `.gitignore` blocks `*.cer`).
 
 ## 3 · Package content (verified byte level)
 
-- `NEXORA-AI_4.4.1.0_neutral.msixupload` = ZIP → one `.msixbundle`.
+- `NEXORA-AI_4.4.1.0_neutral.msixupload` = ZIP → one `.msixbundle`, no directory entries,
+  no archive comment, **no `.appxsym`** (optional for a Hosted App Model app that ships no
+  compiled code — see [`PARTNER-CENTER-REVIEW.md`](PARTNER-CENTER-REVIEW.md) §2).
 - `.msixbundle` → `NEXORA-AI_4.4.1.0_neutral.msix`, `AppxMetadata/AppxBundleManifest.xml`,
   `AppxBlockMap.xml`, `[Content_Types].xml`.
 - Bundle identity: `Name=Ahmedbecetti.NEXORAAIbyBECETTI`, `Publisher=CN=A5D5DC31-…`,
   `Version=4.4.1.0` — identical to `windows/package-identity.json`.
 - Inside the `.msix`: 57 entries, 53 PNG assets, `resources.pri`, `AppxBlockMap.xml`,
   `[Content_Types].xml`, **no** `AppxSignature.p7x` (Store upload must stay unsigned).
+- Block map integrity re-checked independently: `AppxBlockMap.xml` covers 56 files and all
+  **195** uncompressed SHA-256 block hashes match the bytes (3 blocks are stored compressed and
+  are covered by their size + the zip CRC32 of the part). Every ZIP entry's CRC32 verified.
 - Manifest values: `DisplayName=NEXORA AI by BECETTI`, `PublisherDisplayName=Ahmedbecetti`,
   `uap10:HostId="PWA"`, `Microsoft.MicrosoftEdge.Stable`, `--app-id=pkojfojlpmhfnldcmaemlmpbkcdmihle`,
   `--app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix`, `--windows-store-app`,
