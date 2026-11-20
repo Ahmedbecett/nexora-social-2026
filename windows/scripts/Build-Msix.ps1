@@ -175,6 +175,37 @@ try {
   Compress-Archive -LiteralPath $bundlePath -DestinationPath $uploadZip -Force
   Copy-Item -LiteralPath $uploadZip -Destination $uploadPath -Force
 
+  Write-Host 'Verifying .msixupload content (bundle -> msix -> manifest/blockmap/PRI)'
+  $uploadVerify = Join-Path $work 'upload-verify'
+  New-Item -ItemType Directory -Path $uploadVerify -Force | Out-Null
+  Expand-Archive -LiteralPath $uploadZip -DestinationPath $uploadVerify -Force
+  $bundleInUpload = Get-ChildItem -LiteralPath $uploadVerify -Filter '*.msixbundle' | Select-Object -First 1
+  if (-not $bundleInUpload) { throw 'The .msixupload does not contain a .msixbundle.' }
+  $bundleVerify = Join-Path $work 'bundle-verify'
+  $bundleZip = Join-Path $work 'bundle-verify.zip'
+  Copy-Item -LiteralPath $bundleInUpload.FullName -Destination $bundleZip -Force
+  New-Item -ItemType Directory -Path $bundleVerify -Force | Out-Null
+  Expand-Archive -LiteralPath $bundleZip -DestinationPath $bundleVerify -Force
+  $bundleManifestPath = Join-Path $bundleVerify 'AppxMetadata\AppxBundleManifest.xml'
+  if (-not (Test-Path -LiteralPath $bundleManifestPath)) { throw 'AppxBundleManifest.xml is missing from the bundle.' }
+  [xml]$bundleManifest = Get-Content -LiteralPath $bundleManifestPath -Raw
+  if ($bundleManifest.Bundle.Identity.Name -ne $identity.identityName) {
+    throw "Bundle identity does not match: $($bundleManifest.Bundle.Identity.Name)"
+  }
+  $msixInBundle = Get-ChildItem -LiteralPath $bundleVerify -Filter '*.msix' | Select-Object -First 1
+  if (-not $msixInBundle) { throw 'The .msixbundle does not contain a .msix.' }
+  $msixVerify = Join-Path $work 'msix-verify'
+  $msixZip = Join-Path $work 'msix-verify.zip'
+  Copy-Item -LiteralPath $msixInBundle.FullName -Destination $msixZip -Force
+  New-Item -ItemType Directory -Path $msixVerify -Force | Out-Null
+  Expand-Archive -LiteralPath $msixZip -DestinationPath $msixVerify -Force
+  foreach ($required in @('AppxManifest.xml', 'AppxBlockMap.xml', '[Content_Types].xml', 'resources.pri')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $msixVerify $required))) { throw "Missing package file: $required" }
+  }
+  if (Test-Path -LiteralPath (Join-Path $msixVerify 'AppxSignature.p7x')) {
+    throw 'The Store upload must stay unsigned; unexpected AppxSignature.p7x inside the package.'
+  }
+
   if (-not $SkipTestSignature) {
     Write-Host 'Creating a self-signed test certificate and test-signed copy (local sideload only)'
     $cert = New-SelfSignedCertificate -Type CodeSigningCert `
@@ -236,6 +267,9 @@ Test cert:     $([System.IO.Path]::GetFileName($testCerPath)) (public certificat
 Do NOT upload the test-signed package or the test certificate to Partner Center.
 "@ | Set-Content -LiteralPath (Join-Path $OutputDirectory 'BUILD-INFO.txt') -Encoding UTF8
 
+  Write-Host ''
+  Write-Host 'SHA-256:'
+  Get-Content -LiteralPath (Join-Path $OutputDirectory 'SHA256SUMS.txt') | ForEach-Object { Write-Host "  $_" }
   Write-Host ''
   Write-Host 'Build complete:'
   foreach ($file in $files) { if (Test-Path -LiteralPath $file) { Write-Host "  $file" } }
