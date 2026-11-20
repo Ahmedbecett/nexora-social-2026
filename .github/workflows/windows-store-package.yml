@@ -61,14 +61,29 @@ jobs:
         run: |
           $cert = Join-Path $PWD 'dist\windows\NEXORA-AI-test-certificate.cer'
           if (-not (Test-Path -LiteralPath $cert)) { throw "Test certificate missing: $cert" }
-          # TrustedPeople فقط: إضافة شهادة إلى Root تفتح حوار أمان وتعطّل runner غير التفاعلي.
           Import-Certificate -FilePath $cert -CertStoreLocation Cert:\CurrentUser\TrustedPeople | Out-Null
+          # certutil يضيف إلى Root بصمت، بخلاف Import-Certificate الذي يفتح حوار أمان.
+          certutil.exe -addstore -f Root $cert | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "certutil failed to trust the test certificate (exit $LASTEXITCODE)." }
 
       - name: Install and inspect the package
         timeout-minutes: 5
         shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
+          trap {
+            $details = ($_ | Out-String)
+            Write-Host "::error title=MSIX install failed::$($_.Exception.Message)"
+            Write-Host $details
+            if ($env:GH_TOKEN) {
+              $body = "MSIX install smoke failed on $env:GITHUB_SHA`n`n$details"
+              $payload = @{ body = $body } | ConvertTo-Json
+              $payload | gh api --method POST "repos/$env:GITHUB_REPOSITORY/commits/$env:GITHUB_SHA/comments" --input - | Out-Null
+            }
+            exit 1
+          }
           $msix = Get-ChildItem -LiteralPath 'dist\windows' -Filter '*.test-signed.msix' | Select-Object -First 1
           if (-not $msix) { throw 'The test-signed MSIX is missing from the build output.' }
           Write-Host "Installing $($msix.Name)"
