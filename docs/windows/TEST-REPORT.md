@@ -1,107 +1,80 @@
 # Test report — NEXORA AI by BECETTI 4.4.1 Windows Edition
 
-**Date:** 19 November 2026 (Store-name rebuild: 20 November 2026, UTC)
-**Branch:** `arena/f406a053-nexora-social-2026` (base `8a04269`)
+**Date:** 20 November 2026 (UTC)
+**Branch:** `arena/b2b93ebf-nexora-social-2026` (base `066e5f7`)
 **App version:** 4.4.1 · **MSIX version:** 4.4.1.0
 **Store display name:** `NEXORA AI by BECETTI` (reserved in Partner Center)
-**Environment:** Linux workspace for source checks; GitHub Actions `windows-2025` runner with Windows SDK for the real package build. No interactive Windows host and no Partner Center submission.
-An unsigned Store package and a self-signed sideload test package were built; nothing has been submitted to Microsoft.
-Browser checks used `curl` and static analysis; **no headless browser is available in this sandbox**, so
-real-window screenshots were not produced.
+**Environment:** Linux workspace for source checks; GitHub Actions `windows-2025` runner with Windows SDK for the real package build and install test. No interactive Windows desktop and no Partner Center submission.
 
-> This report separates **automated results** from **manual Windows verification**. The manual matrix below
-> is **pending** and must be completed on Windows before relying on the package. A real unsigned `.msixupload`
-> exists, but this file does not claim Store certification or an interactive install test.
+An unsigned Store package, an unsigned bundle/MSIX, and a self-signed sideload copy were built. **Nothing has been submitted to Microsoft.**
+
+> This report separates **automated results** from **manual Windows verification**. The manual matrix is still **pending** and must be completed on a physical Windows machine. CI verifies install, identity, capabilities, Start registration and Edge-host process start; it does not replace a human UI session.
 
 ## 1 · Automated results
 
-| Command | Result | Notes |
+| Check | Result | Evidence |
 |---|---|---|
 | `npm ci` | ✅ | 439 packages, lockfile respected |
-| `npm test` | ✅ **225/225** | Windows/PWA/privacy tests, including the required `runFullTrust` guard |
-| `npm run build` | ✅ | Vite production build; `dist/` verified |
+| `npm test` | ✅ **225/225** | Windows/PWA/privacy/SEO tests |
+| `npm run build` | ✅ | Vite production build |
 | `node windows/tools/sync-version.mjs --check` | ✅ | `package.json 4.4.1` → MSIX `4.4.1.0` |
-| `npm run windows:check` | ✅ exit 0 | Partner Center identity verified; 1 warning: Store URL pending publication |
-| Windows package build | ✅ | `Build-Msix.ps1` on Windows Server 2025: `makepri`, `makeappx pack/bundle`, `.msixupload` structure check, `Test-MsixPackage.ps1` |
-| Store-name rebuild | ✅ | Run `44654597475`; `Test-MsixPackage.ps1` matched `DisplayName`/`VisualElements DisplayName` = `NEXORA AI by BECETTI` and unchanged Name/Publisher/version; release asset `c2adc350…a88d` |
-| `runFullTrust` removal test | ❌ rejected at install | Run `44674821589`: MSIX built, but `Add-AppxPackage` failed with **`0x80073D2F`** — the Edge host runtime dependency requires `runFullTrust`. Capability restored; Release remains valid |
-| Windows install smoke | ✅ | Run [`44716168241`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44716168241): `Add-AppxPackage` succeeded, capabilities were `internetClient` + `runFullTrust`, no host runtime attributes leaked into the hosted app, Start entry existed, Edge host process started, package uninstalled cleanly |
-| Dev server route check | ✅ 9/9 HTTP 200 | `/`, `/windows/`, `/windows/en.html`, `/windows/privacy.html`, `/windows/ads-config.json`, `/sw.js`, `/offline.html`, `/manifest.webmanifest`, `/version.json` |
+| `node windows/tools/check-windows.mjs` | ✅ exit 0 | Identity integrated; only warning is Store URL pending |
+| Hosted PWA smoke | ✅ | Run `44719494138`: fallback URL HTTP 200 + app shell, web manifest contains `name` |
+| Windows package build | ✅ | `makepri`, `makeappx pack`, `makeappx bundle`, `.msixupload` structure check, `Test-MsixPackage.ps1` |
+| Windows install | ✅ | `Add-AppxPackage` on `windows-2025` |
+| Identity / Publisher / PFN | ✅ | Matched `package-identity.json` and Partner Center values |
+| Capabilities | ✅ | Installed manifest contains `internetClient` + `runFullTrust` |
+| Start registration | ✅ | `Get-StartApps` returned the package entry |
+| Edge host activation | ✅ | `shell:AppsFolder\<PFN>!App` started `msedge` |
+| Uninstall | ✅ | `Remove-AppxPackage` succeeded |
+| Artifact | ✅ | `nexora-windows-4.4.1.0`, **41,828,972 bytes** |
 
-### What the new tests cover (`tests/windows-*.test.mjs`)
+Run: <https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44719494138>
 
-- **PWA/platform:** surface detection (Android/MSIX/PWA/browser), service-worker decision matrix, manifest
-  fields/icons/shortcuts, no API/authorization caching, offline page, WCO-only shell, shortcuts, offline
-  and error states, no fake Store link.
-- **Advertising:** shipped config disabled, `provider: none`, no MSIX/PWA surfaces, Google test ID
-  rejection, unknown/unimplemented provider fails closed, consent gate, 30-min/3-per-day UX gate, no local
-  impression tracking, config separate from code.
-- **MSIX:** 4-part version derivation, exact Partner Center identity (`Ahmedbecetti.NEXORAAIbyBECETTI`,
-  publisher CN, PFN, Product ID `9ND09PBRDPKZ`), rejection of malformed or mismatched identity, 53 assets,
-  reference manifest rules, signing script checks, no certificate files in the repo.
-- **Privacy/docs:** policy sections and local-storage keys, honest advertising wording, support/privacy
-  links, no fake Store URL/product ID, advertising investigation references, required documents exist.
+## 2 · Release assets
 
-### Defect found and fixed during this test pass
+Release: <https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.1.0>
 
-While testing the frequency gate, `readFrequency` used `Number(raw.last) | 0`, which truncates millisecond
-timestamps to 32 bits and reset the “last shown” value. The 30-minute gap therefore never applied. Fixed
-with `Number(raw.last) || 0`, and the daily-limit test was corrected to assert within the same local day.
-This is exactly the kind of bug a Store reviewer would hit by reopening the app immediately.
+| Asset | Size | SHA-256 | Purpose |
+|---|---:|---|---|
+| `NEXORA-AI_4.4.1.0_neutral.msixupload` | 10,455,087 | `a55549b087e2f78eba0f0b2d40f4d5acddfed302e8ce8b013923493cdc50f540` | **Upload this to Partner Center** |
+| `NEXORA-AI_4.4.1.0_neutral.msixbundle` | 10,553,694 | `e6b8c90aedb8b7c03c331416bed4030cac4ea05505e0876294d2a5ededc5727b` | Inspection / fallback |
+| `NEXORA-AI_4.4.1.0_neutral.msix` | 10,551,911 | `197301e9e3db5bc71506c6db11e33bd5584ac9a7e725fb58a332e8ee9f6b85be` | Inspection / fallback |
+| `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | 10,556,319 | `4f7b259120277a2733b80891f4a99d6a946ec6384d7fa631e488c5cc4edbcc86` | Local sideload test only |
+| `NEXORA-AI-test-certificate.cer` | 818 | `00f9b0a8d3f404397a4d4b95e3a80d1a3369bf6c6e741d4e5d3b176abe4d553e` | Test certificate (no private key) |
 
-## 2 · Build artefacts verified
+The `.msixupload` is **unsigned by design**. Microsoft Store re-signs accepted packages during certification. A developer-signed Store upload is neither required nor accepted as a substitute for Microsoft's signature. The test-signed `.msix` is for local installation only and must **not** be uploaded to Partner Center.
 
-- `dist/sw.js`, `dist/offline.html`, `dist/manifest.webmanifest`.
-- `dist/windows/index.html`, `dist/windows/en.html`, `dist/windows/privacy.html`, `dist/windows/ads-config.json`.
-- Manifest `display_override` = `["window-controls-overlay","standalone","minimal-ui"]`.
-- Production bundle contains **no** Google test ad units (`6300978111`, `1033173712`, `5224354917`,
-  `3347511713` absent); test IDs are build-time dev-only now.
-- `windows/msix/Assets/` contains 53 PNGs (icons, tiles, splash scales, unplated variants).
-- `windows/msix/AppxManifest.reference.xml` is the **actual Hosted App Model manifest** copied into the package. The built artifacts are attached to the [Windows release](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.1.0).
+## 3 · Identity preserved
 
-### Store-name rebuild (20 November 2026)
+| Field | Value | Status |
+|---|---|---|
+| `Package/Identity/Name` | `Ahmedbecetti.NEXORAAIbyBECETTI` | unchanged |
+| `Publisher` | `CN=A5D5DC31-4A15-4059-8030-D96C51054596` | unchanged |
+| `PublisherDisplayName` | `Ahmedbecetti` | unchanged |
+| Package Family Name | `Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm` | unchanged |
+| Product ID | `9ND09PBRDPKZ` (Draft) | unchanged |
+| Display name | `NEXORA AI by BECETTI` | changed only to the reserved Store name |
+| Version | `4.4.1.0` | raised from `4.4.0.0` |
 
-- Reserved Store name **`NEXORA AI by BECETTI`** is set in:
-  - `Package/Properties/DisplayName`
-  - `uap:VisualElements DisplayName`
-  - `windows/package-identity.json` (`displayName`)
-- **Unchanged:** `Package/Identity/Name` `Ahmedbecetti.NEXORAAIbyBECETTI`, `Publisher`
-  `CN=A5D5DC31-4A15-4059-8030-D96C51054596`, Product ID `9ND09PBRDPKZ`, version `4.4.1.0`.
-- The rebuilt `.msixupload` is 10,454,721 bytes, SHA-256
-  `c2adc350fc21805e0d1a8892873e8b48ca5ad0ab57726630afac6fb58039a88d`.
-- **Not verified:** interactive Windows install, the Store listing UI, and Partner Center acceptance.
-  Those remain manual steps and must not be reported as done.
+`Package/Properties/DisplayName` and `uap:VisualElements DisplayName` both equal `NEXORA AI by BECETTI`.
 
-### `runFullTrust` necessity test (20 November 2026)
+## 4 · `runFullTrust` still required
 
-- A build without `runFullTrust` was produced in run `44663704164`; `makeappx` and the structural
-  checks accepted it, which showed that manifest schema alone does not catch the problem.
-- The package was then installed on a Windows runner in run
-  [`44674821589`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44674821589).
-  `Add-AppxPackage` failed with:
+The capability is **not optional** for the Edge Stable Hosted App Model:
 
-  ```text
-  0x80073D2F — A host runtime dependency resolving to a package with full trust
-  content requires the main package to have the runFullTrust capability.
-  ```
+- Host runtime dependency: `Microsoft.MicrosoftEdge.Stable`.
+- Edge declares `Windows.FullTrustApplication` / `packagedClassicApp` / `mediumIL` and `runFullTrust`.
+- A package that resolves this full-trust host dependency must declare `runFullTrust`.
+- Removing it produced `0x80073D2F` at install (Run `44674821589`); restoring it made install and launch pass.
 
-- Conclusion: `runFullTrust` is **required** by the Edge Stable Hosted App Model, even though the
-  package has no executable. It was restored in the manifest and both validators.
-- After restoring the capability, run
-  [`44675317746`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44675317746)
-  installed the package on `windows-2025`, confirmed `internetClient` + `runFullTrust`, found the
-  Start entry, observed the Edge host process start, and uninstalled the package cleanly. The same
-  smoke passed again in run `44716168241` with the stricter Hosted App Model validation.
-- The public release was never replaced. The existing release package already contains the capability
-  and remains the candidate for Partner Center.
-- **Still not verified:** interactive UI launch, app URI handler, sign-in, offline mode, update path,
-  and Store acceptance. The CI test verifies registration, capabilities and host process start, not a
-  human desktop session.
+The app itself has no `Executable`, `EntryPoint`, `TrustLevel` or `RuntimeBehavior`; those belong to Edge's `windows.hostRuntime` extension and are inherited via `uap10:HostId="PWA"`. Full audit: [`MANIFEST-AUDIT.md`](MANIFEST-AUDIT.md).
 
-## 3 · Manual Windows test matrix (pending)
+Partner Center justification: **`runFullTrust` is required by the Edge Stable host runtime dependency (Hosted App Model); the package contains no executable and does not read user files.**
 
-Complete on a real Windows machine with Edge and the test-signed `.msix` (or the installed PWA). The Store-upload package is unsigned by design.
-Statuses start as **Pending** — do not change to Pass without evidence.
+## 5 · Manual Windows test matrix (pending)
+
+Complete this on a physical Windows 10 2004+ / Windows 11 machine with Edge Stable. Use the test-signed `.msix` or the installed PWA. Statuses start as **Pending**; do not mark Pass without evidence.
 
 | # | Test | Steps | Expected | Status |
 |---|---|---|---|---|
@@ -111,40 +84,36 @@ Statuses start as **Pending** — do not change to Pass without evidence.
 | 4 | Logout / revoke | Settings → sign out; log out all devices | Session cleared, other sessions revoked | Pending |
 | 5 | AI conversation | Send Arabic and English prompts | Streaming/answer or clear error; no mock text | Pending |
 | 6 | History | Reopen conversation; new conversation (`Ctrl+N`) | Persisted server-side, correct account | Pending |
-| 7 | File/image upload | Attach supported file; generate image | Works or honest limitation message; no fake result | Pending |
+| 7 | File/image upload | Attach supported file; generate image | Works or honest limitation message | Pending |
 | 8 | Studio | Create project, edit file, run command, preview | Real files, terminal output, live preview | Pending |
 | 9 | Publish | GitHub/Vercel publish with test account | Real provider flow, no secrets exposed | Pending |
 | 10 | Responsive | 1366×768, 1920×1080, narrow window | No clipped controls; RTL/LTR correct | Pending |
 | 11 | Themes | Toggle light/dark | Readable contrast, title bar consistent | Pending |
-| 12 | Windows shell | Verify WCO title bar, ⋯ menu, keyboard | No overlap with caption buttons; menu closes on Esc | Pending |
-| 13 | Ad area | With shipped config | No ad, no empty reserved gap, no request | Pending |
-| 14 | Network failure | Disable network, open/reload | Offline page/banner, retry works, no white screen | Pending |
+| 12 | Windows shell | WCO title bar, ⋯ menu, keyboard | No overlap with caption buttons; Esc closes menu | Pending |
+| 13 | Ad area | With shipped config | No ad, no empty gap, no request | Pending |
+| 14 | Network failure | Disable network, open/reload | Offline page/banner, retry works | Pending |
 | 15 | Slow network | Throttle to Slow 3G | Loading state, no duplicate submissions | Pending |
-| 16 | Update PWA | Deploy new build, reopen | Update prompt once, reload applies new build | Pending |
-| 17 | MSIX install | Trust the test certificate, then `Add-AppxPackage` test-signed `.msix` | Installs on Win10 2004+ and Win11 | Pending |
-| 18 | MSIX surface | Launch MSIX | `nx_surface=msix` reflected; ads stay off | Pending |
+| 16 | Update PWA | Deploy new build, reopen | Update prompt once, reload applies build | Pending |
+| 17 | MSIX install | Trust certificate, `Add-AppxPackage` test-signed `.msix` | Installs on Win10 2004+ and Win11 | Pending |
+| 18 | MSIX surface | Launch MSIX | `nx_surface=msix` reflected; ads off | Pending |
 | 19 | MSIX update | Higher version package | Updates in place, data intact | Pending |
 | 20 | Uninstall | Uninstall app | No crash leftovers; server account intact | Pending |
-| 21 | Accessibility | Keyboard-only, Narrator, 200% scale | Focus visible, labels announced, no traps | Pending |
+| 21 | Accessibility | Keyboard-only, Narrator, 200% scale | Focus visible, labels announced | Pending |
 | 22 | Security scan | `Test-MsixPackage.ps1`; Defender scan | No secrets; no malware flags | Pending |
-| 23 | MSIX install | Install the current release/test package on clean Win10 2004 and Win11 | Installs without `0x80073D2F`; app appears in Start | Pending |
-| 24 | MSIX launch | Launch from Start, then open an `https://nexora-social-2026.vercel.app/...` link | Edge host activates under the package identity; app URI handler opens the app | Pending |
-| 25 | Installed capabilities | `Get-AppxPackageManifest` on the installed package | `<Capabilities>` contains `internetClient` and `runFullTrust` | Pending |
+| 23 | MSIX install | Clean Win10 2004 and Win11 | Installs without `0x80073D2F`; appears in Start | Pending |
+| 24 | MSIX launch | Launch from Start; open a site link | Edge host activates under package identity | Pending |
+| 25 | Installed capabilities | `Get-AppxPackageManifest` | `internetClient` + `runFullTrust` | Pending |
 
-## 4 · What is not verified (must not be claimed)
+## 6 · Not verified (must not be claimed)
 
-- Store submission, certification or publication.
-- An interactive installation on a physical Windows machine (the package was structurally verified, not installed interactively).
-- Interactive activation through the Edge PWA host, including the app URI handler and update path (the CI install test only checks registration and capabilities).
-- Production Store signing (Microsoft signs during certification; the test-signed copy is not for the Store).
-- Real advertising (disabled by design; no provider verified for PWA/MSIX).
-- Screenshots, promotional art, age rating, Store URL/publication.
-- MG Ads is **not integrated**: its current UWP SDK cannot run in this package type, and its C++/Win32 and
-  H5 SDKs have no verified WebView2 path; see `MG-ADS-FEASIBILITY.md`.
-- Windows 10/11 behaviour beyond static checks. The matrix above is the evidence gate.
+- Partner Center submission, certification or Store publication.
+- Interactive installation on a physical Windows desktop (CI installed on a Windows runner, not a human session).
+- Full interactive UI flows: sign-in, conversations, Studio, file upload, offline mode, updates.
+- app URI handler on a physical machine.
+- Store acceptance. Certification is Microsoft's decision.
+- Advertising is intentionally disabled; no provider is verified for this package type.
+- Screenshots, age rating, and the Store URL.
 
-## 5 · Sign-off
+## 7 · Sign-off
 
-Automated engineering checks pass and the unsigned Store package was built successfully. **Interactive
-Windows verification and Store submission/certification are still required.** Advertising is **not operational**. A Store submission before completing
-[`RELEASE-CHECKLIST.md`](RELEASE-CHECKLIST.md) would be premature.
+Source tests, production build, Windows package build, install, identity/capability checks, Start registration, Edge-host launch, and uninstall all pass. The Store-ready `.msixupload` is published and ready to upload to Partner Center. **Store certification and the manual UI matrix remain outstanding.**

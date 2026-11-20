@@ -6,7 +6,8 @@
 > يحتوي full-trust content ويشترط الصلاحية في الحزمة الرئيسية. أُعيدت الصلاحية،
 > وهي مطلوبة ولا تُحذف. بعد الإعادة نجح التثبيت والفحص وإطلاق مضيف Edge في Run
 > [`44675317746`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44675317746)
-> و[`44716168241`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44716168241).
+> و[`44716168241`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44716168241)
+> و[`44719494138`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44719494138) (بناء 4.4.1.0).
 > أصول Release الحالية صالحة.
 
 **Display Name:** `NEXORA AI by BECETTI` (الاسم المحجوز في Partner Center)
@@ -27,23 +28,25 @@
 
 | الملف | الحجم | الاستخدام |
 |---|---:|---|
-| `NEXORA-AI_4.4.1.0_neutral.msixupload` | 10,454,721 بايت | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
-| `NEXORA-AI_4.4.1.0_neutral.msixbundle` | 10,553,527 بايت | فحص/بديل إن طلب Partner Center صيغة الحزمة |
-| `NEXORA-AI_4.4.1.0_neutral.msix` | 10,551,743 بايت | فحص/بديل لصيغة أحادية |
-| `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | 10,556,153 بايت | **اختبار محلي فقط**، ليس للمتجر |
+| `NEXORA-AI_4.4.1.0_neutral.msixupload` | 10,455,087 بايت | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
+| `NEXORA-AI_4.4.1.0_neutral.msixbundle` | 10,553,694 بايت | فحص/بديل إن طلب Partner Center صيغة الحزمة |
+| `NEXORA-AI_4.4.1.0_neutral.msix` | 10,551,911 بايت | فحص/بديل لصيغة أحادية |
+| `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | 10,556,319 بايت | **اختبار محلي فقط**، ليس للمتجر |
 | `NEXORA-AI-test-certificate.cer` | 818 بايت | شهادة الاختبار العامة (بلا مفتاح خاص) |
 | `SHA256SUMS.txt` / `BUILD-INFO.txt` | — | البصمات وتفاصيل البناء |
 
 SHA-256 للحزمة المرفوعة في هذا البناء (من بيانات أصل Release على GitHub):
 
 ```text
-c2adc350fc21805e0d1a8892873e8b48ca5ad0ab57726630afac6fb58039a88d  NEXORA-AI_4.4.1.0_neutral.msixupload
+a55549b087e2f78eba0f0b2d40f4d5acddfed302e8ce8b013923493cdc50f540  NEXORA-AI_4.4.1.0_neutral.msixupload
 ```
 
-> هذا البناء أُعيد في Run `44654597475` بعد تغيير الاسم. نجح
+> هذا البناء نُفّذ في Run `44719494138` على `windows-2025` بـ Windows SDK. نجح
 > `Test-MsixPackage.ps1` الإلزامي داخل البناء، وهو يطابق
 > `Package/Properties/DisplayName` و`uap:VisualElements DisplayName` مع
-> `NEXORA AI by BECETTI`، ويطابق `Identity Name` و`Publisher` مع القيم الحالية.
+> `NEXORA AI by BECETTI`، ويطابق `Identity Name` و`Publisher` و`Version`
+> و`PublisherDisplayName` مع القيم الحالية. ثم ثُبّتت الحزمة فعليًا على runner
+> Windows، وظهرت في Start، وبدأ مضيف Edge، وأُزيلت بنجاح.
 
 ## مهم: المتجر لا يحتاج توقيعك
 
@@ -72,9 +75,11 @@ Partner Center؛ تلك النسخة للاختبار المحلي فقط.
 - `signtool` وقّع نسخة الاختبار وطابق Publisher. `signtool verify` أبلغ أن
   السلسلة الذاتية غير موثوقة — متوقع، ولهذا لا تُرفع نسخة الاختبار للمتجر.
 
-**ما لم يتم:** لم نثبّت الحزمة على جهاز Windows فعلي، ولم نرسلها إلى Partner Center،
-ولم تُنشر في المتجر. هذه خطوات تحتاج جهازك/حسابك، ولا يمكن ادّعاء نجاحها من هنا.
-الحزمة بنيوية وصالحة للرفع، لكن اعتماد المتجر يبقى قرار Microsoft.
+**ما لم يتم:** لم تُرسل الحزمة إلى Partner Center ولم تُنشر في المتجر. هذا يحتاج
+حسابك، ولا يمكن ادّعاء نجاحه من هنا. الحزمة بُنيت وثُبّتت واختُبر تفعيلها آليًا على
+Windows، لكن اعتماد المتجر يبقى قرار Microsoft. الاختبار التفاعلي الكامل (تسجيل
+الدخول، المحادثات، Studio، offline، التحديث) ما زال مطلوبًا على جهازك وفق
+[`TEST-REPORT.md`](TEST-REPORT.md).
 
 ## طريقة الرفع إلى Partner Center
 

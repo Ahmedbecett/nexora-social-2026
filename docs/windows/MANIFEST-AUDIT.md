@@ -112,7 +112,7 @@ content requires the main package to have the runFullTrust capability.
 | بناء حزمة **بدون** `runFullTrust` | نجح `makeappx` — أي أن فحص المخطط وحده لا يكشف المشكلة |
 | تثبيتها بـ `Add-AppxPackage` (Run `44674821589`) | فشل: `0x80073D2F` |
 | إعادة الصلاحية وبناء جديد (Run `44675317746`) | نجح التثبيت، وأكد الفحص `internetClient` + `runFullTrust`، وظهر التطبيق في Start، وبدأ مضيف Edge، ثم أُزيلت الحزمة بنجاح |
-| بناء لاحق مع فحص البنية الصارم (Run `44716168241`) | نجح أيضًا: لا `Executable`/`EntryPoint`/`TrustLevel`/`RuntimeBehavior`، و`HostRuntimeDependency` واحدة لـ Edge، ثم تثبيت وتفعيل وإزالة |
+| بناء 4.4.1.0 مع فحص البنية الصارم (Run `44719494138`) | نجح: لا `Executable`/`EntryPoint`/`TrustLevel`/`RuntimeBehavior`، و`HostRuntimeDependency` واحدة لـ Edge، ثم تثبيت وتفعيل وإزالة |
 
 ### ماذا تعني أمنيًا وماذا لا تعني؟
 
@@ -157,12 +157,12 @@ PWABuilder يشرح أن تحذير Partner Center «يمكن تجاهله بأ�
 | `npm test` | **225/225** |
 | مدقق المانيفست (`validateManifestXml`) | ✅ لا أخطاء |
 | بنية Hosted App Model (لا `Executable`/`EntryPoint`/`TrustLevel`/`RuntimeBehavior`) | ✅ مُختبرة |
-| تثبيت Windows فعلي | ✅ Run `44716168241` (وأول نجاح في `44675317746`) |
+| تثبيت Windows فعلي | ✅ Run `44719494138` (وأول نجاح في `44675317746`) |
 | ظهور التطبيق في Start | ✅ |
 | بدء مضيف Edge | ✅ |
 | إزالة الحزمة | ✅ |
 | الهوية | الاسم والناشر وPFN وProduct ID لم تتغيّر؛ الإصدار رُفع إلى `4.4.1.0` |
-| أصول Release العامة | لم تُستبدل |
+| أصول Release العامة | Release جديد `windows-v4.4.1.0`، والقديم `windows-v4.4.0.0` محفوظ |
 
 **لم يُتحقق بعد:** التشغيل التفاعلي الكامل على جهاز المستخدم، app URI handler، تسجيل الدخول،
 العمل offline، ومسار التحديث، ثم قبول المتجر.
@@ -189,6 +189,6 @@ PWABuilder يشرح أن تحذير Partner Center «يمكن تجاهله بأ�
 - [MSIX-Hero issue #115 — مانيفست Edge PWA حقيقي](https://github.com/marcinotorowski/MSIX-Hero/issues/115)
 - [Run 44674821589 — فشل 0x80073D2F](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44674821589)
 - [Run 44675317746 — نجاح التثبيت والتفعيل](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44675317746)
-- [Run 44716168241 — إعادة التحقق مع فحص بنية Hosted App Model](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44716168241)
+- [Run 44719494138 — بناء 4.4.1.0 مع فحص بنية Hosted App Model](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44719494138)
 
 </div>
