@@ -28,7 +28,7 @@
   <Identity
     Name="Ahmedbecetti.NEXORAAIbyBECETTI"
     Publisher="CN=A5D5DC31-4A15-4059-8030-D96C51054596"
-    Version="4.4.0.0"
+    Version="4.4.1.0"
     ProcessorArchitecture="neutral" />
 
   <Properties>
@@ -92,6 +92,14 @@
 
   <Capabilities>
     <Capability Name="internetClient" />
+    <!--
+      runFullTrust مطلوب فعليًا لنموذج Hosted App Model: نظام Windows يشغّل مضيفًا
+      موثوقًا كامل (Edge Stable) بهوية الحزمة. الحزمة نفسها لا تحتوي أي executable
+      ولا تقرأ ملفات المستخدم ولا تثبّت برامج. الدليل والتبرير التقني الكامل في
+      docs/windows/RUNFULLTRUST-REVIEW.md، والنص الجاهز لـ Partner Center في
+      windows/package-identity.json. لا تُزل هذه الصلاحية بدون إعادة اختبار
+      التثبيت وتشغيل المضيف على Windows.
+    -->
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>
 </Package>

@@ -1,26 +1,41 @@
 name: Build Windows Store package
 
-# This workflow replaces the old PWABuilder image-service path, which returned
-# 500/503 and could not produce a package. It builds the Hosted App Model MSIX
-# locally on a Windows runner with the Microsoft Windows SDK.
+# Builds the real Hosted App Model MSIX on a Windows runner with the Microsoft
+# Windows SDK (makepri + makeappx + signtool), installs it with Add-AppxPackage,
+# launches the Edge PWA host, checks the declared capabilities, and publishes the
+# artifacts for Microsoft Partner Center.
+#
+# Release 4.4.1.0:
+#   * Store name "NEXORA AI by BECETTI" in Properties and VisualElements;
+#   * Package Identity Name / Publisher / PublisherDisplayName / PFN / Product ID unchanged;
+#   * runFullTrust reviewed and justified (docs/windows/RUNFULLTRUST-REVIEW.md);
+#   * .msix + .msixbundle + .msixupload (unsigned for the Store, which re-signs);
+#   * Add-AppxPackage install test, Start entry, host launch, permission and identity checks.
 on:
   workflow_dispatch:
   push:
     paths:
       - '.github/workflows/windows-store-package.yml'
-      - 'windows/scripts/Build-Msix.ps1'
-      - 'windows/scripts/Test-MsixPackage.ps1'
-      - 'windows/msix/**'
-      - 'windows/package-identity.json'
+      - 'windows/**'
+      - 'docs/windows/**'
+      - 'package.json'
       - 'public/manifest.webmanifest'
 
 permissions:
   contents: write
 
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   windows-package:
-    name: Build and publish MSIX
+    name: Build, install and publish MSIX
     runs-on: windows-latest
+    env:
+      PKG_VERSION: 4.4.1.0
+      PKG_BASE: NEXORA-AI
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,23 +45,74 @@ jobs:
         with:
           node-version: 20
 
-      - name: Verify Windows readiness
+      - name: Verify version and Windows readiness
         shell: pwsh
-        run: node windows/tools/check-windows.mjs
+        run: |
+          node windows/tools/sync-version.mjs --check
+          if ($LASTEXITCODE -ne 0) { throw 'MSIX version does not match package.json' }
+          node windows/tools/check-windows.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Windows readiness check failed' }
 
       - name: Build unsigned Store package and test-signed copy
         shell: pwsh
         run: ./windows/scripts/Build-Msix.ps1 -OutputDirectory dist/windows
 
-      - name: Show output
+      - name: Show package files
         shell: pwsh
-        run: Get-ChildItem dist/windows | Format-Table Name, Length
+        run: |
+          Get-ChildItem dist/windows | Format-Table Name, Length
+          Get-Content dist/windows/BUILD-INFO.txt
+
+      - name: Install test (Add-AppxPackage + Start entry + Edge host + permissions)
+        id: install
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $msix = "dist/windows/$($env:PKG_BASE)_$($env:PKG_VERSION)_neutral.test-signed.msix"
+          $cer = 'dist/windows/NEXORA-AI-test-certificate.cer'
+          ./windows/scripts/Test-MsixInstall.ps1 -MsixPath $msix -CertificatePath $cer -TrustRoot `
+            -AllowLaunchFailure -OutputJson dist/windows/install-test.json
+
+      - name: Assert install test result
+        shell: pwsh
+        run: |
+          if (-not (Test-Path dist/windows/install-test.json)) { throw 'install-test.json was not produced — the install test did not run.' }
+          Get-Content dist/windows/install-test.json -Raw | Write-Host
+          node windows/tools/assert-install-test.mjs dist/windows/install-test.json --allow-headless
+          if ($LASTEXITCODE -ne 0) { throw 'The Windows package did not install/register correctly.' }
+
+      - name: Experiment — is runFullTrust really required?
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $msix = "dist/windows/$($env:PKG_BASE)_$($env:PKG_VERSION)_neutral.msix"
+          ./windows/scripts/Test-RunFullTrustNecessity.ps1 -SourceMsix $msix -OutputDirectory dist/runfulltrust-experiment
+
+      - name: Report runFullTrust experiment
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          if (Test-Path dist/runfulltrust-experiment/install-test-no-fulltrust.json) {
+            Get-Content dist/runfulltrust-experiment/install-test-no-fulltrust.json -Raw
+            $json = Get-Content dist/runfulltrust-experiment/install-test-no-fulltrust.json -Raw | ConvertFrom-Json
+            $install = @($json.checks | Where-Object { $_.check -eq 'add-appxpackage' })[0]
+            $launch = @($json.checks | Where-Object { $_.check -eq 'launch-edge-host' })[0]
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value "`n### runFullTrust experiment (package built WITHOUT the capability)`n- Add-AppxPackage: **$($install.status)** — $($install.detail)`n- Edge host launch: **$($launch.status)** — $($launch.detail)`n"
+          }
+
+      - name: SHA-256 of the deliverables
+        shell: pwsh
+        run: |
+          Get-ChildItem dist/windows -File | Where-Object { $_.Extension -in @('.msix', '.msixbundle', '.msixupload', '.cer', '.txt') } |
+            ForEach-Object { $h = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(); "{0}  {1}  {2} bytes" -f $h, $_.Name, $_.Length }
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nexora-windows-4.4.0.0
-          path: dist/windows/*
+          name: nexora-windows-${{ env.PKG_VERSION }}
+          path: |
+            dist/windows/*
+            dist/runfulltrust-experiment/*
           if-no-files-found: error
 
       - name: Publish GitHub release assets
@@ -54,25 +120,43 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'windows-v4.4.0.0'
+          $tag = 'windows-v4.4.1.0'
           $notes = @'
-          حزمة Windows الحقيقية لـ **NEXORA AI by BECETTI** (Hosted App Model).
+          حزمة Windows النهائية لـ **NEXORA AI by BECETTI** — الإصدار `4.4.1.0` (Hosted App Model).
 
-          - `NEXORA-AI_4.4.0.0_neutral.msixupload` — ارفع هذا الملف إلى Partner Center. غير موقّع عمدًا؛ Microsoft Store يعيد توقيعه.
-          - `NEXORA-AI_4.4.0.0_neutral.msixbundle` و`.msix` — نسخ فحص غير موقّعة.
-          - `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` + `NEXORA-AI-test-certificate.cer` — للاختبار المحلي فقط (تثبيت الشهادة في Trusted People). لا ترفعها إلى المتجر.
+          - `NEXORA-AI_4.4.1.0_neutral.msixupload` — **ارفع هذا الملف إلى Partner Center**. غير موقّع عمدًا؛ Microsoft Store يوقّعه أثناء الاعتماد.
+          - `NEXORA-AI_4.4.1.0_neutral.msixbundle` و`.msix` — نسخ فحص (غير موقّعة).
+          - `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` + `NEXORA-AI-test-certificate.cer` — للتثبيت المحلي فقط.
+          - `install-test.json` — نتيجة اختبار `Add-AppxPackage` الحقيقي على Windows (التثبيت، الهوية، الصلاحيات، تشغيل Edge).
+          - `runfulltrust-experiment/` — قياس ما يحدث عند إزالة `runFullTrust` (دليل فقط، غير للنشر).
           - `SHA256SUMS.txt` و`BUILD-INFO.txt` — البصمات وتفاصيل البناء.
 
-          الاسم المحجوز: `NEXORA AI by BECETTI` · الهوية: `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596` · الإصدار `4.4.0.0`.
+          الهوية لم تتغيّر: `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596` · PFN `Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm` · Product ID `9ND09PBRDPKZ`.
           '@
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "NEXORA AI by BECETTI · Windows 4.4.0.0" --notes $notes --target $env:GITHUB_SHA
+            gh release create $tag --title "NEXORA AI by BECETTI · Windows 4.4.1.0" --notes $notes --target $env:GITHUB_SHA
             if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
           }
           else {
-            gh release edit $tag --title "NEXORA AI by BECETTI · Windows 4.4.0.0" --notes $notes
+            gh release edit $tag --title "NEXORA AI by BECETTI · Windows 4.4.1.0" --notes $notes
             if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit code $LASTEXITCODE" }
           }
-          gh release upload $tag dist/windows/* --clobber
+          gh release upload $tag dist/windows/* dist/runfulltrust-experiment/* --clobber
           if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE" }
+
+      - name: Summary
+        shell: pwsh
+        run: |
+          $lines = @(
+            '## NEXORA AI by BECETTI — Windows 4.4.1.0',
+            '',
+            '| File | Size | SHA-256 |',
+            '|---|---:|---|'
+          )
+          Get-ChildItem dist/windows -File | Where-Object { $_.Extension -in @('.msix', '.msixbundle', '.msixupload') } | ForEach-Object {
+            $lines += "| ``$($_.Name)`` | $($_.Length) | `$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())` |"
+          }
+          $lines += ''
+          $lines += 'Release: https://github.com/' + $env:GITHUB_REPOSITORY + '/releases/tag/windows-v4.4.1.0'
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value ($lines -join "`n")

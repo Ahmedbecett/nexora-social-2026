@@ -1,7 +1,7 @@
 # MG Ads feasibility for the NEXORA AI Windows package
 
 **Date:** 19 November 2026
-**Product:** NEXORA AI 4.4.0, Partner Center identity
+**Product:** NEXORA AI 4.4.1, Partner Center identity
 `Ahmedbecetti.NEXORAAIbyBECETTI` / Product ID `9ND09PBRDPKZ` (Draft, not published)
 **Question:** can MG Ads (Miracle Games) be integrated and a Banner Ad added?
 **Verdict:** **No for the current package type.** MG publishes a UWP SDK, a native C++ SDK and an H5

@@ -40,18 +40,20 @@
 
 ```bash
 # 1) زامن إصدار MSIX الرباعي مع package.json
-node windows/tools/sync-version.mjs        # 4.4.0 → 4.4.0.0
+node windows/tools/sync-version.mjs        # 4.4.1 → 4.4.1.0
 node windows/tools/sync-version.mjs --check
 # 2) افحص الهوية والمانيفست والأصول والإعلانات وSW
 node windows/tools/check-windows.mjs       # أو npm run windows:check
 ```
 
-- إصدار الحزمة **أربعة أجزاء** وينتهي بـ `.0` عند البناء: `4.4.0.0`.
+- إصدار الحزمة **أربعة أجزاء** وينتهي بـ `.0` عند البناء: `4.4.1.0`.
 - `displayName` هو الاسم المحجوز في Partner Center: **`NEXORA AI by BECETTI`**. لا تغيّره إلا باسم جديد محجوز؛
   ويجب أن يطابق `Package/Properties/DisplayName` و`uap:VisualElements DisplayName` حرفيًا.
-- هذه إعادة بناء أولى بالاسم المحجوز، لذا بقي الإصدار `4.4.0.0` كما هو ضمن الحفاظ على الهوية.
-  إن كان Partner Center قد قبل حزمة `4.4.0.0` سابقًا، فارفع الإصدار إلى `4.4.1.0` قبل الإرسال.
-- بعد قبول أول حزمة، كل إرسال جديد يتطلب رقمًا أكبر من السابق؛ لا تعد استخدام نفس الرقم.
+- الإصدار الحالي المخصص للنشر هو `4.4.1.0` (مشتق من `package.json 4.4.1`). لا تُعد استخدام رقم
+  سبق أن قبله Partner Center: كل إرسال جديد يحتاج رقمًا أكبر (مثل `4.4.2.0`).
+- الصلاحيات مثبّتة بسياسة مُتحقَّق منها: `internetClient` + `runFullTrust` فقط. `runFullTrust`
+  مطلوبة فعليًا لنموذج Hosted App Model ومبرَّرة في [`RUNFULLTRUST-REVIEW.md`](RUNFULLTRUST-REVIEW.md)؛
+  أي صلاحية مقيّدة أخرى تفشل البناء.
 - `check-windows` يجب أن يخرج 0؛ التحذير الوحيد المسموح حاليًا هو أن **رابط المتجر بانتظار النشر**.
 
 ## ٤) بناء الحزمة على Windows أو في GitHub Actions
@@ -78,17 +80,17 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Build-Msix.ps1 `
 
 | الملف | المعنى |
 |---|---|
-| `NEXORA-AI_4.4.0.0_neutral.msixupload` | ارفعه إلى Partner Center |
-| `NEXORA-AI_4.4.0.0_neutral.msixbundle` | فحص/بديل |
-| `NEXORA-AI_4.4.0.0_neutral.msix` | فحص/بديل |
-| `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` | اختبار محلي فقط |
+| `NEXORA-AI_4.4.1.0_neutral.msixupload` | ارفعه إلى Partner Center (غير موقّع؛ المتجر يوقّعه) |
+| `NEXORA-AI_4.4.1.0_neutral.msixbundle` | فحص/بديل |
+| `NEXORA-AI_4.4.1.0_neutral.msix` | فحص/بديل |
+| `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | اختبار محلي فقط |
 | `NEXORA-AI-test-certificate.cer` | شهادة الاختبار العامة |
 
 > **مهم:** ملف المتجر غير موقّع عمدًا؛ Microsoft Store يعيد توقيعه. لا ترفع نسخة
 > الاختبار ولا شهادتها. لا تعِد تسمية `.msix` إلى `.msixupload` أو العكس.
 
 رابط الأصول الحالية:
-<https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.0.0>
+<https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.1.0>
 
 `Update-MsixIdentity.ps1` يبقى أداة مساعدة لحزمة موجودة، ويدعم الآن الحزم
 المضيفة عبر تعديل `--app-fallback-url` بدل إضافة `StartPage` غير صالح.
@@ -166,6 +168,37 @@ Add-AppxPackage -Path .\dist\NEXORA-AI-Windows.msix
   .\dist\NEXORA-AI-Windows.msix
 ```
 
+## ٦ب) اختبار التثبيت الحقيقي (Add-AppxPackage)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixInstall.ps1 `
+  -MsixPath .\dist\windows\NEXORA-AI_4.4.1.0_neutral.test-signed.msix `
+  -CertificatePath .\dist\windows\NEXORA-AI-test-certificate.cer -TrustRoot `
+  -OutputJson .\dist\windows\install-test.json
+```
+
+يفعل فعليًا: يثبّت الحزمة بـ `Add-AppxPackage`، يقرأ الحزمة المسجّلة (`Get-AppxPackage`) ويطابق
+Name وPublisher والإصدار وPFN، يقرأ الصلاحيات من مانيفست الحزمة المثبّتة، يتحقق من ظهور التطبيق في
+Start (`Get-StartApps`) ومن إدخال التشغيل `PFN!App`، يشغّل مضيف Edge عبر `explorer.exe shell:AppsFolder\…`،
+يتحقق من وصول سطح الإنتاج، ثم يزيل الحزمة. النتيجة JSON + جدول PASS/FAIL. بوابة CI:
+`node windows/tools/assert-install-test.mjs <json> --allow-headless`.
+
+## ٦ج) حزمة موقّعة للنشر المباشر (اختياري)
+
+المتجر **لا** يحتاج توقيعك: يوقّع الحزمة أثناء الاعتماد، ولذلك يُرفع `.msixupload` غير الموقّع.
+إن أردت توزيعًا مباشرًا أو مؤسسيًا (sideload/Intune)، وقّع الـbundle بشهادة كود حقيقية
+موضوعها = `Package/Identity/Publisher`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\windows\scripts\Sign-StorePackage.ps1 `
+  -BundlePath .\dist\windows\NEXORA-AI_4.4.1.0_neutral.msixbundle `
+  -CertificatePath .\certs\nexora-store.pfx -CertificatePassword (Read-Host -AsSecureString) `
+  -OutputDirectory .\dist\windows\signed -WrapUpload
+```
+
+يرفض السكربت أي شهادة لا يطابق موضوعها Publisher، ويشترط سلسلة موثوقة (`-AllowUntrustedChain` للاختبار
+المحلي فقط)، ويوقّع SHA-256 مع timestamp ويوثّق البصمة في `SIGNATURE-INFO.txt`.
+
 ## ٧) فحص الحزمة قبل الرفع
 
 ```powershell
@@ -181,15 +214,16 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 - أن الحزمة Hosted App Model: `HostId=PWA` و`Microsoft.MicrosoftEdge.Stable`،
   وأن `--app-fallback-url` يبدأ بـ HTTPS ويحتوي `?nx_surface=msix`،
   وأن `--app-id` مكوّن من 32 حرفًا بين a وp ومطابق للمشتق من Manifest ID.
-- وجود `internetClient` و`runFullTrust` وأصول الشعارات و`resources.pri`.
+- تطابق مجموعة الصلاحيات حرفيًا مع `package-identity.json` (`internetClient` + `runFullTrust`
+  المبرَّرة)، ورفض أي صلاحية مقيّدة إضافية، وأصول الشعارات و`resources.pri`.
 - أن `.msixupload` يحتوي bundle ثم msix ثم `AppxBlockMap.xml` و`[Content_Types].xml`،
   وأن نسخة المتجر بلا `AppxSignature.p7x`.
 - عدم وجود أي أثر لمفاتيح/أسرار خادم في ملفات الحزمة.
 
 ## ٨) الرفع إلى Microsoft Store
 
-1. نزّل `NEXORA-AI_4.4.0.0_neutral.msixupload` من
-   [Release Windows](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.0.0).
+1. نزّل `NEXORA-AI_4.4.1.0_neutral.msixupload` من
+   [Release Windows](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.1.0).
 2. في Partner Center: **Submissions → New submission**.
 3. **Packages**: ارفع `.msixupload` كما هو. إن رفض Partner Center سببًا، اقرأ الرسالة حرفيًا
    ولا تغيّر الامتداد يدويًا؛ يمكنك تجربة `.msixbundle` كبديل إن طُلب.

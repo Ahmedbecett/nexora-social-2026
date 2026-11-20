@@ -61,7 +61,7 @@ both sizes.
 ## Before uploading
 
 - Open the PNG and confirm there is no secret, token, email or personal conversation.
-- Confirm the version shown matches `4.4.0` and the Windows title bar is present where relevant.
+- Confirm the version shown matches `4.4.1` and the Windows title bar is present where relevant.
 - Keep the filenames neutral: `01-ai-home-1366x768.png`, `02-studio-1366x768.png`, etc.
 - Add them to the Partner Center listing yourself; do not put them in the MSIX package.
 

@@ -3,7 +3,7 @@
   "publisherDisplayName": "Ahmedbecetti",
   "identityName": "Ahmedbecetti.NEXORAAIbyBECETTI",
   "publisher": "CN=A5D5DC31-4A15-4059-8030-D96C51054596",
-  "version": "4.4.0.0",
+  "version": "4.4.1.0",
   "applicationId": "App",
   "startPage": "https://nexora-social-2026.vercel.app/?nx_surface=msix",
   "webAppManifestId": "https://nexora-social-2026.vercel.app/",
@@ -23,5 +23,20 @@
   "contactEmail": "ahmedbecetti35@gmail.com",
   "category": "Productivity",
   "storeListingStatus": "draft",
-  "partnerCenterCapturedAt": "2026-11-19"
+  "partnerCenterCapturedAt": "2026-11-19",
+  "capabilities": {
+    "required": [
+      "internetClient",
+      "runFullTrust"
+    ],
+    "restricted": {
+      "runFullTrust": {
+        "required": true,
+        "reviewFile": "docs/windows/RUNFULLTRUST-REVIEW.md",
+        "reviewedAt": "2026-11-20",
+        "evidence": "hosted-app-model-host-activation",
+        "partnerCenterJustification": "NEXORA AI by BECETTI is a Progressive Web App shipped with the Windows Hosted App Model (uap10:HostId=\"PWA\"). The package contains no executable, no installer and no background process: only AppxManifest.xml, resources.pri and image assets. The app content is served over HTTPS from nexora-social-2026.vercel.app and is hosted by Microsoft Edge Stable, declared as a uap10:HostRuntimeDependency. runFullTrust is declared because the Hosted App Model activates a full-trust Win32 host (Edge) on behalf of the package identity; this is the same declaration Microsoft uses in its own Store-shipped hosted PWA package (Microsoft.Copilot, HostId=\"PWA\"). The capability is used only for that host activation. The app does not read, write or enumerate user files, does not install software, does not start at login, does not run elevated and does not access the registry. Network access is performed by the Edge host process. No personal data is collected by the package itself; the privacy policy is at https://nexora-social-2026.vercel.app/windows/privacy.html."
+      }
+    }
+  }
 }

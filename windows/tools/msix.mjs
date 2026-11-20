@@ -2,10 +2,12 @@
    NEXORA AI — أدوات MSIX مشتركة (Node، تعمل على Linux وWindows)
    --------------------------------------------------------------------------
    لا تُشغّل هذه الأدوات أي أمر بناء أو توقيع؛ تتحقق فقط من:
-     • تحويل 4.4.0 ⟹ 4.4.0.0 (إصدار الحزمة الرباعي)
+     • تحويل 4.4.1 ⟹ 4.4.1.0 (إصدار الحزمة الرباعي)
      • أن هوية الحزمة لا تزال Placeholder قبل Partner Center
      • أن أصول الشعارات المطلوبة موجودة فعلًا
      • أن المرجع AppxManifest يحتوي القيم الصحيحة ولا يحتوي Product ID مخترعًا
+     • أن الصلاحيات المعلنة في المانيفست مطابقة تمامًا لسياسة الصلاحيات في الهوية،
+       وأن runFullTrust مبرَّر بملف مراجعة ونص Partner Center (أو مُزال تمامًا)
    ========================================================================== */
 
 import { existsSync } from 'node:fs';
@@ -131,11 +133,75 @@ export function looksLikeStoreProductId(value) {
   return /^9[A-Z0-9]{11}$/.test(String(value || '').trim());
 }
 
+/** يقرأ الصلاحيات المعلنة في المانيفست مع تمييز الصلاحيات المقيّدة (rescap). */
+export function manifestCapabilities(xml) {
+  const text = String(xml || '');
+  const found = [];
+  const pattern = /<(rescap:)?Capability\s+Name="([^"]+)"\s*\/?>/g;
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    found.push({ name: match[2], restricted: Boolean(match[1]) });
+  }
+  return found;
+}
+
+/**
+ * سياسة الصلاحيات: مجموعة المانيفست يجب أن تطابق الهوية حرفيًا.
+ * runFullTrust صلاحية مقيّدة: لا تُقبل إلا بتبرير مكتوب + ملف مراجعة موجود.
+ * أي صلاحية مقيّدة أخرى (allowElevation, packageManagement, unvirtualizedResources…)
+ * مرفوضة لأن التطبيق hosted PWA لا يحتاجها.
+ */
+export function validateCapabilities(xml, identity = {}) {
+  const errors = [];
+  const text = String(xml || '');
+  const declared = manifestCapabilities(text);
+  const names = declared.map((c) => c.name);
+  const declaredSet = new Set(names);
+  if (declaredSet.size !== names.length) errors.push('capabilities-duplicated');
+
+  const policy = (identity && identity.capabilities) || {};
+  const required = Array.isArray(policy.required) ? policy.required : null;
+
+  if (!declaredSet.has('internetClient')) errors.push('manifest-internet-capability');
+  if (!required) {
+    // لا سياسة صريحة في الهوية: نتحقق فقط من الحد الأدنى ومن عدم وجود صلاحيات ممنوعة.
+    if (!declaredSet.has('runFullTrust')) errors.push('manifest-run-full-trust');
+  } else {
+    const expected = [...new Set(required)].sort();
+    const actual = [...declaredSet].sort();
+    if (expected.join(',') !== actual.join(',')) {
+      errors.push(`capabilities-mismatch:manifest=${actual.join('+') || 'none'}:identity=${expected.join('+') || 'none'}`);
+    }
+  }
+
+  const runFullTrust = policy.restricted && policy.restricted.runFullTrust;
+  if (declaredSet.has('runFullTrust')) {
+    if (!text.includes('xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"')) {
+      errors.push('capabilities-missing-rescap-namespace');
+    }
+    if (!runFullTrust || runFullTrust.required !== true) errors.push('run-full-trust-not-justified');
+    else {
+      const justification = String(runFullTrust.partnerCenterJustification || '').trim();
+      if (justification.length < 120) errors.push('run-full-trust-justification-too-short');
+      if (/REPLACE|TODO|CHANGEME/i.test(justification)) errors.push('run-full-trust-justification-placeholder');
+    }
+  } else if (runFullTrust && runFullTrust.required === true) {
+    errors.push('run-full-trust-missing-but-required-by-identity');
+  }
+
+  const allowedRestricted = new Set(['runFullTrust']);
+  for (const cap of declared.filter((c) => c.restricted)) {
+    if (!allowedRestricted.has(cap.name)) errors.push(`unexpected-restricted-capability:${cap.name}`);
+  }
+
+  return { ok: errors.length === 0, errors, capabilities: [...declaredSet].sort() };
+}
+
 /** فحص ملف AppxManifest المرجعي. */
 export function validateManifestXml(xml, identity = {}) {
   const text = String(xml || '');
   const errors = [];
-  const version = identity.version || '4.4.0.0';
+  const version = identity.version || '4.4.1.0';
 
   if (!text.includes(`Version="${version}"`)) errors.push('manifest-version-mismatch');
   if (!text.includes(`<DisplayName>${OFFICIAL_DISPLAY_NAME}</DisplayName>`)) errors.push('manifest-display-name');
@@ -156,8 +222,8 @@ export function validateManifestXml(xml, identity = {}) {
     errors.push('manifest-must-use-hosted-app-model');
   }
   if (!text.includes('Name="Windows.Desktop"')) errors.push('manifest-target-family');
-  if (!text.includes('<Capability Name="internetClient"')) errors.push('manifest-internet-capability');
-  if (!text.includes('<rescap:Capability Name="runFullTrust"')) errors.push('manifest-run-full-trust');
+  const capCheck = validateCapabilities(text, identity);
+  for (const e of capCheck.errors) errors.push(e);
   if (!text.includes('Assets\\StoreLogo.png')) errors.push('manifest-store-logo');
   if (!text.includes('Assets\\SplashScreen.png')) errors.push('manifest-splash');
   if (!text.includes('windows.appUriHandler')) errors.push('manifest-uri-handler');
@@ -175,5 +241,7 @@ export default {
   validateIdentity,
   findMissingAssets,
   looksLikeStoreProductId,
+  manifestCapabilities,
+  validateCapabilities,
   validateManifestXml,
 };

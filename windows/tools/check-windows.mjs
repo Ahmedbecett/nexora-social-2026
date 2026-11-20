@@ -8,7 +8,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
-import { toMsixVersion, validateIdentity, findMissingAssets, validateManifestXml, looksLikeStoreProductId } from './msix.mjs';
+import { toMsixVersion, validateIdentity, findMissingAssets, validateManifestXml, validateCapabilities, looksLikeStoreProductId } from './msix.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const read = (p) => readFileSync(resolve(root, p), 'utf8');
@@ -40,6 +40,35 @@ const manifest = read('windows/msix/AppxManifest.reference.xml');
 const mCheck = validateManifestXml(manifest, identity);
 for (const e of mCheck.errors) errors.push(`manifest: ${e}`);
 
+// 4b) سياسة الصلاحيات: internetClient + تبرير runFullTrust أو إزالتها
+const capCheck = validateCapabilities(manifest, identity);
+for (const e of capCheck.errors) errors.push(`capabilities: ${e}`);
+const restricted = identity.capabilities?.restricted?.runFullTrust;
+if (restricted && restricted.required === true) {
+  const reviewFile = restricted.reviewFile || 'docs/windows/RUNFULLTRUST-REVIEW.md';
+  if (!existsSync(resolve(root, reviewFile))) errors.push(`missing runFullTrust review: ${reviewFile}`);
+  else {
+    const review = read(reviewFile);
+    for (const rule of [
+      'Hosted App Model',
+      'Microsoft.Copilot',
+      'runFullTrust',
+      'Partner Center',
+      'Add-AppxPackage',
+    ]) {
+      if (!review.includes(rule)) errors.push(`${reviewFile} missing evidence: ${rule}`);
+    }
+  }
+}
+if (!capCheck.capabilities.includes('runFullTrust') && restricted && restricted.required === true) {
+  errors.push('identity requires runFullTrust but the manifest does not declare it');
+}
+
+// 4c) أدوات الاختبار/التوقيع المطلوبة للتسليم
+for (const tool of ['windows/scripts/Test-MsixInstall.ps1', 'windows/scripts/Sign-StorePackage.ps1']) {
+  if (!existsSync(resolve(root, tool))) errors.push(`missing tool: ${tool}`);
+}
+
 // 5) ملفات PWA الأساسية
 for (const file of ['public/sw.js', 'public/offline.html', 'public/manifest.webmanifest', 'public/windows/privacy.html', 'public/windows/index.html']) {
   if (!existsSync(resolve(root, file))) errors.push(`missing: ${file}`);
@@ -63,6 +92,7 @@ if (!identity.packageFamilyName) warnings.push('Package family name not recorded
 
 console.log('NEXORA AI by BECETTI — Windows readiness check');
 console.log(`app version: ${pkg.version} · msix version: ${identity.version}`);
+console.log(`capabilities: ${(capCheck.capabilities || []).join(', ')}${restricted && restricted.required ? ' (runFullTrust justified)' : ''}`);
 for (const w of warnings) console.log(`WARN  ${w}`);
 for (const e of errors) console.error(`ERROR ${e}`);
 if (errors.length) {

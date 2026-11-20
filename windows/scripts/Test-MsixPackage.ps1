@@ -1,8 +1,9 @@
 <#
   NEXORA AI - Inspect an MSIX package without installing it.
-  Checks: AppxManifest presence, identity values, 4-part version, StartPage,
-  internetClient capability, required tile/splash assets, and obvious secret
-  leakage in text files.
+  Checks: AppxManifest presence, identity values, 4-part version, hosted-app
+  launch parameters, the exact capability set agreed in package-identity.json
+  (internetClient + justified runFullTrust), required tile/splash assets, and
+  obvious secret leakage in text files.
 #>
 [CmdletBinding()]
 param(
@@ -55,6 +56,21 @@ try {
     if ($identity.Version -ne $expected.version) { $errors.Add("Version does not match package-identity.json: $($identity.Version)") }
     if ($manifest.Package.Properties.DisplayName -ne $expectedDisplayName) { $errors.Add("DisplayName does not match package-identity.json: $($manifest.Package.Properties.DisplayName)") }
     if ($manifest.Package.Properties.PublisherDisplayName -ne $expected.publisherDisplayName) { $errors.Add("PublisherDisplayName does not match package-identity.json: $($manifest.Package.Properties.PublisherDisplayName)") }
+    # سياسة الصلاحيات: مجموعة الحزمة يجب أن تطابق الهوية تمامًا (لا زيادة ولا نقصان).
+    $declaredCaps = @($manifest.Package.Capabilities.ChildNodes | Where-Object { $_.Name } | ForEach-Object { [string]$_.Name } | Sort-Object -Unique)
+    $expectedCaps = @($expected.capabilities.required | Sort-Object -Unique)
+    if (($declaredCaps -join ',') -ne ($expectedCaps -join ',')) {
+      $errors.Add("Capabilities do not match package-identity.json. Package: [$($declaredCaps -join ', ')] / identity: [$($expectedCaps -join ', ')]")
+    }
+    foreach ($extra in @($declaredCaps | Where-Object { $_ -ne 'internetClient' -and $_ -ne 'runFullTrust' })) {
+      $errors.Add("Unexpected restricted capability: $extra")
+    }
+    if ($declaredCaps -contains 'runFullTrust') {
+      $justification = $expected.capabilities.restricted.runFullTrust
+      if (-not $justification -or $justification.required -ne $true) { $errors.Add('runFullTrust is declared but not justified in package-identity.json.') }
+      elseif (([string]$justification.partnerCenterJustification).Length -lt 120) { $errors.Add('Partner Center justification for runFullTrust is missing or too short.') }
+      else { Write-Host "  runFullTrust: justified ($($justification.reviewFile))" }
+    }
     if ($hostId) {
       if ($parameters -notmatch '--app-fallback-url=(?<url>https://\S+)') { $errors.Add('Hosted package has no --app-fallback-url.') }
       elseif ($Matches['url'] -ne $expected.startPage) { $errors.Add("Fallback URL does not match package-identity.json: $($Matches['url'])") }

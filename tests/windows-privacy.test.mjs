@@ -60,7 +60,7 @@ test('صفحات Windows تقدّم دعوى دعم ورابط خصوصية صح
     assert.ok(page.includes('href="/windows/privacy.html"'), 'رابط السياسة');
     assert.ok(page.includes('mailto:ahmedbecetti35@gmail.com'), 'بريد الدعم');
     assert.match(page, /Windows 10/);
-    assert.match(page, /4\.4\.0/);
+    assert.match(page, /4\.4\.1/);
   }
   // نقطة الدعم التي يستخدمها المتجر موجودة في الصفحة العربية
   assert.ok(ids(ar).has('support'));

@@ -1,10 +1,10 @@
-# Windows release checklist — NEXORA AI by BECETTI 4.4.0
+# Windows release checklist — NEXORA AI by BECETTI 4.4.1
 
 Copy this into the release issue and tick every item. Do not mark a section complete by assumption.
 
 ## 0 · Source and version
 
-- [ ] `package.json` version is `4.4.0` (or a newer approved version).
+- [ ] `package.json` version is `4.4.1` and the MSIX version is `4.4.1.0` (or a newer approved pair).
 - [ ] `node windows/tools/sync-version.mjs --check` passes; MSIX version is four parts ending `.0`.
 - [ ] `npm ci` clean.
 - [ ] `npm test` all green.
@@ -44,8 +44,12 @@ Copy this into the release issue and tick every item. Do not mark a section comp
 
 - [ ] Package built by `Build-Msix.ps1` with real identity, Hosted App Model, and `--app-fallback-url` containing `?nx_surface=msix`.
 - [ ] All assets present (53 files), correct names/sizes.
-- [ ] `Test-MsixPackage.ps1` passes.
-- [ ] Signed with a certificate trusted on the test machine.
+- [ ] `Test-MsixPackage.ps1` passes (identity, Hosted App Model, exact capability set).
+- [ ] `Test-MsixInstall.ps1` passes: `Add-AppxPackage`, Start entry, Edge host launch, `production-surface` HTTP 200.
+- [ ] `node windows/tools/assert-install-test.mjs dist/windows/install-test.json --allow-headless` exits 0.
+- [ ] Capabilities are exactly `internetClient` + `runFullTrust`; `runFullTrust` justification matches
+      [`RUNFULLTRUST-REVIEW.md`](RUNFULLTRUST-REVIEW.md) and is pasted into Partner Center → Submission options.
+- [ ] Store upload (`.msixupload`) left unsigned; if a direct-distribution copy is needed, it is signed with a real certificate via `Sign-StorePackage.ps1`.
 - [ ] Install on clean Windows 10 2004+ and Windows 11 (x64; ARM64 if shipping it).
 - [ ] Launch, sign in, AI request, Studio, theme, resizing, keyboard/mouse.
 - [ ] Windows title bar and menu behave; no overlap with native caption buttons.

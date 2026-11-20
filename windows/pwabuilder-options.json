@@ -1,12 +1,12 @@
 {
-  "_note": "Reference values from Partner Center (2026-11-19). The actual package is built by windows/scripts/Build-Msix.ps1 (Hosted App Model, neutral architecture); this file is kept only as a readable identity snapshot. Product ID is recorded but the listing is still a draft; do not publish a Store link until certification.",
+  "_note": "Reference snapshot of the Partner Center values (2026-11-19) for humans only. The real package is built by windows/scripts/Build-Msix.ps1 (Hosted App Model, neutral architecture) at version 4.4.1.0. runFullTrust is required by the hosted Edge PWA host and justified in docs/windows/RUNFULLTRUST-REVIEW.md. The listing is still a draft; do not publish a Store link until certification.",
   "webAppUrl": "https://nexora-social-2026.vercel.app/",
   "appName": "NEXORA AI by BECETTI",
   "shortName": "NEXORA AI",
   "packageId": "Ahmedbecetti.NEXORAAIbyBECETTI",
   "publisherId": "CN=A5D5DC31-4A15-4059-8030-D96C51054596",
   "publisherDisplayName": "Ahmedbecetti",
-  "version": "4.4.0.0",
+  "version": "4.4.1.0",
   "displayMode": "standalone",
   "startPage": "https://nexora-social-2026.vercel.app/?nx_surface=msix",
   "architectures": [
@@ -22,7 +22,7 @@
     "runFullTrust"
   ],
   "generateSignedPackage": false,
-  "signingNote": "Use a test certificate for local install. For Store submission follow Partner Center requirements; never commit a certificate.",
+  "signingNote": "The Microsoft Store re-signs the uploaded package during certification: submit the unsigned .msixupload. For sideload/enterprise distribution sign the .msixbundle with a code-signing certificate whose subject equals Package/Identity/Publisher (windows/scripts/Sign-StorePackage.ps1). Never commit a certificate.",
   "doNotChange": [
     "Do not change Package Identity values except by copying new values from Partner Center",
     "Do not enable ads",

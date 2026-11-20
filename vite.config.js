@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
-// نسخة الإصدار الواحدة التي تُحقن في الويب وindex.html (v4.4.0 ⟹ 4.4.0)
+// نسخة الإصدار الواحدة التي تُحقن في الويب وindex.html (v4.4.1 ⟹ 4.4.1)
 const APP_VERSION = pkg.version || '0.0.0';
 const APP_VERSION_SHORT = APP_VERSION.split('.').slice(0, 2).join('.');
 // An evergreen search title; version belongs on the download page and in app UI.

@@ -115,7 +115,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Build-Msix.ps1 `
   -OutputDirectory .\dist\windows
 ```
 
-Upload `dist\windows\NEXORA-AI_4.4.0.0_neutral.msixupload` to Partner Center. It is
+Upload `dist\windows\NEXORA-AI_4.4.1.0_neutral.msixupload` to Partner Center. It is
 unsigned by design; Microsoft Store re-signs it. The test-signed `.msix` is only for
 local sideload. Never commit the certificate. Never upload a test-signed package or a
 fake Product ID.

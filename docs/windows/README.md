@@ -1,4 +1,4 @@
-# NEXORA AI by BECETTI — Windows Edition 4.4.0
+# NEXORA AI by BECETTI — Windows Edition 4.4.1
 
 <div dir="rtl">
 
@@ -16,8 +16,8 @@
 | `src/pwa.js` + `src/pwaCore.js` | تسجيل خدمة العمل والتحديث والتثبيت — معطّل تمامًا داخل تطبيق أندرويد |
 | `src/ads/` + `public/windows/ads-config.json` | خانة إعلان مخصّصة تظهر عند التفعيل فقط، موافقة، بوابات أسطح، **معطّلة افتراضيًا** |
 | `windows/msix/` | AppxManifest الفعلي (Hosted App Model) وكل شعارات MSIX وSplash |
-| `windows/scripts/` | أدوات Windows: بناء الحزمة، توليد الأصول، تطبيق الهوية، فحص الحزمة |
-| `windows/package-identity.json` | هوية الحزمة، الاسم المحجوز `NEXORA AI by BECETTI`، الإصدار الرباعي (4.4.0.0) وقيم Partner Center |
+| `windows/scripts/` | أدوات Windows: بناء الحزمة، توليد الأصول، تطبيق الهوية، فحص الحزمة، **اختبار التثبيت**، توقيع النشر |
+| `windows/package-identity.json` | هوية الحزمة، الاسم المحجوز `NEXORA AI by BECETTI`، الإصدار الرباعي (4.4.1.0) وقيم Partner Center |
 | `public/windows/` | صفحة Windows العامة + سياسة خصوصية مكتوبة لنسخة Windows |
 
 ## ما هو جاهز الآن
@@ -36,7 +36,7 @@
 هذه ليست نواقص مخفية، بل خطوات تحتاج حسابك أو جهازك:
 
 1. **رفع الحزمة إلى Partner Center** يحتاج تسجيل دخولك وحسابك. الحزمة نفسها جاهزة في
-   [Release Windows](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.0.0).
+   [Release Windows](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.1.0).
 2. **شهادة توقيع الإنتاج** لا تُشحن؛ Microsoft Store يوقّع الحزمة أثناء الاعتماد. الشهادة
    الموجودة في Release للاختبار المحلي فقط.
 3. **رابط المتجر** لا يُضاف قبل اجتياز الاعتماد والنشر. Product ID الحقيقي مسجّل، والمنتج ما زال **Draft**.
@@ -56,6 +56,7 @@
 7. [`RELEASE-CHECKLIST.md`](RELEASE-CHECKLIST.md) — قائمة تحقق قبل الإرسال للمتجر.
 8. [`SCREENSHOTS.md`](SCREENSHOTS.md) — التقاط لقطات المتجر الحقيقية.
 9. [`SECURITY-AND-PRIVACY.md`](SECURITY-AND-PRIVACY.md) — مراجعة الأمان والخصوصية وما لم يُختبر.
+10. [`RUNFULLTRUST-REVIEW.md`](RUNFULLTRUST-REVIEW.md) — مراجعة صلاحية `runFullTrust` بالأدلة وتبرير Partner Center.
 
 </div>
 

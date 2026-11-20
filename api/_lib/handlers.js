@@ -206,7 +206,7 @@ export async function dispatch(method, path, req) {
 /* Self-documenting index: GET /api returns every route this deployment really serves. */
 route('GET', '', async () => ({
   service: 'NEXORA AI API',
-  version: '4.4.0',
+  version: '4.4.1',
   note: 'مسارات تحتاج توكن الدخول (Authorization: Bearer) مُعلَّمة بـ auth',
   routes: routes.filter((r) => r.pattern !== '').map((r) => ({
     method: r.method,

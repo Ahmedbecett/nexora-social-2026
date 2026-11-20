@@ -10,7 +10,10 @@
     3. packs NEXORA-AI_<version>_neutral.msix with makeappx.exe;
     4. bundles it into a .msixbundle (single neutral package);
     5. wraps the bundle in a .msixupload (plain ZIP, Store re-signs it);
-    6. creates a separate self-signed test copy for local sideload only.
+    6. creates a separate self-signed test copy for local sideload only;
+    7. enforces the capability policy: the manifest must declare exactly the
+       capabilities in package-identity.json, and runFullTrust must be backed by
+       docs/windows/RUNFULLTRUST-REVIEW.md + a Partner Center justification.
 
   The Store upload is intentionally UNSIGNED. Microsoft Store signs it during
   certification. The test certificate is generated in a temp folder, never
@@ -89,6 +92,35 @@ Assert-TextContains $manifestText "Publisher=`"$($identity.publisher)`"" 'Manife
 Assert-TextContains $manifestText 'uap10:HostId="PWA"' 'Manifest is not a Hosted App Model package.'
 Assert-TextContains $manifestText 'Name="Microsoft.MicrosoftEdge.Stable"' 'Manifest does not declare the Edge stable host.'
 Assert-TextContains $manifestText '--windows-store-app' 'Manifest is missing the Store launch flag.'
+
+# --- capability policy --------------------------------------------------------
+$capPolicy = $identity.capabilities
+if (-not $capPolicy -or -not $capPolicy.required) { throw 'package-identity.json has no capabilities policy.' }
+$declaredCaps = @([regex]::Matches($manifestText, '<(?:rescap:)?Capability\s+Name="([^"]+)"') |
+  ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+$expectedCaps = @($capPolicy.required | Sort-Object -Unique)
+if (($declaredCaps -join ',') -ne ($expectedCaps -join ',')) {
+  throw "Capabilities mismatch. Manifest: [$($declaredCaps -join ', ')] / identity: [$($expectedCaps -join ', ')]."
+}
+if ($declaredCaps -notcontains 'internetClient') { throw 'internetClient is required for the app surface.' }
+if ($declaredCaps -contains 'runFullTrust') {
+  $justification = $capPolicy.restricted.runFullTrust
+  if (-not $justification -or $justification.required -ne $true) {
+    throw 'runFullTrust is declared but package-identity.json does not mark it as required with a justification.'
+  }
+  if (([string]$justification.partnerCenterJustification).Length -lt 120) {
+    throw 'The Partner Center justification for runFullTrust is missing or too short.'
+  }
+  $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+  $reviewPath = Join-Path $repoRoot ([string]$justification.reviewFile)
+  if (-not (Test-Path -LiteralPath $reviewPath)) {
+    throw "runFullTrust review file is missing: $($justification.reviewFile)"
+  }
+  Write-Host "runFullTrust: justified ($($justification.reviewFile), reviewed $($justification.reviewedAt))"
+}
+foreach ($restrictedCap in @($declaredCaps | Where-Object { $_ -ne 'internetClient' -and $_ -ne 'runFullTrust' })) {
+  throw "Unexpected restricted capability: $restrictedCap"
+}
 
 $appIdMatch = [regex]::Match($manifestText, '--app-id=([a-p]{32})\b')
 if (-not $appIdMatch.Success) { throw 'Manifest has no valid --app-id (32 characters a-p).' }
@@ -256,6 +288,7 @@ Web App ID:         $appId
 Fallback URL:       $($identity.startPage)
 Target family:      Windows.Desktop, MinVersion $($identity.minWindowsVersion)
 Host:               Microsoft.MicrosoftEdge.Stable (HostId PWA)
+Capabilities:       $($declaredCaps -join ', ')
 Built (UTC):        $([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'))
 
 Store upload:  $([System.IO.Path]::GetFileName($uploadPath)) (UNSIGNED; Store re-signs it)

@@ -19,6 +19,8 @@ import {
   validateIdentity,
   findMissingAssets,
   validateManifestXml,
+  validateCapabilities,
+  manifestCapabilities,
   looksLikeStoreProductId,
 } from '../windows/tools/msix.mjs';
 
@@ -28,15 +30,17 @@ const identity = JSON.parse(read('windows/package-identity.json'));
 const manifest = read('windows/msix/AppxManifest.reference.xml');
 
 test('إصدار MSIX رباعي مشتق من package.json لا مكتوب يدويًا', () => {
-  assert.equal(pkg.version, '4.4.0');
-  assert.equal(toMsixVersion('4.4.0'), '4.4.0.0');
+  assert.equal(pkg.version, '4.4.1');
+  assert.equal(toMsixVersion('4.4.1'), '4.4.1.0');
   assert.equal(toMsixVersion('12.0.7'), '12.0.7.0');
-  assert.equal(isValidMsixVersion('4.4.0.0'), true);
-  assert.equal(isValidMsixVersion('4.4.0'), false);
-  assert.equal(isValidMsixVersion('4.4.0.1'), false, 'المراجعة تبقى صفرًا وقت البناء');
+  assert.equal(isValidMsixVersion('4.4.1.0'), true);
+  assert.equal(isValidMsixVersion('4.4.1'), false);
+  assert.equal(isValidMsixVersion('4.4.1.1'), false, 'المراجعة تبقى صفرًا وقت البناء');
   assert.throws(() => toMsixVersion('4.4'));
-  assert.equal(identity.version, toMsixVersion(pkg.version));
-  assert.match(manifest, /Version="4\.4\.0\.0"/);
+  assert.equal(identity.version, toMsixVersion(pkg.version), '4.4.1 → 4.4.1.0');
+  assert.equal(identity.version, '4.4.1.0');
+  assert.match(manifest, /Version="4\.4\.1\.0"/);
+  assert.doesNotMatch(manifest, /Version="4\.4\.0\.0"/, 'الإصدار القديم لم يبق في المانيفست');
 });
 
 test('هوية المنتج الحقيقية من Partner Center مثبّتة في الحزمة', () => {
@@ -124,6 +128,7 @@ test('مانيفست الحزمة يستخدم Hosted App Model وليس StartPa
     '--windows-store-app',
     '<Capability Name="internetClient"',
     '<rescap:Capability Name="runFullTrust"',
+    'xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"',
     'Assets\\StoreLogo.png',
     'Assets\\SplashScreen.png',
     'windows.appUriHandler',
@@ -133,6 +138,86 @@ test('مانيفست الحزمة يستخدم Hosted App Model وليس StartPa
   assert.doesNotMatch(manifest, /StartPage=/);
   assert.doesNotMatch(manifest, /ProductId="9[A-Z0-9]{11}"/);
   assert.match(manifest, /Hosted App Model/);
+});
+
+test('سياسة الصلاحيات: internetClient + runFullTrust مبرَّرة، ولا صلاحيات مقيّدة أخرى', () => {
+  assert.deepEqual(manifestCapabilities(manifest), [
+    { name: 'internetClient', restricted: false },
+    { name: 'runFullTrust', restricted: true },
+  ]);
+  assert.deepEqual(identity.capabilities.required, ['internetClient', 'runFullTrust']);
+  const justification = identity.capabilities.restricted.runFullTrust;
+  assert.equal(justification.required, true);
+  assert.ok(justification.partnerCenterJustification.length > 400, 'تبرير Partner Center يجب أن يكون نصًا تقنيًا كاملًا');
+  assert.match(justification.partnerCenterJustification, /Hosted App Model/);
+  assert.match(justification.partnerCenterJustification, /no executable/);
+  assert.match(justification.partnerCenterJustification, /privacy/i);
+  assert.equal(justification.reviewFile, 'docs/windows/RUNFULLTRUST-REVIEW.md');
+  assert.equal(justification.evidence, 'hosted-app-model-host-activation');
+
+  const result = validateCapabilities(manifest, identity);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.capabilities, ['internetClient', 'runFullTrust']);
+
+  // الصلاحية غير مقبولة بلا تبرير مكتوب
+  const noJustification = { ...identity, capabilities: { required: ['internetClient', 'runFullTrust'], restricted: {} } };
+  assert.ok(validateCapabilities(manifest, noJustification).errors.includes('run-full-trust-not-justified'));
+
+  // إزالة الصلاحية من المانيفست تعني أن الهوية يجب أن تتغيّر معها
+  const withoutFullTrust = manifest.replace(/<rescap:Capability\s+Name="runFullTrust"\s*\/>/, '');
+  assert.ok(validateCapabilities(withoutFullTrust, identity).errors.some((e) => e.startsWith('capabilities-mismatch')));
+  assert.deepEqual(validateCapabilities(withoutFullTrust, { ...identity, capabilities: { required: ['internetClient'] } }).errors, []);
+
+  // لا صلاحيات مقيّدة إضافية (allowElevation / packageManagement / unvirtualizedResources)
+  for (const extra of ['allowElevation', 'packageManagement', 'unvirtualizedResources']) {
+    const patched = manifest.replace('</Capabilities>', `<rescap:Capability Name="${extra}" /></Capabilities>`);
+    const errors = validateCapabilities(patched, { ...identity, capabilities: { required: ['internetClient', 'runFullTrust', extra] } }).errors;
+    assert.ok(errors.includes(`unexpected-restricted-capability:${extra}`), extra);
+  }
+  const noNamespace = manifest.replace(/\s*xmlns:rescap="[^"]+"/, '');
+  assert.ok(validateCapabilities(noNamespace, identity).errors.includes('capabilities-missing-rescap-namespace'));
+});
+
+test('مراجعة runFullTrust موثّقة بالدليل الحقيقي وقابلة لإعادة القياس', () => {
+  const review = read('docs/windows/RUNFULLTRUST-REVIEW.md');
+  for (const needle of [
+    'Hosted App Model',
+    'uap10:HostId="PWA"',
+    'Microsoft.Copilot',
+    'AppModelSamples',
+    'Add-AppxPackage',
+    'Partner Center',
+    'Test-RunFullTrustNecessity.ps1',
+    'no executable',
+  ]) {
+    assert.ok(review.includes(needle), `RUNFULLTRUST-REVIEW.md missing: ${needle}`);
+  }
+  const necessity = read('windows/scripts/Test-RunFullTrustNecessity.ps1');
+  assert.match(necessity, /runFullTrust/);
+  assert.match(necessity, /makeappx unpack/);
+  assert.match(necessity, /Test-MsixInstall\.ps1/);
+  assert.match(necessity, /exit 0/, 'التجربة دليل لا بوابة بناء');
+
+  const install = read('windows/scripts/Test-MsixInstall.ps1');
+  for (const needle of ['Add-AppxPackage', 'Get-AppxPackage', 'Get-StartApps', 'Get-AppxPackageManifest', 'Remove-AppxPackage', 'CertificatePath', 'ExpectedCapabilities', 'production-surface']) {
+    assert.ok(install.includes(needle), `Test-MsixInstall.ps1 missing: ${needle}`);
+  }
+  const sign = read('windows/scripts/Sign-StorePackage.ps1');
+  for (const needle of ['signtool.exe', 'verify', 'TimestampUrl', 'Package/Identity/Publisher', 'test-signed']) {
+    assert.ok(sign.includes(needle), `Sign-StorePackage.ps1 missing: ${needle}`);
+  }
+  const assertScript = read('windows/tools/assert-install-test.mjs');
+  assert.match(assertScript, /add-appxpackage/);
+  assert.match(assertScript, /allow-headless/);
+
+  const workflow = read('.github/workflows/windows-store-package.yml');
+  assert.match(workflow, /Test-MsixInstall\.ps1/);
+  assert.match(workflow, /assert-install-test\.mjs/);
+  assert.match(workflow, /Test-RunFullTrustNecessity\.ps1/);
+  assert.match(workflow, /windows-v4\.4\.1\.0/);
+  assert.match(workflow, /PKG_VERSION: 4\.4\.1\.0/);
+  assert.match(workflow, /name: nexora-windows-\$\{\{ env\.PKG_VERSION \}\}/);
+  assert.match(workflow, /windows-latest/);
 });
 
 test('سكربتات Windows ترفض Product ID مخترعًا وتشترط التوقيع عند الطلب', () => {
@@ -181,10 +266,11 @@ test('لا شهادات توقيع ولا مفاتيح في المستودع', (
 test('أدوات النسخة تعمل: sync-version --check وcheck-windows', async () => {
   const { execFileSync } = await import('node:child_process');
   const sync = execFileSync(process.execPath, ['windows/tools/sync-version.mjs', '--check'], { encoding: 'utf8' });
-  assert.match(sync, /MSIX version OK: 4\.4\.0\.0/);
+  assert.match(sync, /MSIX version OK: 4\.4\.1\.0/);
   const check = execFileSync(process.execPath, ['windows/tools/check-windows.mjs'], { encoding: 'utf8' });
   assert.match(check, /OK — Partner Center identity is integrated; 1 warning/);
   assert.match(check, /Store URL pending publication/);
+  assert.match(check, /capabilities: internetClient, runFullTrust \(runFullTrust justified\)/);
 });
 
 test('الوثائق تحمل الهوية الحقيقية ولا تدّعي حزمة موقّعة أو نشرًا', () => {
@@ -192,7 +278,7 @@ test('الوثائق تحمل الهوية الحقيقية ولا تدّعي ح
   assert.match(docs, /Ahmedbecetti\.NEXORAAIbyBECETTI/);
   assert.match(docs, /9ND09PBRDPKZ/);
   assert.match(docs, /Partner Center/);
-  assert.match(docs, /4\.4\.0\.0/);
+  assert.match(docs, /4\.4\.1\.0/);
   assert.match(docs, /signtool/);
   assert.match(docs, /لا تغيّر هذه القيم يدويًا|لا تغير هذه القيم يدويًا/);
   assert.match(docs, /draft|مسودة/);
