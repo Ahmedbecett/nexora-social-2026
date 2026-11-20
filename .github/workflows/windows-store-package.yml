@@ -26,6 +26,7 @@ jobs:
   windows-package:
     name: Build and publish MSIX
     runs-on: windows-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,14 +56,16 @@ jobs:
           if-no-files-found: error
 
       - name: Trust the ephemeral test certificate
+        timeout-minutes: 3
         shell: powershell
         run: |
           $cert = Join-Path $PWD 'dist\windows\NEXORA-AI-test-certificate.cer'
           if (-not (Test-Path -LiteralPath $cert)) { throw "Test certificate missing: $cert" }
+          # TrustedPeople فقط: إضافة شهادة إلى Root تفتح حوار أمان وتعطّل runner غير التفاعلي.
           Import-Certificate -FilePath $cert -CertStoreLocation Cert:\CurrentUser\TrustedPeople | Out-Null
-          Import-Certificate -FilePath $cert -CertStoreLocation Cert:\CurrentUser\Root | Out-Null
 
       - name: Install and inspect the package
+        timeout-minutes: 5
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -97,6 +100,7 @@ jobs:
           }
 
       - name: Launch through the Edge PWA host (best effort)
+        timeout-minutes: 3
         shell: powershell
         continue-on-error: true
         run: |
@@ -110,6 +114,7 @@ jobs:
           if ($after -le $before) { throw 'Edge host did not start within 15 seconds.' }
 
       - name: Uninstall
+        timeout-minutes: 2
         shell: powershell
         if: always()
         run: |
