@@ -23,7 +23,9 @@
     "studio:vendor": "node scripts/studio-vendor.mjs",
     "studio:api": "node scripts/studio-server.mjs",
     "studio": "node scripts/studio-dev.mjs",
-    "smoke": "node scripts/studio-smoke.mjs"
+    "smoke": "node scripts/studio-smoke.mjs",
+    "windows:check": "node windows/tools/check-windows.mjs",
+    "windows:version": "node windows/tools/sync-version.mjs"
   },
   "dependencies": {
     "@capacitor-community/admob": "^7.2.0",

@@ -14,7 +14,9 @@
 import { Capacitor } from '@capacitor/core';
 import { api } from './api.js';
 
-const DEV_BUILD = import.meta.env.DEV || (() => { try { return localStorage.getItem('nx_ad_test') === '1'; } catch { return false; } })();
+// معرّفات الاختبار لا تُستعمل في الإنتاج إطلاقًا: لا يوجد تجاوز عبر localStorage.
+// (كان التجاوز القديم يسمح بتشغيل إعلانات اختبارية في نسخة الإنتاج إذا ضُبط المفتاح يدويًا.)
+const DEV_BUILD = Boolean(import.meta.env.DEV);
 
 /* معرّفات الإنتاج الرسمية من حساب AdMob (عامة بطبيعتها — ليست أسرارًا) */
 const PROD_UNITS = {
@@ -23,14 +25,14 @@ const PROD_UNITS = {
   interstitial: 'ca-app-pub-6858364141205978/2374152863',
   rewarded: 'ca-app-pub-6858364141205978/5160098300',
 };
-/* معرّفات Google الاختبارية الرسمية — للتطوير فقط */
-const TEST_UNITS = {
+/* معرّفات Google الاختبارية الرسمية — تُحذف من حزمة الإنتاج وقت البناء */
+const DEV_UNITS = {
   appId: 'ca-app-pub-3940256099942544~3347511713',
   banner: 'ca-app-pub-3940256099942544/6300978111',
   interstitial: 'ca-app-pub-3940256099942544/1033173712',
   rewarded: 'ca-app-pub-3940256099942544/5224354917',
 };
-const UNITS = DEV_BUILD ? TEST_UNITS : PROD_UNITS;
+const UNITS = import.meta.env.DEV ? DEV_UNITS : PROD_UNITS;
 
 const INTER_MAX_PER_DAY = 3;
 const INTER_MIN_GAP_MS = 30 * 60 * 1000;

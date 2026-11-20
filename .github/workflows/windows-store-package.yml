@@ -1,0 +1,74 @@
+name: Build Windows Store package
+
+# This workflow replaces the old PWABuilder image-service path, which returned
+# 500/503 and could not produce a package. It builds the Hosted App Model MSIX
+# locally on a Windows runner with the Microsoft Windows SDK.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/windows-store-package.yml'
+      - 'windows/scripts/Build-Msix.ps1'
+      - 'windows/scripts/Test-MsixPackage.ps1'
+      - 'windows/msix/**'
+      - 'windows/package-identity.json'
+      - 'public/manifest.webmanifest'
+
+permissions:
+  contents: write
+
+jobs:
+  windows-package:
+    name: Build and publish MSIX
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verify Windows readiness
+        shell: pwsh
+        run: node windows/tools/check-windows.mjs
+
+      - name: Build unsigned Store package and test-signed copy
+        shell: pwsh
+        run: ./windows/scripts/Build-Msix.ps1 -OutputDirectory dist/windows
+
+      - name: Show output
+        shell: pwsh
+        run: Get-ChildItem dist/windows | Format-Table Name, Length
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-windows-4.4.0.0
+          path: dist/windows/*
+          if-no-files-found: error
+
+      - name: Publish GitHub release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'windows-v4.4.0.0'
+          $notes = @'
+          حزمة Windows الحقيقية لـ NEXORA AI (Hosted App Model).
+
+          - `NEXORA-AI_4.4.0.0_neutral.msixupload` — ارفع هذا الملف إلى Partner Center. غير موقّع عمدًا؛ Microsoft Store يعيد توقيعه.
+          - `NEXORA-AI_4.4.0.0_neutral.msixbundle` و`.msix` — نسخ فحص غير موقّعة.
+          - `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` + `NEXORA-AI-test-certificate.cer` — للاختبار المحلي فقط (تثبيت الشهادة في Trusted People). لا ترفعها إلى المتجر.
+          - `SHA256SUMS.txt` و`BUILD-INFO.txt` — البصمات وتفاصيل البناء.
+
+          الهوية: `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596` · الإصدار `4.4.0.0`.
+          '@
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "NEXORA AI · Windows 4.4.0.0" --notes $notes --target $env:GITHUB_SHA
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
+          }
+          gh release upload $tag dist/windows/* --clobber
+          if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE" }

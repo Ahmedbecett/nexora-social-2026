@@ -12,6 +12,7 @@ import { setAdSlot, maybeShowInterstitial, showRewardedAd, interstitialFreeUntil
 import './AIPlatform.css';
 import { APP_VERSION_LABEL } from '../version.js';
 import ThinkingPhase from './ThinkingPhase.jsx';
+import WindowsAdSlot from '../ads/WindowsAdSlot.jsx';
 
 // Rich Markdown (KaTeX/highlighter) and the owner dashboard are not needed at sign-in.
 const Markdown = lazy(() => import('./Markdown.jsx'));
@@ -369,6 +370,15 @@ export default function AIPlatform() {
     }
   };
   const newChat=()=>{if(!busy&&!recording&&!voiceBusy){maybeShowInterstitial('new_chat')}setMessages([]);setInput('');setMode('chat');setSidebarOpen(false);setConvId(null);setAttach([]);field.current?.focus()};
+  /* جسر أوامر Windows (شريط العنوان/الاختصارات): محادثة جديدة + الإعدادات */
+  const newChatRef=useRef(newChat);newChatRef.current=newChat;
+  useEffect(()=>{
+    const onNew=()=>newChatRef.current?.();
+    const onSettings=()=>setSheet('account');
+    window.addEventListener('nxs-new-chat',onNew);
+    window.addEventListener('nxs-open-settings',onSettings);
+    return()=>{window.removeEventListener('nxs-new-chat',onNew);window.removeEventListener('nxs-open-settings',onSettings)};
+  },[]);
   const lastUserBefore=(i)=>{for(let j=i-1;j>=0;j--){const m=messages[j];if(m&&m.role==='user'&&m.text)return m.text}return null};
   const runPrompt=async(prompt,opts)=> {
     opts=opts||{};
@@ -557,6 +567,7 @@ export default function AIPlatform() {
             <div className="nx-ai-tools">{TOOLS.map(t=><button key={t.id} className={'nx-ai-tool '+t.color} onClick={()=>{setMode(t.id);field.current?.focus()}}><span className="nx-ai-tool-icon">{t.icon}</span><b>{t.title}</b><small>{t.sub}</small><span className="nx-ai-arrow"><Icon name="chevron" size={15}/></span></button>)}</div>
             <div className="nx-ai-prompt-title">ابدأ بفكرة</div><div className="nx-ai-prompts">{welcomePrompts.map(p=><button key={p.label} onClick={()=>{setMode(p.mode);setInput(p.text);field.current?.focus()}}><span>✧</span>{p.label}<Icon name="chevron" size={14}/></button>)}</div>
             <AdSlot name="home"/>
+            <WindowsAdSlot placement="ai-home-banner"/>
           </div>:<div className="nx-ai-conversation">
             <div className="nx-ai-conversation-head"><div><span className={'nx-ai-mode-icon '+active.color}>{active.icon}</span><div><b>{active.title}</b><small>{MODEL_NAMES[model]} · محادثة خاصة</small></div></div><button className="nx-ai-icon-button" onClick={newChat} title="محادثة جديدة"><Icon name="plus"/></button></div>
             <AdSlot name="chat" className="chat"/>

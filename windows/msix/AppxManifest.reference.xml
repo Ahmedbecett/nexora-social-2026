@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  NEXORA AI — Windows package manifest (Hosted App Model).
+  ======================================================
+  هذا هو المانيفست الفعلي الذي تستخدمه حزمة Windows، وليس مجرد نموذج وصفي.
+  الحزمة تُبنى على Windows SDK عبر windows/scripts/Build-Msix.ps1:
+  يُنسخ هذا الملف إلى AppxManifest.xml، ثم يُولَّد resources.pri بـ makepri،
+  ثم تُحزم الأصول بـ makeappx في .msix و.msixbundle و.msixupload.
+
+  PWA hosted app: لا يوجد Executable ولا StartPage. Edge هو المضيف (Host=PWA)،
+  والرابط يُمرَّر في uap10:Parameters باسم app-fallback-url. معرّف تطبيق الويب
+  (app-id) مشتق من Manifest ID عبر خوارزمية Chromium: SHA-256 ثم أول 16 بايت
+  وتحويل hexadecimal إلى أحرف a-p. القيمة محسوبة من:
+  https://nexora-social-2026.vercel.app/
+  ولا تُغيّرها يدويًا إلا إذا تغيّر Manifest ID في public/manifest.webmanifest.
+
+  الهوية أدناه منسوخة من Partner Center (19-11-2026) — لا تعدّلها إلا بقيم
+  جديدة من Partner Center.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 uap10 rescap">
+
+  <Identity
+    Name="Ahmedbecetti.NEXORAAIbyBECETTI"
+    Publisher="CN=A5D5DC31-4A15-4059-8030-D96C51054596"
+    Version="4.4.0.0"
+    ProcessorArchitecture="neutral" />
+
+  <Properties>
+    <DisplayName>NEXORA AI</DisplayName>
+    <PublisherDisplayName>Ahmedbecetti</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>NEXORA AI — Windows edition of the AI workspace and app builder.</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.19041.0"
+      MaxVersionTested="10.0.26100.0" />
+    <uap10:HostRuntimeDependency
+      Name="Microsoft.MicrosoftEdge.Stable"
+      Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+      MinVersion="1.0.0.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application
+      Id="App"
+      uap10:HostId="PWA"
+      uap10:Parameters="--app-id=pkojfojlpmhfnldcmaemlmpbkcdmihle --ip-edge-aumid=Microsoft.MicrosoftEdge.stable_8wekyb3d8bbwe!MSEDGE --app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix --display-mode=standalone --windows-store-app">
+      <uap:VisualElements
+        DisplayName="NEXORA AI"
+        Description="AI conversations, writing, coding and NEXORA Studio in a native Windows window."
+        BackgroundColor="#120C30"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile
+          Wide310x150Logo="Assets\Wide310x150Logo.png"
+          Square310x310Logo="Assets\Square310x310Logo.png"
+          Square71x71Logo="Assets\Square71x71Logo.png">
+          <uap:ShowNameOnTiles>
+            <uap:ShowOn Tile="wide310x150Logo" />
+            <uap:ShowOn Tile="square150x150Logo" />
+          </uap:ShowNameOnTiles>
+        </uap:DefaultTile>
+        <uap:SplashScreen
+          Image="Assets\SplashScreen.png"
+          BackgroundColor="#120C30" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <!-- يربط روابط الموقع بالتطبيق المثبّت (web-to-app linking). -->
+        <uap3:Extension Category="windows.appUriHandler">
+          <uap3:AppUriHandler>
+            <uap3:Host Name="nexora-social-2026.vercel.app" />
+          </uap3:AppUriHandler>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

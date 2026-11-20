@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#120c30" />
+<meta name="robots" content="noindex" />
+<title>لا يوجد اتصال — NEXORA AI</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px;
+    font-family: 'Segoe UI', system-ui, Tahoma, sans-serif; color: #f5f2ff; line-height: 1.7;
+    background: radial-gradient(ellipse at 50% 0%, #3a2470 0%, #120c30 45%, #090713 100%); }
+  main { width: min(520px, 100%); text-align: center; }
+  .badge { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px;
+    border: 1px solid #ffffff22; background: #ffffff0d; font-size: 12px; color: #d9caff; }
+  img { width: 96px; height: 96px; border-radius: 26px; margin: 18px auto 10px; display: block;
+    box-shadow: 0 16px 40px #0008; }
+  h1 { font-size: clamp(22px, 4vw, 30px); margin: 8px 0; }
+  p { color: #cfc6e6; margin: 8px auto; max-width: 44ch; }
+  .en { direction: ltr; text-align: center; color: #b9b0d2; font-size: 14px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 22px; }
+  button, a.btn { font: inherit; cursor: pointer; padding: 11px 18px; border-radius: 11px; text-decoration: none;
+    border: 1px solid #ffffff26; color: #f5f2ff; background: #ffffff12; }
+  button.primary { background: linear-gradient(110deg, #8b68ff, #d16bc7); border-color: transparent; font-weight: 700; }
+  a { color: #cbb6ff; }
+  footer { margin-top: 26px; font-size: 12px; color: #9c93b8; }
+  @media (prefers-reduced-motion: no-preference) { img { animation: float 4s ease-in-out infinite; } }
+  @keyframes float { 50% { transform: translateY(-6px); } }
+</style>
+</head>
+<body>
+<main>
+  <span class="badge">NEXORA AI · Windows</span>
+  <img src="/mascot-ui.webp" width="96" height="96" alt="NEXORA AI" />
+  <h1>لا يوجد اتصال بالإنترنت</h1>
+  <p>أنت تستخدم NEXORA AI دون اتصال. الصفحات المحفوظة تعمل، لكن المحادثات الجديدة تحتاج إلى الشبكة حتى تُرسَل إلى الخادم الآمن.</p>
+  <p class="en">You are offline. Cached screens still open, but new AI requests need a connection to the secure NEXORA backend.</p>
+  <div class="actions">
+    <button class="primary" type="button" onclick="location.reload()">إعادة المحاولة · Retry</button>
+    <a class="btn" href="/windows/">حول نسخة Windows</a>
+  </div>
+  <footer>NEXORA AI · BECETTI · <a href="/privacy.html">سياسة الخصوصية</a></footer>
+</main>
+<script>
+  // عند عودة الشبكة أعد المحاولة تلقائيًا مرة واحدة فقط.
+  addEventListener('online', () => location.reload(), { once: true });
+</script>
+</body>
+</html>
