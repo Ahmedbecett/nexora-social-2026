@@ -112,6 +112,7 @@ content requires the main package to have the runFullTrust capability.
 | بناء حزمة **بدون** `runFullTrust` | نجح `makeappx` — أي أن فحص المخطط وحده لا يكشف المشكلة |
 | تثبيتها بـ `Add-AppxPackage` (Run `44674821589`) | فشل: `0x80073D2F` |
 | إعادة الصلاحية وبناء جديد (Run `44675317746`) | نجح التثبيت، وأكد الفحص `internetClient` + `runFullTrust`، وظهر التطبيق في Start، وبدأ مضيف Edge، ثم أُزيلت الحزمة بنجاح |
+| بناء لاحق مع فحص البنية الصارم (Run `44716168241`) | نجح أيضًا: لا `Executable`/`EntryPoint`/`TrustLevel`/`RuntimeBehavior`، و`HostRuntimeDependency` واحدة لـ Edge، ثم تثبيت وتفعيل وإزالة |
 
 ### ماذا تعني أمنيًا وماذا لا تعني؟
 
@@ -156,7 +157,7 @@ PWABuilder يشرح أن تحذير Partner Center «يمكن تجاهله بأ�
 | `npm test` | **225/225** |
 | مدقق المانيفست (`validateManifestXml`) | ✅ لا أخطاء |
 | بنية Hosted App Model (لا `Executable`/`EntryPoint`/`TrustLevel`/`RuntimeBehavior`) | ✅ مُختبرة |
-| تثبيت Windows فعلي | ✅ Run `44675317746` |
+| تثبيت Windows فعلي | ✅ Run `44716168241` (وأول نجاح في `44675317746`) |
 | ظهور التطبيق في Start | ✅ |
 | بدء مضيف Edge | ✅ |
 | إزالة الحزمة | ✅ |
@@ -188,5 +189,6 @@ PWABuilder يشرح أن تحذير Partner Center «يمكن تجاهله بأ�
 - [MSIX-Hero issue #115 — مانيفست Edge PWA حقيقي](https://github.com/marcinotorowski/MSIX-Hero/issues/115)
 - [Run 44674821589 — فشل 0x80073D2F](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44674821589)
 - [Run 44675317746 — نجاح التثبيت والتفعيل](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44675317746)
+- [Run 44716168241 — إعادة التحقق مع فحص بنية Hosted App Model](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44716168241)
 
 </div>
