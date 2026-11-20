@@ -69,8 +69,10 @@ Download page: <https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/w
 | `install-test.json` | 3,678 | — | the measurements in §1.1 |
 | `SHA256SUMS.txt` / `BUILD-INFO.txt` | 514 / 1,138 | — | build record |
 
-The same files are committed under `windows/release/4.4.1.0/` (`sha256sum -c SHA256SUMS.txt`
-passes) and attached to the release above, together with the runFullTrust experiment output.
+The same packages are committed under `windows/release/4.4.1.0/` and attached to the release
+above, together with the runFullTrust experiment output. `sha256sum -c SHA256SUMS.txt` passes for
+the four package files; the `.cer` line is only attached to the release (certificates are never
+committed — `.gitignore` blocks `*.cer`).
 
 ## 3 · Package content (verified byte level)
 
