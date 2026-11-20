@@ -94,6 +94,9 @@ try {
 
   $app = @($package.Applications.Application)[0]
   if (-not $app) { throw 'The package has no Application element.' }
+  # Package/Properties/DisplayName and the shell tile label must match the reserved Store name.
+  $visualElements = $app.SelectSingleNode("*[local-name()='VisualElements']")
+  if ($visualElements) { $visualElements.SetAttribute('DisplayName', [string]$identity.displayName) }
   $uap10Ns = 'http://schemas.microsoft.com/appx/manifest/uap/windows10/10'
   $hostId = $app.GetAttribute('HostId', $uap10Ns)
   if ($hostId) {

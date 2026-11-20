@@ -56,19 +56,23 @@ jobs:
         run: |
           $tag = 'windows-v4.4.0.0'
           $notes = @'
-          حزمة Windows الحقيقية لـ NEXORA AI (Hosted App Model).
+          حزمة Windows الحقيقية لـ **NEXORA AI by BECETTI** (Hosted App Model).
 
           - `NEXORA-AI_4.4.0.0_neutral.msixupload` — ارفع هذا الملف إلى Partner Center. غير موقّع عمدًا؛ Microsoft Store يعيد توقيعه.
           - `NEXORA-AI_4.4.0.0_neutral.msixbundle` و`.msix` — نسخ فحص غير موقّعة.
           - `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` + `NEXORA-AI-test-certificate.cer` — للاختبار المحلي فقط (تثبيت الشهادة في Trusted People). لا ترفعها إلى المتجر.
           - `SHA256SUMS.txt` و`BUILD-INFO.txt` — البصمات وتفاصيل البناء.
 
-          الهوية: `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596` · الإصدار `4.4.0.0`.
+          الاسم المحجوز: `NEXORA AI by BECETTI` · الهوية: `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596` · الإصدار `4.4.0.0`.
           '@
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "NEXORA AI · Windows 4.4.0.0" --notes $notes --target $env:GITHUB_SHA
+            gh release create $tag --title "NEXORA AI by BECETTI · Windows 4.4.0.0" --notes $notes --target $env:GITHUB_SHA
             if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
+          }
+          else {
+            gh release edit $tag --title "NEXORA AI by BECETTI · Windows 4.4.0.0" --notes $notes
+            if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit code $LASTEXITCODE" }
           }
           gh release upload $tag dist/windows/* --clobber
           if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE" }

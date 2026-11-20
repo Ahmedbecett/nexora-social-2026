@@ -245,8 +245,8 @@ try {
   $hashLines | Set-Content -LiteralPath (Join-Path $OutputDirectory 'SHA256SUMS.txt') -Encoding ASCII
 
   @"
-NEXORA AI Windows package
-=========================
+NEXORA AI by BECETTI Windows package
+====================================
 Display name:       $($identity.displayName)
 Identity name:      $($identity.identityName)
 Publisher:          $($identity.publisher)

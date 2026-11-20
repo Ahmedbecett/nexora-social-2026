@@ -1,4 +1,4 @@
-# Windows release checklist — NEXORA AI 4.4.0
+# Windows release checklist — NEXORA AI by BECETTI 4.4.0
 
 Copy this into the release issue and tick every item. Do not mark a section complete by assumption.
 
@@ -14,7 +14,8 @@ Copy this into the release issue and tick every item. Do not mark a section comp
 
 ## 1 · Partner Center identity
 
-- [ ] Product **NEXORA AI** is a Draft; publisher display name **Ahmedbecetti**.
+- [ ] Product **NEXORA AI by BECETTI** is a Draft; publisher display name **Ahmedbecetti**.
+- [ ] `Package/Properties/DisplayName` and `uap:VisualElements DisplayName` are exactly **`NEXORA AI by BECETTI`**.
 - [x] `Package/Identity/Name` = `Ahmedbecetti.NEXORAAIbyBECETTI` recorded in `windows/package-identity.json`.
 - [x] `Package/Identity/Publisher` = `CN=A5D5DC31-4A15-4059-8030-D96C51054596` recorded.
 - [x] Real **Product ID** `9ND09PBRDPKZ` recorded from Partner Center.

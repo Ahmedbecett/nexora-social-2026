@@ -1,4 +1,4 @@
-# Build and deploy — NEXORA AI Windows Edition
+# Build and deploy — NEXORA AI by BECETTI Windows Edition
 
 <div dir="rtl">
 

@@ -1,5 +1,6 @@
-# حالة بناء الحزمة والتوقيع — Windows Edition 4.4.0
+# حالة بناء الحزمة والتوقيع — NEXORA AI by BECETTI · Windows Edition 4.4.0
 
+**Display Name:** `NEXORA AI by BECETTI` (الاسم المحجوز في Partner Center)
 **الهوية:** `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596`
 **Publisher Display Name:** `Ahmedbecetti` · **Product ID:** `9ND09PBRDPKZ` (Draft)
 **الإصدار:** `4.4.0.0` · **نوع الحزمة:** Hosted App Model (Edge Stable، `HostId=PWA`)
@@ -17,18 +18,23 @@
 
 | الملف | الحجم | الاستخدام |
 |---|---:|---|
-| `NEXORA-AI_4.4.0.0_neutral.msixupload` | 10,454,672 بايت | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
-| `NEXORA-AI_4.4.0.0_neutral.msixbundle` | 10,553,455 بايت | فحص/بديل إن طلب Partner Center صيغة الحزمة |
-| `NEXORA-AI_4.4.0.0_neutral.msix` | 10,551,673 بايت | فحص/بديل لصيغة أحادية |
-| `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` | 10,556,080 بايت | **اختبار محلي فقط**، ليس للمتجر |
+| `NEXORA-AI_4.4.0.0_neutral.msixupload` | 10,454,721 بايت | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
+| `NEXORA-AI_4.4.0.0_neutral.msixbundle` | 10,553,527 بايت | فحص/بديل إن طلب Partner Center صيغة الحزمة |
+| `NEXORA-AI_4.4.0.0_neutral.msix` | 10,551,743 بايت | فحص/بديل لصيغة أحادية |
+| `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` | 10,556,153 بايت | **اختبار محلي فقط**، ليس للمتجر |
 | `NEXORA-AI-test-certificate.cer` | 818 بايت | شهادة الاختبار العامة (بلا مفتاح خاص) |
 | `SHA256SUMS.txt` / `BUILD-INFO.txt` | — | البصمات وتفاصيل البناء |
 
-SHA-256 للحزمة المرفوعة في هذا البناء:
+SHA-256 للحزمة المرفوعة في هذا البناء (من بيانات أصل Release على GitHub):
 
 ```text
-3966e88897e1f437d827605fa4fb443b4f76251aca40307eb4afc0c09c5d7f37  NEXORA-AI_4.4.0.0_neutral.msixupload
+c2adc350fc21805e0d1a8892873e8b48ca5ad0ab57726630afac6fb58039a88d  NEXORA-AI_4.4.0.0_neutral.msixupload
 ```
+
+> هذا البناء أُعيد في Run `44654597475` بعد تغيير الاسم. نجح
+> `Test-MsixPackage.ps1` الإلزامي داخل البناء، وهو يطابق
+> `Package/Properties/DisplayName` و`uap:VisualElements DisplayName` مع
+> `NEXORA AI by BECETTI`، ويطابق `Identity Name` و`Publisher` مع القيم الحالية.
 
 ## مهم: المتجر لا يحتاج توقيعك
 
@@ -47,7 +53,7 @@ Partner Center؛ تلك النسخة للاختبار المحلي فقط.
 - `Test-MsixPackage.ps1` قرأ الحزمة وطابق:
   - `Name = Ahmedbecetti.NEXORAAIbyBECETTI`
   - `Publisher = CN=A5D5DC31-4A15-4059-8030-D96C51054596`
-  - `Version = 4.4.0.0` · `DisplayName = NEXORA AI` · `PublisherDisplayName = Ahmedbecetti`
+  - `Version = 4.4.0.0` · `DisplayName = NEXORA AI by BECETTI` (Properties وVisualElements) · `PublisherDisplayName = Ahmedbecetti`
   - `HostId = PWA`، و`--app-id=pkojfojlpmhfnldcmaemlmpbkcdmihle`
   - `--app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix`
   - الأصول الـ53 و`resources.pri` موجودة، والإعلانات ما زالت معطّلة.
@@ -64,7 +70,7 @@ Partner Center؛ تلك النسخة للاختبار المحلي فقط.
 ## طريقة الرفع إلى Partner Center
 
 1. نزّل `NEXORA-AI_4.4.0.0_neutral.msixupload` من الرابط أعلاه.
-2. افتح Partner Center → تطبيق **NEXORA AI** (Product ID `9ND09PBRDPKZ`) →
+2. افتح Partner Center → تطبيق **NEXORA AI by BECETTI** (Product ID `9ND09PBRDPKZ`) →
    **Submissions → New submission**.
 3. في **Packages** ارفع ملف `.msixupload`. لا تغيّر امتداده ولا تفتحه/تعيد ضغطه.
 4. أكمل **Store listing** و**Properties** و**Privacy** و**Support** من

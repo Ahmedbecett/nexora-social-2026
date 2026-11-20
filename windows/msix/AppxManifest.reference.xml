@@ -32,10 +32,11 @@
     ProcessorArchitecture="neutral" />
 
   <Properties>
-    <DisplayName>NEXORA AI</DisplayName>
+    <!-- الاسم المحجوز في Partner Center كما هو حرفيًا. لا تُغيّره إلا باسم جديد محجوز. -->
+    <DisplayName>NEXORA AI by BECETTI</DisplayName>
     <PublisherDisplayName>Ahmedbecetti</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
-    <Description>NEXORA AI — Windows edition of the AI workspace and app builder.</Description>
+    <Description>NEXORA AI by BECETTI — Windows edition of the AI workspace and app builder.</Description>
   </Properties>
 
   <Dependencies>
@@ -59,7 +60,7 @@
       uap10:HostId="PWA"
       uap10:Parameters="--app-id=pkojfojlpmhfnldcmaemlmpbkcdmihle --ip-edge-aumid=Microsoft.MicrosoftEdge.stable_8wekyb3d8bbwe!MSEDGE --app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix --display-mode=standalone --windows-store-app">
       <uap:VisualElements
-        DisplayName="NEXORA AI"
+        DisplayName="NEXORA AI by BECETTI"
         Description="AI conversations, writing, coding and NEXORA Studio in a native Windows window."
         BackgroundColor="#120C30"
         Square150x150Logo="Assets\Square150x150Logo.png"

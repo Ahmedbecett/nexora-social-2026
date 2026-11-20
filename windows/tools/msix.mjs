@@ -12,6 +12,9 @@ import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 
+/** الاسم المحجوز حرفيًا في Partner Center (Package/Properties/DisplayName). */
+export const OFFICIAL_DISPLAY_NAME = 'NEXORA AI by BECETTI';
+
 export const REQUIRED_ASSETS = [
   'StoreLogo.png',
   'Square44x44Logo.png',
@@ -86,7 +89,7 @@ export function validateIdentity(identity) {
   if (!/^CN=.+/i.test(publisher)) errors.push('publisher-invalid');
   if (IDENTITY_PLACEHOLDER.test(publisher)) placeholders.push('publisher');
 
-  if (String(id.displayName || '') !== 'NEXORA AI') errors.push('display-name-not-official');
+  if (String(id.displayName || '') !== OFFICIAL_DISPLAY_NAME) errors.push('display-name-not-official');
   if (String(id.publisherDisplayName || '') !== OFFICIAL_PUBLISHER_DISPLAY_NAME) errors.push('publisher-display-name-not-official');
 
   if (!isValidMsixVersion(id.version)) errors.push('version-not-four-part');
@@ -135,7 +138,8 @@ export function validateManifestXml(xml, identity = {}) {
   const version = identity.version || '4.4.0.0';
 
   if (!text.includes(`Version="${version}"`)) errors.push('manifest-version-mismatch');
-  if (!text.includes('<DisplayName>NEXORA AI</DisplayName>')) errors.push('manifest-display-name');
+  if (!text.includes(`<DisplayName>${OFFICIAL_DISPLAY_NAME}</DisplayName>`)) errors.push('manifest-display-name');
+  if (!text.includes(`DisplayName="${OFFICIAL_DISPLAY_NAME}"`)) errors.push('manifest-visual-display-name');
   if (!text.includes(`<PublisherDisplayName>${OFFICIAL_PUBLISHER_DISPLAY_NAME}</PublisherDisplayName>`)) errors.push('manifest-publisher-display-name');
   if (identity.identityName && !text.includes(`Name="${identity.identityName}"`)) errors.push('manifest-identity-name');
   if (identity.publisher && !text.includes(`Publisher="${identity.publisher}"`)) errors.push('manifest-publisher');
@@ -163,6 +167,7 @@ export function validateManifestXml(xml, identity = {}) {
 }
 
 export default {
+  OFFICIAL_DISPLAY_NAME,
   REQUIRED_ASSETS,
   toMsixVersion,
   isValidMsixVersion,
