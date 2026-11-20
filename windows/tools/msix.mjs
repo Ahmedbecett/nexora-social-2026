@@ -152,6 +152,12 @@ export function validateManifestXml(xml, identity = {}) {
     if (identity.webAppId && !text.includes(`--app-id=${identity.webAppId}`)) errors.push('manifest-web-app-id-mismatch');
     if (!text.includes('--app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix')) errors.push('manifest-fallback-url');
     if (!text.includes('--windows-store-app')) errors.push('manifest-store-launch-flag');
+    // Hosted App Model: activation data and trust/runtime attributes belong to
+    // the host (Edge) manifest. Declaring them here is a schematic error.
+    if (/\bExecutable\s*=/.test(text)) errors.push('manifest-hosted-app-executable');
+    if (/\bEntryPoint\s*=/.test(text)) errors.push('manifest-hosted-app-entry-point');
+    if (/uap10:(?:TrustLevel|RuntimeBehavior)\s*=/.test(text)) errors.push('manifest-hosted-app-runtime-attributes');
+    if (text.includes('windows.hostRuntime')) errors.push('manifest-hosted-app-declares-host-runtime');
   } else {
     errors.push('manifest-must-use-hosted-app-model');
   }

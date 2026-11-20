@@ -133,6 +133,17 @@ test('مانيفست الحزمة يستخدم Hosted App Model وليس StartPa
   assert.doesNotMatch(manifest, /StartPage=/);
   assert.doesNotMatch(manifest, /ProductId="9[A-Z0-9]{11}"/);
   assert.match(manifest, /Hosted App Model/);
+
+  // بيانات التشغيل والثقة يعلنها مضيف Edge، لا الحزمة المستضافة.
+  // إضافتها هنا تعني أننا ندّعي أننا المضيف، وهو خطأ في النموذج.
+  assert.doesNotMatch(manifest, /\bExecutable\s*=/);
+  assert.doesNotMatch(manifest, /\bEntryPoint\s*=/);
+  assert.doesNotMatch(manifest, /uap10:(?:TrustLevel|RuntimeBehavior)\s*=/);
+  assert.doesNotMatch(manifest, /windows\.hostRuntime/);
+  const withExecutable = manifest.replace('<Application', '<Application Executable="app.exe"');
+  assert.ok(validateManifestXml(withExecutable, identity).errors.includes('manifest-hosted-app-executable'));
+  const withRuntime = manifest.replace('<Application', '<Application uap10:TrustLevel="mediumIL"');
+  assert.ok(validateManifestXml(withRuntime, identity).errors.includes('manifest-hosted-app-runtime-attributes'));
 });
 
 test('الحزمة تعلن runFullTrust المطلوبة لمضيف Edge', () => {

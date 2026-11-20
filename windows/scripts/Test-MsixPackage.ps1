@@ -41,6 +41,20 @@ try {
   if ($parameters) { Write-Host "  Parameters:  $parameters" }
   if ($app.StartPage) { Write-Host "  StartPage:   $($app.StartPage)" }
 
+  # Hosted App Model: Executable/EntryPoint/TrustLevel/RuntimeBehavior are
+  # declared by Edge's windows.hostRuntime extension, not by this package.
+  if ($app.Executable) { $errors.Add("Hosted package must not declare Executable (got: $($app.Executable)).") }
+  if ($app.EntryPoint) { $errors.Add("Hosted package must not declare EntryPoint (got: $($app.EntryPoint)).") }
+  if ($app.GetAttribute('TrustLevel', $uap10Ns)) { $errors.Add('Hosted package must not declare uap10:TrustLevel; it inherits the host value.') }
+  if ($app.GetAttribute('RuntimeBehavior', $uap10Ns)) { $errors.Add('Hosted package must not declare uap10:RuntimeBehavior; it inherits the host value.') }
+  $hostDeps = @($manifest.Package.Dependencies.ChildNodes | Where-Object { $_.LocalName -eq 'HostRuntimeDependency' })
+  if ($hostDeps.Count -ne 1) {
+    $errors.Add("Expected exactly one uap10:HostRuntimeDependency, found $($hostDeps.Count).")
+  }
+  elseif ($hostDeps[0].Name -ne 'Microsoft.MicrosoftEdge.Stable') {
+    $errors.Add("HostRuntimeDependency must target Microsoft.MicrosoftEdge.Stable (got: $($hostDeps[0].Name)).")
+  }
+
   if ($identity.Version -notmatch '^\d{1,5}\.\d{1,5}\.\d{1,5}\.\d{1,5}$') { $errors.Add('Version is not four numeric parts.') }
   if ($identity.Name -match 'REPLACE|PARTNER-CENTER|TODO') { $errors.Add('Identity Name is still a placeholder.') }
   if ($identity.Publisher -match 'REPLACE|PARTNER-CENTER|TODO') { $errors.Add('Publisher is still a placeholder.') }

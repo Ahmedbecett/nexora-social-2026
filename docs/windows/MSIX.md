@@ -188,6 +188,10 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 
 ### الصلاحيات: لماذا `runFullTrust` مطلوبة
 
+التدقيق الكامل للحقول، ومن يعلن `RuntimeBehavior` و`TrustLevel`، وأدلة CI:
+[`MANIFEST-AUDIT.md`](MANIFEST-AUDIT.md).
+
+
 الحزمة **Hosted App Model** بلا `Executable` أو `EntryPoint` أو `FullTrustProcessLauncher`،
 ولا تحتوي أي Win32/.NET binary. ومع ذلك `runFullTrust` **إلزامية**، لأن مضيف
 `Microsoft.MicrosoftEdge.Stable` هو host runtime بمحتوى full trust. عند محاولة تثبيت
