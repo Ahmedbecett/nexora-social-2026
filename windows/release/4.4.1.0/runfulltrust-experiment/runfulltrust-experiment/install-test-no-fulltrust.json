@@ -1,0 +1,48 @@
+{
+  "label": "store-package",
+  "package": "NEXORA-AI_experimental-no-runFullTrust.msix",
+  "identityName": "Ahmedbecetti.NEXORAAIbyBECETTI",
+  "version": "4.4.1.0",
+  "publisher": "CN=A5D5DC31-4A15-4059-8030-D96C51054596",
+  "testedAtUtc": "2026-11-20T11:23:32Z",
+  "machine": "runnervmm7ud1 / Microsoft Windows NT 10.0.26100.0",
+  "passed": 3,
+  "failed": 2,
+  "checks": [
+    {
+      "check": "trust-test-certificate",
+      "status": "INFO",
+      "detail": "installed into: CurrentUser\\TrustedPeople, LocalMachine\\TrustedPeople, LocalMachine\\Root"
+    },
+    {
+      "check": "certificate-subject",
+      "status": "PASS",
+      "detail": "trusted test certificate subject matches Publisher (75404BDDC13AAB5E510C4B1A39E53999EAEED067)"
+    },
+    {
+      "check": "add-appxpackage",
+      "status": "FAIL",
+      "detail": "Deployment failed with HRESULT: 0x80073D2F, A host runtime dependency resolving to a package with full trust content requires the main package to have the runFullTrust capability.\r\n\r\nThe package Ahmedbecetti.NEXORAAIbyBECETTI_4.4.1.0_neutral__y0zvy3a8v70hm has a host runtime dependency resolving to package Microsoft.MicrosoftEdge.Stable_156.0.4314.58_neutral__8wekyb3d8bbwe containing full trust content which requires the main package Ahmedbecetti.NEXORAAIbyBECETTI_4.4.1.0_neutral__y0zvy3a8v70hm to have the runFullTrust capability which it does not have.\n\nNOTE: For additional information, look for [ActivityId] 51318ac1-2391-0003-508a-a5e6e078dd01 in the Event Log or use the command line Get-AppPackageLog -ActivityID 51318ac1-2391-0003-508a-a5e6e078dd01\n"
+    },
+    {
+      "check": "package-registered",
+      "status": "FAIL",
+      "detail": "Get-AppxPackage -Name Ahmedbecetti.NEXORAAIbyBECETTI returned nothing"
+    },
+    {
+      "check": "launch-edge-host",
+      "status": "INFO",
+      "detail": "skipped"
+    },
+    {
+      "check": "production-surface",
+      "status": "PASS",
+      "detail": "HTTP 200 for https://nexora-social-2026.vercel.app/?nx_surface=msix (12157 bytes)"
+    },
+    {
+      "check": "production-content",
+      "status": "PASS",
+      "detail": "the served page identifies NEXORA"
+    }
+  ]
+}

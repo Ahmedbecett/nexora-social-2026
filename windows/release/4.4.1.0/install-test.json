@@ -4,7 +4,7 @@
   "identityName": "Ahmedbecetti.NEXORAAIbyBECETTI",
   "version": "4.4.1.0",
   "publisher": "CN=A5D5DC31-4A15-4059-8030-D96C51054596",
-  "testedAtUtc": "2026-11-20T11:18:17Z",
+  "testedAtUtc": "2026-11-20T11:23:21Z",
   "machine": "runnervmm7ud1 / Microsoft Windows NT 10.0.26100.0",
   "passed": 18,
   "failed": 0,
@@ -17,12 +17,12 @@
     {
       "check": "certificate-subject",
       "status": "PASS",
-      "detail": "trusted test certificate subject matches Publisher (C43AD133F4494B8C68964D932B016E3F22ED9AE2)"
+      "detail": "trusted test certificate subject matches Publisher (DE3F494C1856E4FE58ABC5B41EA60DECD1E3881F)"
     },
     {
       "check": "add-appxpackage",
       "status": "PASS",
-      "detail": "install completed in 1.0s"
+      "detail": "install completed in 1.1s"
     },
     {
       "check": "package-registered",
