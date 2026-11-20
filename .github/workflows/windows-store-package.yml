@@ -111,61 +111,87 @@ jobs:
       - name: Validate the package with the official Windows SDK tools
         shell: pwsh
         run: |
-          $model = Get-Content windows/package-identity.json -Raw | ConvertFrom-Json
-          $work = Join-Path $env:RUNNER_TEMP ('appxcheck-' + [guid]::NewGuid().ToString('N'))
-          New-Item -ItemType Directory -Path $work | Out-Null
-          $makeappx = Get-ChildItem (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin') -Filter makeappx.exe -Recurse |
-            Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-          $makepri = Get-ChildItem (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin') -Filter makepri.exe -Recurse |
-            Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-          if (-not $makeappx -or -not $makepri) { throw 'Windows SDK tools are missing' }
+          try {
+            $model = Get-Content windows/package-identity.json -Raw | ConvertFrom-Json
+            $work = Join-Path $env:RUNNER_TEMP ('appxcheck-' + [guid]::NewGuid().ToString('N'))
+            New-Item -ItemType Directory -Path $work | Out-Null
+            $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+            $makeappx = Get-ChildItem $sdkRoot -Filter makeappx.exe -Recurse |
+              Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+            $makepri = Get-ChildItem $sdkRoot -Filter makepri.exe -Recurse |
+              Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+            if (-not $makeappx -or -not $makepri) { throw 'Windows SDK tools (makeappx/makepri) are missing' }
+            Write-Host "makeappx: $makeappx"
 
-          # 1) استخرج الـbundle من ملف الرفع نفسه، ثم حزمة MSIX من داخله
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $uploadPath = "dist/windows/$($env:PKG_BASE)_$($env:PKG_VERSION)_neutral.msixupload"
-          [System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $uploadPath), (Join-Path $work 'upload'))
-          $bundle = Get-ChildItem (Join-Path $work 'upload') -Filter *.msixbundle | Select-Object -First 1
-          if (-not $bundle) { throw 'the upload does not contain a .msixbundle' }
-          & $makeappx unpack /p $bundle.FullName /d (Join-Path $work 'bundle') /o | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw "makeappx unpack (bundle) failed: $LASTEXITCODE" }
-          $inner = Get-ChildItem (Join-Path $work 'bundle') -Filter *.msix | Select-Object -First 1
-          if (-not $inner) { throw 'the bundle does not contain a .msix' }
-          & $makeappx unpack /p $inner.FullName /d (Join-Path $work 'msix') /o | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw "makeappx unpack (msix) failed: $LASTEXITCODE" }
+            # 1) افتح الرفع ثم الـbundle بنفس ترتيب النظام، للحصول على حزمة MSIX الحقيقية
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $uploadPath = "dist/windows/$($env:PKG_BASE)_$($env:PKG_VERSION)_neutral.msixupload"
+            $bundleName = @([System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $uploadPath)).Entries |
+              Where-Object { $_.FullName -match '\.msixbundle$' } | ForEach-Object { $_.FullName })
+            if ($bundleName.Count -ne 1) { throw "the upload must hold exactly one .msixbundle (found $($bundleName.Count))" }
+            [System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $uploadPath), (Join-Path $work 'upload'))
+            $bundlePath = Join-Path (Join-Path $work 'upload') $bundleName[0]
+            $innerName = @([System.IO.Compression.ZipFile]::OpenRead($bundlePath).Entries |
+              Where-Object { $_.FullName -match '\.msix$' } | ForEach-Object { $_.FullName })
+            if ($innerName.Count -ne 1) { throw "the bundle must hold exactly one .msix (found $($innerName.Count))" }
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($bundlePath, (Join-Path $work 'bundle'))
+            $innerPath = Join-Path (Join-Path $work 'bundle') $innerName[0]
 
-          # 2) الهوية والاسم المحجوز والإصدار والصلاحيات من الحزمة المستخرجة
-          $layout = Join-Path $work 'msix'
-          if (Test-Path (Join-Path $layout 'AppxSignature.p7x')) { throw 'the Store upload must not be signed' }
-          [xml]$manifest = Get-Content (Join-Path $layout 'AppxManifest.xml') -Raw
-          $identity = $manifest.Package.Identity
-          if ($identity.Name -ne $model.identityName) { throw "Identity Name mismatch: $($identity.Name)" }
-          if ($identity.Publisher -ne $model.publisher) { throw "Publisher mismatch: $($identity.Publisher)" }
-          if ($identity.Version -ne $model.version) { throw "Version mismatch: $($identity.Version)" }
-          if ($manifest.Package.Properties.DisplayName -ne $model.displayName) { throw "DisplayName mismatch: $($manifest.Package.Properties.DisplayName)" }
-          if ($manifest.Package.Properties.PublisherDisplayName -ne $model.publisherDisplayName) { throw 'PublisherDisplayName mismatch' }
-          $caps = @($manifest.Package.Capabilities.ChildNodes | Where-Object { $_.GetType().FullName -eq 'System.Xml.XmlElement' } | ForEach-Object { $_.GetAttribute('Name') } | Sort-Object)
-          if (($caps -join ',') -ne (($model.capabilities.required | Sort-Object) -join ',')) { throw "Capability mismatch: $($caps -join ',')" }
-          Write-Host "identity/publisher/capabilities OK: $($identity.Name) $($identity.Version) [$($caps -join ', ')]"
+            # 2) makeappx يفك الحزمة ويتحقق من حاويتها
+            $layout = Join-Path $work 'msix'
+            & $makeappx unpack /p $innerPath /d $layout /o | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "makeappx unpack failed with exit code $LASTEXITCODE" }
+            if (Test-Path (Join-Path $layout 'AppxSignature.p7x')) { throw 'the Store upload must not contain AppxSignature.p7x' }
+            Write-Host "makeappx unpack OK: $((Get-ChildItem $layout -Recurse -File).Count) files"
 
-          # 3) resources.pri حقيقي: makepri dump يقرأه بنجاح
-          $priDump = Join-Path $work 'pri.xml'
-          & $makepri dump /if (Join-Path $layout 'resources.pri') /of $priDump /o | Out-Null
-          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $priDump)) { throw "makepri dump failed: $LASTEXITCODE" }
-          if ((Get-Item $priDump).Length -lt 100) { throw 'makepri produced an empty dump' }
-          Write-Host "makepri dump OK: $((Get-Item $priDump).Length) bytes"
+            # 3) الهوية والاسم المحجوز والإصدار والصلاحيات من المانيفست المستخرج
+            [xml]$manifest = Get-Content (Join-Path $layout 'AppxManifest.xml') -Raw
+            $identity = $manifest.Package.Identity
+            if ($identity.Name -ne $model.identityName) { throw "Identity Name mismatch: $($identity.Name)" }
+            if ($identity.Publisher -ne $model.publisher) { throw "Publisher mismatch: $($identity.Publisher)" }
+            if ($identity.Version -ne $model.version) { throw "Version mismatch: $($identity.Version)" }
+            if ($manifest.Package.Properties.DisplayName -ne $model.displayName) { throw "DisplayName mismatch: $($manifest.Package.Properties.DisplayName)" }
+            if ($manifest.Package.Properties.PublisherDisplayName -ne $model.publisherDisplayName) { throw 'PublisherDisplayName mismatch' }
+            $caps = @($manifest.Package.Capabilities.ChildNodes |
+              Where-Object { $_.GetType().FullName -eq 'System.Xml.XmlElement' } |
+              ForEach-Object { $_.GetAttribute('Name') } | Sort-Object)
+            $expected = @($model.capabilities.required | Sort-Object)
+            if (($caps -join ',') -ne ($expected -join ',')) { throw "Capability mismatch: $($caps -join ',') vs $($expected -join ',')" }
+            $hostId = @($manifest.Package.Applications.Application.Extensions.Extension |
+              Where-Object { $_.GetAttribute('Category') -eq 'windows.appUriHandler' }).Count
+            Write-Host "identity/publisher/capabilities OK: $($identity.Name) $($identity.Version) [$($caps -join ', ')] uriHandlers=$hostId"
 
-          # 4) إعادة تحزيم الحزمة: makeappx يتحقق من المانيفست مقابل المخطط
-          foreach ($generated in @('AppxBlockMap.xml', '[Content_Types].xml')) {
-            $stale = Join-Path $layout $generated
-            if (Test-Path $stale) { Remove-Item $stale -Force }
+            # 4) resources.pri حقيقي: makepri يقرأه ويُخرِج تفريغًا غير فارغ
+            $priDump = Join-Path $work 'pri.xml'
+            & $makepri dump /if (Join-Path $layout 'resources.pri') /of $priDump /o | Out-Null
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $priDump)) { throw "makepri dump failed with exit code $LASTEXITCODE" }
+            $dumpSize = (Get-Item $priDump).Length
+            if ($dumpSize -lt 500) { throw "makepri dump produced only $dumpSize bytes" }
+            Write-Host "makepri dump OK: $dumpSize bytes"
+
+            # 5) إعادة تحزيم نفس التخطيط: makeappx يتحقق من المانيفست مقابل المخطط
+            foreach ($generated in @('AppxBlockMap.xml', '[Content_Types].xml')) {
+              $stale = Join-Path $layout $generated
+              if (Test-Path $stale) { Remove-Item $stale -Force }
+            }
+            $repacked = Join-Path $work 'repacked.msix'
+            & $makeappx pack /d $layout /p $repacked /o | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "makeappx pack (schema re-validation) failed with exit code $LASTEXITCODE" }
+            Write-Host "makeappx pack re-validation OK: $((Get-Item $repacked).Length) bytes"
+
+            @(
+              '### Windows SDK validation (on the uploaded artefact)',
+              "- makeappx unpack: exit 0, $((Get-ChildItem $layout -Recurse -File).Count) files",
+              "- identity: $($identity.Name) / $($identity.Version) / $($manifest.Package.Properties.DisplayName)",
+              "- capabilities: $($caps -join ', ')",
+              "- makepri dump: $dumpSize bytes",
+              "- makeappx pack re-validation: exit 0"
+            ) | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
           }
-          $repacked = Join-Path $work 'repacked.msix'
-          & $makeappx pack /d $layout /p $repacked /o | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw "makeappx pack (schema re-validation) failed: $LASTEXITCODE" }
-          Write-Host "makeappx pack re-validation OK: $((Get-Item $repacked).Length) bytes"
-
-          "SDK structural validation: makeappx unpack (upload -> bundle -> msix), makepri dump, makeappx pack re-validation all passed." |
-            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+          catch {
+            Write-Host "::error title=SDK validation failed::$($_.Exception.Message)"
+            throw
+          }
 
       - name: Install test (Add-AppxPackage + Start entry + Edge host + permissions)
         id: install
