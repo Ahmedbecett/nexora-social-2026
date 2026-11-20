@@ -8,7 +8,10 @@ on:
   push:
     paths:
       - '.github/workflows/windows-store-package.yml'
-      - 'windows/**'
+      - 'windows/scripts/Build-Msix.ps1'
+      - 'windows/scripts/Test-MsixPackage.ps1'
+      - 'windows/msix/**'
+      - 'windows/package-identity.json'
       - 'public/manifest.webmanifest'
 
 permissions:
