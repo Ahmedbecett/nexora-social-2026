@@ -229,7 +229,9 @@ try {
   try {
     $archive = [System.IO.Compression.ZipArchive]::new($zipStream, [System.IO.Compression.ZipArchiveMode]::Create, $false)
     try {
-      $payloads = @(@{ Path = $bundlePath } + @($symbolFiles | ForEach-Object { @{ Path = $_.FullName } }))
+      $payloads = @()
+      $payloads += @{ Path = $bundlePath }
+      foreach ($symbol in $symbolFiles) { $payloads += @{ Path = $symbol.FullName } }
       foreach ($payload in $payloads) {
         $entry = $archive.CreateEntry([System.IO.Path]::GetFileName($payload.Path), [System.IO.Compression.CompressionLevel]::Optimal)
         $entryStream = $entry.Open()
