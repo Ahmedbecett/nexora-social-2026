@@ -1,4 +1,4 @@
-# Microsoft Store listing — NEXORA AI (Windows)
+# Microsoft Store listing — NEXORA AI by BECETTI (Windows)
 
 > **Product status: Draft in Partner Center — not published.** The identity and Product ID below are
 > the real values reserved by the publisher. There is no live Store URL yet, so do not add one to the
@@ -8,7 +8,7 @@
 
 | Field | Value | Source |
 |---|---|---|
-| App name | **NEXORA AI** | Reserved in Partner Center |
+| App name (Store display name) | **NEXORA AI by BECETTI** | Reserved in Partner Center — must match the manifest exactly |
 | Publisher display name | **Ahmedbecetti** | Partner Center |
 | Package/Identity/Name | `Ahmedbecetti.NEXORAAIbyBECETTI` | Partner Center |
 | Package/Identity/Publisher | `CN=A5D5DC31-4A15-4059-8030-D96C51054596` | Partner Center |
@@ -23,6 +23,14 @@
 | Support URL | `https://nexora-social-2026.vercel.app/windows/#support` | يُنشر مع هذا الفرع على `main` |
 | Support email | `ahmedbecetti35@gmail.com` | Public contact |
 | Website | `https://nexora-social-2026.vercel.app/` | Production |
+
+> **اسم المنتج المحجوز:** `NEXORA AI by BECETTI` هو الاسم الرسمي في Partner Center ويجب أن يطابق
+> `Package/Properties/DisplayName` و`uap:VisualElements DisplayName` حرفيًا. النصوص التسويقية
+> أدناه يمكن أن تذكر العلامة المختصرة «NEXORA AI»، لكن اسم المتجر نفسه يبقى `NEXORA AI by BECETTI`.
+> لم يتغيّر `Package/Identity/Name` أو `Publisher` أو `Product ID`.
+>
+> **الإصدار:** أُعيد بناء `4.4.0.0` بهذا الاسم. إن كان Partner Center قد قبل `4.4.0.0` سابقًا،
+> فارفع الإصدار إلى `4.4.1.0` قبل الإرسال.
 
 ## Partner Center Properties — القيم الجاهزة
 
@@ -147,6 +155,7 @@
 
 ## What's new in 4.4.0
 
+- Store display name updated to the reserved name **NEXORA AI by BECETTI**.
 - Official Windows edition built on the production NEXORA AI app.
 - Installable PWA with offline shell and safe update flow.
 - Native Window Controls Overlay title bar, app menu and keyboard shortcuts.
@@ -173,7 +182,7 @@ Complete the Partner Center age-rating questionnaire yourself. Suggested answers
 
 ## Certification notes (paste into Partner Center)
 
-> NEXORA AI is an AI productivity app. It requires an account to use AI features; the reviewer may create
+> NEXORA AI by BECETTI is an AI productivity app. It requires an account to use AI features; the reviewer may create
 > a free account in the app. The app connects to the production NEXORA backend at
 > `https://nexora-social-2026.vercel.app`; it does not use mock services. No in-app purchases are offered
 > in this submission. No third-party advertising is enabled in the Windows package. The privacy policy is

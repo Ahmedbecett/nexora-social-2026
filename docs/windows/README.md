@@ -1,4 +1,4 @@
-# NEXORA AI — Windows Edition 4.4.0
+# NEXORA AI by BECETTI — Windows Edition 4.4.0
 
 <div dir="rtl">
 
@@ -17,7 +17,7 @@
 | `src/ads/` + `public/windows/ads-config.json` | خانة إعلان مخصّصة تظهر عند التفعيل فقط، موافقة، بوابات أسطح، **معطّلة افتراضيًا** |
 | `windows/msix/` | AppxManifest الفعلي (Hosted App Model) وكل شعارات MSIX وSplash |
 | `windows/scripts/` | أدوات Windows: بناء الحزمة، توليد الأصول، تطبيق الهوية، فحص الحزمة |
-| `windows/package-identity.json` | هوية الحزمة والإصدار الرباعي (4.4.0.0) وقيم Partner Center |
+| `windows/package-identity.json` | هوية الحزمة، الاسم المحجوز `NEXORA AI by BECETTI`، الإصدار الرباعي (4.4.0.0) وقيم Partner Center |
 | `public/windows/` | صفحة Windows العامة + سياسة خصوصية مكتوبة لنسخة Windows |
 
 ## ما هو جاهز الآن

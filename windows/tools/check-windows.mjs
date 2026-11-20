@@ -61,7 +61,7 @@ else if (!looksLikeStoreProductId(identity.productId)) errors.push('identity pro
 if (identity.productId && !identity.storeUrl) warnings.push('Store URL pending publication (Product ID is recorded)');
 if (!identity.packageFamilyName) warnings.push('Package family name not recorded yet');
 
-console.log('NEXORA AI — Windows readiness check');
+console.log('NEXORA AI by BECETTI — Windows readiness check');
 console.log(`app version: ${pkg.version} · msix version: ${identity.version}`);
 for (const w of warnings) console.log(`WARN  ${w}`);
 for (const e of errors) console.error(`ERROR ${e}`);

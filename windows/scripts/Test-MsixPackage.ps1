@@ -28,7 +28,7 @@ try {
   $identity = $manifest.Package.Identity
   $app = @($manifest.Package.Applications.Application)[0]
 
-  Write-Host 'NEXORA AI - MSIX inspection'
+  Write-Host 'NEXORA AI by BECETTI - MSIX inspection'
   Write-Host "  Name:        $($identity.Name)"
   Write-Host "  Publisher:   $($identity.Publisher)"
   Write-Host "  Version:     $($identity.Version)"
@@ -46,12 +46,14 @@ try {
   if ($identity.Publisher -match 'REPLACE|PARTNER-CENTER|TODO') { $errors.Add('Publisher is still a placeholder.') }
 
   # قارن الهوية بالملف المعتمد من Partner Center — لا يكفي أن يكون الشكل صحيحًا.
+  $expectedDisplayName = 'NEXORA AI by BECETTI'
   if ($IdentityFile -and (Test-Path -LiteralPath $IdentityFile)) {
     $expected = Get-Content -LiteralPath $IdentityFile -Raw | ConvertFrom-Json
+    $expectedDisplayName = [string]$expected.displayName
     if ($identity.Name -ne $expected.identityName) { $errors.Add("Identity Name does not match package-identity.json: $($identity.Name)") }
     if ($identity.Publisher -ne $expected.publisher) { $errors.Add("Publisher does not match package-identity.json: $($identity.Publisher)") }
     if ($identity.Version -ne $expected.version) { $errors.Add("Version does not match package-identity.json: $($identity.Version)") }
-    if ($manifest.Package.Properties.DisplayName -ne $expected.displayName) { $errors.Add("DisplayName does not match package-identity.json: $($manifest.Package.Properties.DisplayName)") }
+    if ($manifest.Package.Properties.DisplayName -ne $expectedDisplayName) { $errors.Add("DisplayName does not match package-identity.json: $($manifest.Package.Properties.DisplayName)") }
     if ($manifest.Package.Properties.PublisherDisplayName -ne $expected.publisherDisplayName) { $errors.Add("PublisherDisplayName does not match package-identity.json: $($manifest.Package.Properties.PublisherDisplayName)") }
     if ($hostId) {
       if ($parameters -notmatch '--app-fallback-url=(?<url>https://\S+)') { $errors.Add('Hosted package has no --app-fallback-url.') }
@@ -64,7 +66,11 @@ try {
   else {
     Write-Warning "Identity file not found ($IdentityFile); only structural identity checks were performed."
   }
-  if ($manifest.Package.Properties.DisplayName -ne 'NEXORA AI') { $errors.Add('DisplayName must be "NEXORA AI".') }
+  if ($manifest.Package.Properties.DisplayName -ne $expectedDisplayName) { $errors.Add("Properties/DisplayName must be the reserved Store name (got: $($manifest.Package.Properties.DisplayName)).") }
+  $visualElements = $app.SelectSingleNode("*[local-name()='VisualElements']")
+  if ($visualElements -and $visualElements.GetAttribute('DisplayName') -ne $expectedDisplayName) {
+    $errors.Add("VisualElements/DisplayName must match the reserved Store name (got: $($visualElements.GetAttribute('DisplayName'))).")
+  }
   if ($manifest.Package.Properties.PublisherDisplayName -ne 'Ahmedbecetti') { $errors.Add('PublisherDisplayName must be "Ahmedbecetti" (Partner Center).') }
   if ($hostId) {
     if ($hostId -ne 'PWA') { $errors.Add("Unsupported HostId: $hostId") }

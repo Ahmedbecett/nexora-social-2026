@@ -1,5 +1,6 @@
-# حالة بناء الحزمة والتوقيع — Windows Edition 4.4.0
+# حالة بناء الحزمة والتوقيع — NEXORA AI by BECETTI · Windows Edition 4.4.0
 
+**Display Name:** `NEXORA AI by BECETTI` (الاسم المحجوز في Partner Center)
 **الهوية:** `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596`
 **Publisher Display Name:** `Ahmedbecetti` · **Product ID:** `9ND09PBRDPKZ` (Draft)
 **الإصدار:** `4.4.0.0` · **نوع الحزمة:** Hosted App Model (Edge Stable، `HostId=PWA`)
@@ -47,7 +48,7 @@ Partner Center؛ تلك النسخة للاختبار المحلي فقط.
 - `Test-MsixPackage.ps1` قرأ الحزمة وطابق:
   - `Name = Ahmedbecetti.NEXORAAIbyBECETTI`
   - `Publisher = CN=A5D5DC31-4A15-4059-8030-D96C51054596`
-  - `Version = 4.4.0.0` · `DisplayName = NEXORA AI` · `PublisherDisplayName = Ahmedbecetti`
+  - `Version = 4.4.0.0` · `DisplayName = NEXORA AI by BECETTI` (Properties وVisualElements) · `PublisherDisplayName = Ahmedbecetti`
   - `HostId = PWA`، و`--app-id=pkojfojlpmhfnldcmaemlmpbkcdmihle`
   - `--app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix`
   - الأصول الـ53 و`resources.pri` موجودة، والإعلانات ما زالت معطّلة.
@@ -64,7 +65,7 @@ Partner Center؛ تلك النسخة للاختبار المحلي فقط.
 ## طريقة الرفع إلى Partner Center
 
 1. نزّل `NEXORA-AI_4.4.0.0_neutral.msixupload` من الرابط أعلاه.
-2. افتح Partner Center → تطبيق **NEXORA AI** (Product ID `9ND09PBRDPKZ`) →
+2. افتح Partner Center → تطبيق **NEXORA AI by BECETTI** (Product ID `9ND09PBRDPKZ`) →
    **Submissions → New submission**.
 3. في **Packages** ارفع ملف `.msixupload`. لا تغيّر امتداده ولا تفتحه/تعيد ضغطه.
 4. أكمل **Store listing** و**Properties** و**Privacy** و**Support** من

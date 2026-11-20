@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  OFFICIAL_DISPLAY_NAME,
   REQUIRED_ASSETS,
   toMsixVersion,
   isValidMsixVersion,
@@ -39,7 +40,8 @@ test('إصدار MSIX رباعي مشتق من package.json لا مكتوب يد
 });
 
 test('هوية المنتج الحقيقية من Partner Center مثبّتة في الحزمة', () => {
-  assert.equal(identity.displayName, 'NEXORA AI');
+  assert.equal(identity.displayName, OFFICIAL_DISPLAY_NAME);
+  assert.equal(identity.displayName, 'NEXORA AI by BECETTI');
   assert.equal(identity.publisherDisplayName, 'Ahmedbecetti');
   assert.equal(identity.identityName, 'Ahmedbecetti.NEXORAAIbyBECETTI');
   assert.equal(identity.publisher, 'CN=A5D5DC31-4A15-4059-8030-D96C51054596');
@@ -69,6 +71,7 @@ test('رفض الهويات غير الصالحة أو غير المتطابقة
   const base = { ...identity };
   assert.equal(validateIdentity(base).ok, true);
   assert.equal(validateIdentity({ ...base, displayName: 'Nexora' }).ok, false);
+  assert.equal(validateIdentity({ ...base, displayName: 'NEXORA AI' }).ok, false, 'الاسم القديم لم يعد مقبولًا');
   assert.equal(validateIdentity({ ...base, publisherDisplayName: 'BECETTI' }).ok, false);
   assert.equal(validateIdentity({ ...base, version: '4.4.0' }).ok, false);
   assert.equal(validateIdentity({ ...base, startPage: 'http://nexora-social-2026.vercel.app/' }).ok, false);
@@ -106,7 +109,8 @@ test('مانيفست الحزمة يستخدم Hosted App Model وليس StartPa
   const result = validateManifestXml(manifest, identity);
   assert.deepEqual(result.errors, []);
   for (const fragment of [
-    '<DisplayName>NEXORA AI</DisplayName>',
+    '<DisplayName>NEXORA AI by BECETTI</DisplayName>',
+    'DisplayName="NEXORA AI by BECETTI"',
     '<PublisherDisplayName>Ahmedbecetti</PublisherDisplayName>',
     'Name="Ahmedbecetti.NEXORAAIbyBECETTI"',
     'Publisher="CN=A5D5DC31-4A15-4059-8030-D96C51054596"',
@@ -144,7 +148,8 @@ test('سكربتات Windows ترفض Product ID مخترعًا وتشترط ا�
 
   const inspect = read('windows/scripts/Test-MsixPackage.ps1');
   assert.match(inspect, /nx_surface=msix/);
-  assert.match(inspect, /DisplayName -ne 'NEXORA AI'/);
+  assert.match(inspect, /Properties\/DisplayName must be the reserved Store name/);
+  assert.match(inspect, /VisualElements\/DisplayName must match the reserved Store name/);
   assert.match(inspect, /PublisherDisplayName -ne 'Ahmedbecetti'/);
   assert.match(inspect, /DATABASE_URL/);
   assert.match(inspect, /OPENAI_API_KEY/);

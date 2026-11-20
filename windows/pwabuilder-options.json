@@ -1,7 +1,7 @@
 {
   "_note": "Reference values from Partner Center (2026-11-19). The actual package is built by windows/scripts/Build-Msix.ps1 (Hosted App Model, neutral architecture); this file is kept only as a readable identity snapshot. Product ID is recorded but the listing is still a draft; do not publish a Store link until certification.",
   "webAppUrl": "https://nexora-social-2026.vercel.app/",
-  "appName": "NEXORA AI",
+  "appName": "NEXORA AI by BECETTI",
   "shortName": "NEXORA AI",
   "packageId": "Ahmedbecetti.NEXORAAIbyBECETTI",
   "publisherId": "CN=A5D5DC31-4A15-4059-8030-D96C51054596",

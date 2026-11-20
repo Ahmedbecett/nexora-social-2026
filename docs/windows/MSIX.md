@@ -1,4 +1,4 @@
-# MSIX packaging and Microsoft Store submission — NEXORA AI
+# MSIX packaging and Microsoft Store submission — NEXORA AI by BECETTI
 
 <div dir="rtl">
 
@@ -23,6 +23,7 @@
 
 | الحقل | القيمة |
 |---|---|
+| Package/Properties/DisplayName | `NEXORA AI by BECETTI` (الاسم المحجوز حرفيًا) |
 | Package/Identity/Name | `Ahmedbecetti.NEXORAAIbyBECETTI` |
 | Package/Identity/Publisher | `CN=A5D5DC31-4A15-4059-8030-D96C51054596` |
 | Publisher display name | `Ahmedbecetti` |
@@ -47,7 +48,10 @@ node windows/tools/check-windows.mjs       # أو npm run windows:check
 
 - إصدار الحزمة **أربعة أجزاء** وينتهي بـ `.0` عند البناء: `4.4.0.0`.
 - كل إرسال جديد إلى المتجر يتطلب رقمًا أكبر من السابق. لا تعد استخدام نفس الرقم.
-- غيّر `displayName` فقط إذا وافقت Microsoft على تغيير اسم المنتج.
+- `displayName` هو الاسم المحجوز في Partner Center: **`NEXORA AI by BECETTI`**. لا تغيّره إلا باسم جديد محجوز؛
+  ويجب أن يطابق `Package/Properties/DisplayName` و`uap:VisualElements DisplayName` حرفيًا.
+- هذه إعادة بناء أولى بالاسم المحجوز؛ إن كان Partner Center قد قبل حزمة `4.4.0.0` سابقًا،
+  فارفع الإصدار إلى `4.4.1.0` قبل الإرسال.
 - `check-windows` يجب أن يخرج 0؛ التحذير الوحيد المسموح حاليًا هو أن **رابط المتجر بانتظار النشر**.
 
 ## ٤) بناء الحزمة على Windows أو في GitHub Actions
@@ -172,7 +176,8 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 يتحقق من:
 
 - وجود `AppxManifest.xml` والهوية والإصدار الرباعي.
-- أن `DisplayName = NEXORA AI` و`PublisherDisplayName = Ahmedbecetti`، وأن `Identity Name` و`Publisher` يطابقان Partner Center.
+- أن `DisplayName = NEXORA AI by BECETTI` (في Properties وفي VisualElements) و`PublisherDisplayName = Ahmedbecetti`،
+  وأن `Identity Name` و`Publisher` يطابقان Partner Center.
 - أن الحزمة Hosted App Model: `HostId=PWA` و`Microsoft.MicrosoftEdge.Stable`،
   وأن `--app-fallback-url` يبدأ بـ HTTPS ويحتوي `?nx_surface=msix`،
   وأن `--app-id` مكوّن من 32 حرفًا بين a وp ومطابق للمشتق من Manifest ID.
@@ -218,7 +223,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 
 ## English checklist
 
-1. Partner Center product **NEXORA AI** is a **draft** with the real identity recorded in `package-identity.json`.
+1. Partner Center product **NEXORA AI by BECETTI** is a **draft** with the real identity recorded in `package-identity.json`.
 2. Verify with `node windows/tools/sync-version.mjs --check` and `node windows/tools/check-windows.mjs`.
 3. Build the Hosted App Model package with `windows/scripts/Build-Msix.ps1` (Windows SDK) or the GitHub Actions workflow.
 4. Upload the **unsigned** `.msixupload`; Microsoft Store re-signs it. Use the test-signed `.msix` only for local sideload.
