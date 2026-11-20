@@ -95,13 +95,31 @@ jobs:
           ./windows/scripts/Test-MsixInstall.ps1 -MsixPath $msix -CertificatePath $cer `
             -AllowLaunchFailure -OutputJson dist/windows/install-test.json
 
+      - name: Upload install-test evidence (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-install-test
+          path: |
+            dist/windows/install-test.json
+            dist/windows/BUILD-INFO.txt
+            dist/windows/SHA256SUMS.txt
+          if-no-files-found: warn
+
       - name: Assert install test result
         shell: pwsh
         run: |
           if (-not (Test-Path dist/windows/install-test.json)) { throw 'install-test.json was not produced — the install test did not run.' }
-          Get-Content dist/windows/install-test.json -Raw | Write-Host
+          $json = Get-Content dist/windows/install-test.json -Raw | ConvertFrom-Json
+          Write-Host ($json | ConvertTo-Json -Depth 6)
+          foreach ($check in @($json.checks)) {
+            Write-Host ("[{0}] {1} — {2}" -f $check.status, $check.check, $check.detail)
+            if ($check.status -eq 'FAIL') {
+              Write-Host "::error title=install-check-$($check.check)::$($check.detail)"
+            }
+          }
           node windows/tools/assert-install-test.mjs dist/windows/install-test.json --allow-headless
-          if ($LASTEXITCODE -ne 0) { throw 'The Windows package did not install/register correctly.' }
+          if ($LASTEXITCODE -ne 0) { throw 'The Windows package did not install/register correctly — see the per-check errors above.' }
 
       - name: Experiment — is runFullTrust really required?
         continue-on-error: true
