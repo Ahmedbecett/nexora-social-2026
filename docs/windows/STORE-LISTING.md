@@ -19,17 +19,16 @@
 | Store URL | pending publication | Do not publish a link before certification |
 | Category | Productivity | Partner Center |
 | Pricing | Free to download | Confirm in Partner Center |
-| Privacy policy URL | `https://nexora-social-2026.vercel.app/windows/privacy.html` | في الفرع فقط — لم تُنشر على `main` بعد |
-| Support URL | `https://nexora-social-2026.vercel.app/windows/#support` | في الفرع فقط — لم تُنشر على `main` بعد |
+| Privacy policy URL | `https://nexora-social-2026.vercel.app/windows/privacy.html` | يُنشر مع هذا الفرع على `main` |
+| Support URL | `https://nexora-social-2026.vercel.app/windows/#support` | يُنشر مع هذا الفرع على `main` |
 | Support email | `ahmedbecetti35@gmail.com` | Public contact |
 | Website | `https://nexora-social-2026.vercel.app/` | Production |
 
 ## Partner Center Properties — القيم الجاهزة
 
-> **تحذير قبل الإرسال:** صفحة `/windows/privacy.html` موجودة في فرع العمل فقط، وليست في
-> `main` الذي تُبنى منه نسخة الإنتاج الحالية. لا تضع رابط Windows في Partner Center قبل
-> نشر الفرع، وإلا سجّل المراجع رابطًا غير موجود. الرابط العام الحي مؤقتًا هو
-> `https://nexora-social-2026.vercel.app/privacy.html`، لكنه لا يخصّ Windows بالتفصيل.
+> **قبل الإرسال:** تحقق أن رابطي الخصوصية والدعم يفتحان في نافذة خاصة بعد اكتمال نشر
+> `main` على Vercel. إذا لم يظهر `/windows/privacy.html` فالنشر لم يكتمل بعد؛ لا ترسله.
+> الرابط العام `/privacy.html` يبقى بديلًا مؤقتًا لكنه لا يخصّ Windows بالتفصيل.
 
 | حقل Properties | القيمة |
 |---|---|
