@@ -57,7 +57,10 @@ try {
     if ($manifest.Package.Properties.DisplayName -ne $expectedDisplayName) { $errors.Add("DisplayName does not match package-identity.json: $($manifest.Package.Properties.DisplayName)") }
     if ($manifest.Package.Properties.PublisherDisplayName -ne $expected.publisherDisplayName) { $errors.Add("PublisherDisplayName does not match package-identity.json: $($manifest.Package.Properties.PublisherDisplayName)") }
     # سياسة الصلاحيات: مجموعة الحزمة يجب أن تطابق الهوية تمامًا (لا زيادة ولا نقصان).
-    $declaredCaps = @($manifest.Package.Capabilities.ChildNodes | Where-Object { $_.Name } | ForEach-Object { [string]$_.Name } | Sort-Object -Unique)
+    $declaredCaps = @($manifest.Package.Capabilities.ChildNodes |
+      Where-Object { 'System.Xml.XmlElement' -eq $_.GetType().FullName } |
+      ForEach-Object { [string]$_.GetAttribute('Name') } |
+      Where-Object { $_ } | Sort-Object -Unique)
     $expectedCaps = @($expected.capabilities.required | Sort-Object -Unique)
     if (($declaredCaps -join ',') -ne ($expectedCaps -join ',')) {
       $errors.Add("Capabilities do not match package-identity.json. Package: [$($declaredCaps -join ', ')] / identity: [$($expectedCaps -join ', ')]")

@@ -156,7 +156,10 @@ if ($pkg) {
     [xml]$installedManifest = Get-AppxPackageManifest -Package $pkg.PackageFullName
     $declared = @()
     foreach ($node in $installedManifest.Package.Capabilities.ChildNodes) {
-      if ($node.Name) { $declared += [string]$node.Name }
+      if ($node.GetType().FullName -eq 'System.Xml.XmlElement') {
+        $capName = [string]$node.GetAttribute('Name')
+        if ($capName) { $declared += $capName }
+      }
     }
     $declaredSorted = @($declared | Sort-Object -Unique)
     if (($declaredSorted -join ',') -eq ($expectedCaps -join ',')) {

@@ -55,7 +55,28 @@ jobs:
 
       - name: Build unsigned Store package and test-signed copy
         shell: pwsh
-        run: ./windows/scripts/Build-Msix.ps1 -OutputDirectory dist/windows
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Start-Transcript -Path dist/build.log -Force | Out-Null
+          try {
+            ./windows/scripts/Build-Msix.ps1 -OutputDirectory dist/windows
+            if ($LASTEXITCODE -ne 0) { throw "Build-Msix.ps1 exited with code $LASTEXITCODE" }
+          }
+          catch {
+            $message = $_.Exception.Message
+            Write-Host "::error title=MSIX build failed::$message"
+            Stop-Transcript | Out-Null
+            throw
+          }
+          Stop-Transcript | Out-Null
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-log
+          path: dist/build.log
+          if-no-files-found: warn
 
       - name: Show package files
         shell: pwsh
