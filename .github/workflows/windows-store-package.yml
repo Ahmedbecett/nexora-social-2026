@@ -54,6 +54,68 @@ jobs:
           path: dist/windows/*
           if-no-files-found: error
 
+      - name: Trust the ephemeral test certificate
+        shell: powershell
+        run: |
+          $cert = Join-Path $PWD 'dist\windows\NEXORA-AI-test-certificate.cer'
+          if (-not (Test-Path -LiteralPath $cert)) { throw "Test certificate missing: $cert" }
+          Import-Certificate -FilePath $cert -CertStoreLocation Cert:\CurrentUser\TrustedPeople | Out-Null
+          Import-Certificate -FilePath $cert -CertStoreLocation Cert:\CurrentUser\Root | Out-Null
+
+      - name: Install and inspect the package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $msix = Get-ChildItem -LiteralPath 'dist\windows' -Filter '*.test-signed.msix' | Select-Object -First 1
+          if (-not $msix) { throw 'The test-signed MSIX is missing from the build output.' }
+          Write-Host "Installing $($msix.Name)"
+          Add-AppxPackage -Path $msix.FullName -ForceApplicationShutdown
+
+          $pkg = Get-AppxPackage -Name 'Ahmedbecetti.NEXORAAIbyBECETTI'
+          if (-not $pkg) { throw 'Package registration did not produce an installed package.' }
+          Write-Host "Installed: $($pkg.PackageFullName)"
+          Write-Host "Status:    $($pkg.Status)"
+
+          $manifest = Get-AppxPackageManifest -Package $pkg.PackageFullName
+          $caps = @(
+            $manifest.Package.Capabilities.SelectNodes("*[local-name()='Capability']") |
+              ForEach-Object { $_.GetAttribute('Name') }
+          )
+          Write-Host "Capabilities: $($caps -join ', ')"
+          if ($caps -contains 'runFullTrust') { throw 'runFullTrust is present in the installed package.' }
+          if ($caps -notcontains 'internetClient') { throw 'internetClient is missing from the installed package.' }
+
+          if (Get-Command Get-StartApps -ErrorAction SilentlyContinue) {
+            $startApp = Get-StartApps |
+              Where-Object { $_.AppID -like "$($pkg.PackageFamilyName)!*" } |
+              Select-Object -First 1
+            if (-not $startApp) { throw 'No Start entry was registered for the installed package.' }
+            Write-Host "Start entry: $($startApp.Name) [$($startApp.AppID)]"
+          }
+          else {
+            Write-Warning 'Get-StartApps is unavailable; Start-menu registration was not verified.'
+          }
+
+      - name: Launch through the Edge PWA host (best effort)
+        shell: powershell
+        continue-on-error: true
+        run: |
+          $pkg = Get-AppxPackage -Name 'Ahmedbecetti.NEXORAAIbyBECETTI'
+          if (-not $pkg) { throw 'Package is not installed.' }
+          $before = @(Get-Process -Name msedge -ErrorAction SilentlyContinue).Count
+          Start-Process "shell:AppsFolder\$($pkg.PackageFamilyName)!App"
+          Start-Sleep -Seconds 15
+          $after = @(Get-Process -Name msedge -ErrorAction SilentlyContinue).Count
+          Write-Host "Edge processes before=$before after=$after"
+          if ($after -le $before) { throw 'Edge host did not start within 15 seconds.' }
+
+      - name: Uninstall
+        shell: powershell
+        if: always()
+        run: |
+          Get-AppxPackage -Name 'Ahmedbecetti.NEXORAAIbyBECETTI' |
+            Remove-AppxPackage -ErrorAction SilentlyContinue
+
       # لا تُستبدل أصول Release تلقائياً من فرع تجريبي. النشر يتطلب
       # تشغيلاً يدوياً مع publish_release=true بعد اختبار التثبيت على Windows.
       - name: Publish GitHub release assets
