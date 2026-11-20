@@ -1,0 +1,5 @@
+caafc44c3bb8df8aed47a3263fc7239b6e5a1f42042972fdf4702e9c928f07e8  NEXORA-AI_4.4.1.0_neutral.msix
+a0b50da8eccbb14b5a22e918412b9f94d09ce3e2aaacaa9a63620cfe3f12ef79  NEXORA-AI_4.4.1.0_neutral.msixbundle
+e8fcfe6f43c0f651f92025627c212d936afad77863c3f5ce385f3d361670439d  NEXORA-AI_4.4.1.0_neutral.msixupload
+6c01099d1fc07aca6442a8d5d9e1c65d87452cd955ece5ba28333904c082c27c  NEXORA-AI_4.4.1.0_neutral.test-signed.msix
+9fcab4cf2aa6061fcc617d8afa61b8d9b493abdc4588717572504af506d0ef23  NEXORA-AI-test-certificate.cer

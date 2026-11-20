@@ -1,0 +1,128 @@
+{
+  "label": "store-package",
+  "package": "NEXORA-AI_4.4.1.0_neutral.test-signed.msix",
+  "identityName": "Ahmedbecetti.NEXORAAIbyBECETTI",
+  "version": "4.4.1.0",
+  "publisher": "CN=A5D5DC31-4A15-4059-8030-D96C51054596",
+  "testedAtUtc": "2026-11-20T11:08:32Z",
+  "machine": "runnervmm7ud1 / Microsoft Windows NT 10.0.26100.0",
+  "passed": 18,
+  "failed": 0,
+  "checks": [
+    {
+      "check": "trust-test-certificate",
+      "status": "INFO",
+      "detail": "installed into: CurrentUser\\TrustedPeople, LocalMachine\\TrustedPeople, LocalMachine\\Root"
+    },
+    {
+      "check": "certificate-subject",
+      "status": "PASS",
+      "detail": "trusted test certificate subject matches Publisher (E34ECEDF0D0AC8D68FB6535D8A8511EF6FBB7E63)"
+    },
+    {
+      "check": "add-appxpackage",
+      "status": "PASS",
+      "detail": "install completed in 1.3s"
+    },
+    {
+      "check": "package-registered",
+      "status": "PASS",
+      "detail": "Ahmedbecetti.NEXORAAIbyBECETTI_4.4.1.0_neutral__y0zvy3a8v70hm"
+    },
+    {
+      "check": "identity-name",
+      "status": "PASS",
+      "detail": "Ahmedbecetti.NEXORAAIbyBECETTI"
+    },
+    {
+      "check": "identity-publisher",
+      "status": "PASS",
+      "detail": "CN=A5D5DC31-4A15-4059-8030-D96C51054596"
+    },
+    {
+      "check": "identity-version",
+      "status": "PASS",
+      "detail": "4.4.1.0"
+    },
+    {
+      "check": "package-family-name",
+      "status": "PASS",
+      "detail": "Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm"
+    },
+    {
+      "check": "package-status",
+      "status": "PASS",
+      "detail": "Ok"
+    },
+    {
+      "check": "signature-kind",
+      "status": "INFO",
+      "detail": "Developer"
+    },
+    {
+      "check": "install-location",
+      "status": "INFO",
+      "detail": "C:\\Program Files\\WindowsApps\\Ahmedbecetti.NEXORAAIbyBECETTI_4.4.1.0_neutral__y0zvy3a8v70hm"
+    },
+    {
+      "check": "is-development-mode",
+      "status": "INFO",
+      "detail": "False"
+    },
+    {
+      "check": "declared-capabilities",
+      "status": "PASS",
+      "detail": "internetClient, runFullTrust"
+    },
+    {
+      "check": "restricted-capabilities",
+      "status": "INFO",
+      "detail": "runFullTrust"
+    },
+    {
+      "check": "run-full-trust-justification",
+      "status": "PASS",
+      "detail": "declared and backed by docs/windows/RUNFULLTRUST-REVIEW.md + Partner Center text"
+    },
+    {
+      "check": "application-entry",
+      "status": "PASS",
+      "detail": "Id=App"
+    },
+    {
+      "check": "edge-pwa-host",
+      "status": "PASS",
+      "detail": "HostId=PWA"
+    },
+    {
+      "check": "start-menu-entry",
+      "status": "PASS",
+      "detail": "NEXORA AI by BECETTI -> Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm!App"
+    },
+    {
+      "check": "launch-edge-host",
+      "status": "PASS",
+      "detail": "11 new msedge process(es); window titles: NEXORA Studio | ابنِ تطبيقًا كاملًا بالوصف — محرر وطرفية ومعاينة ونشر"
+    },
+    {
+      "check": "activation-event-log",
+      "status": "PASS",
+      "detail": "no activation errors in the last 2 minutes"
+    },
+    {
+      "check": "production-surface",
+      "status": "PASS",
+      "detail": "HTTP 200 for https://nexora-social-2026.vercel.app/?nx_surface=msix (12157 bytes)"
+    },
+    {
+      "check": "production-content",
+      "status": "PASS",
+      "detail": "the served page identifies NEXORA"
+    },
+    {
+      "check": "uninstall",
+      "status": "PASS",
+      "detail": "package removed cleanly"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+NEXORA AI by BECETTI Windows package
+====================================
+Display name:       NEXORA AI by BECETTI
+Identity name:      Ahmedbecetti.NEXORAAIbyBECETTI
+Publisher:          CN=A5D5DC31-4A15-4059-8030-D96C51054596
+Version:            4.4.1.0
+Web App Manifest ID:https://nexora-social-2026.vercel.app/
+Web App ID:         pkojfojlpmhfnldcmaemlmpbkcdmihle
+Fallback URL:       https://nexora-social-2026.vercel.app/?nx_surface=msix
+Target family:      Windows.Desktop, MinVersion 10.0.19041.0
+Host:               Microsoft.MicrosoftEdge.Stable (HostId PWA)
+Capabilities:       internetClient, runFullTrust
+Built (UTC):        2026-11-20T11:08:11Z
+
+Store upload:  NEXORA-AI_4.4.1.0_neutral.msixupload (UNSIGNED; Store re-signs it)
+Bundle:        NEXORA-AI_4.4.1.0_neutral.msixbundle (UNSIGNED)
+Package:       NEXORA-AI_4.4.1.0_neutral.msix (UNSIGNED)
+Test package:  NEXORA-AI_4.4.1.0_neutral.test-signed.msix (self-signed, local sideload only)
+Test cert:     NEXORA-AI-test-certificate.cer (public certificate, no private key)
+
+Do NOT upload the test-signed package or the test certificate to Partner Center.
