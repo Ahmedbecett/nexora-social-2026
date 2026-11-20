@@ -4,7 +4,9 @@
 > [`44674821589`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44674821589)،
 > ففشل تثبيت MSIX بالخطأ **`0x80073D2F`**: host runtime dependency الخاص بـ Edge
 > يحتوي full-trust content ويشترط الصلاحية في الحزمة الرئيسية. أُعيدت الصلاحية،
-> وهي مطلوبة ولا تُحذف. أصول Release الحالية صالحة.
+> وهي مطلوبة ولا تُحذف. بعد الإعادة نجح التثبيت والفحص وإطلاق مضيف Edge في Run
+> [`44675317746`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44675317746).
+> أصول Release الحالية صالحة.
 
 **Display Name:** `NEXORA AI by BECETTI` (الاسم المحجوز في Partner Center)
 **الهوية:** `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596`

@@ -25,6 +25,7 @@ real-window screenshots were not produced.
 | Windows package build | ✅ | `Build-Msix.ps1` on Windows Server 2025: `makepri`, `makeappx pack/bundle`, `.msixupload` structure check, `Test-MsixPackage.ps1` |
 | Store-name rebuild | ✅ | Run `44654597475`; `Test-MsixPackage.ps1` matched `DisplayName`/`VisualElements DisplayName` = `NEXORA AI by BECETTI` and unchanged Name/Publisher/version; release asset `c2adc350…a88d` |
 | `runFullTrust` removal test | ❌ rejected at install | Run `44674821589`: MSIX built, but `Add-AppxPackage` failed with **`0x80073D2F`** — the Edge host runtime dependency requires `runFullTrust`. Capability restored; Release remains valid |
+| Windows install smoke | ✅ | Run [`44675317746`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44675317746): `Add-AppxPackage` succeeded, capabilities were `internetClient` + `runFullTrust`, Start entry existed, Edge host process started, package uninstalled cleanly |
 | Dev server route check | ✅ 9/9 HTTP 200 | `/`, `/windows/`, `/windows/en.html`, `/windows/privacy.html`, `/windows/ads-config.json`, `/sw.js`, `/offline.html`, `/manifest.webmanifest`, `/version.json` |
 
 ### What the new tests cover (`tests/windows-*.test.mjs`)
@@ -86,10 +87,15 @@ This is exactly the kind of bug a Store reviewer would hit by reopening the app 
 
 - Conclusion: `runFullTrust` is **required** by the Edge Stable Hosted App Model, even though the
   package has no executable. It was restored in the manifest and both validators.
+- After restoring the capability, run
+  [`44675317746`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44675317746)
+  installed the package on `windows-2025`, confirmed `internetClient` + `runFullTrust`, found the
+  Start entry, observed the Edge host process start, and uninstalled the package cleanly.
 - The public release was never replaced. The existing release package already contains the capability
   and remains the candidate for Partner Center.
-- **Still not verified:** interactive first launch, app URI handler, sign-in, offline mode, update path,
-  and Store acceptance. The CI install test verifies registration and capabilities, not a human session.
+- **Still not verified:** interactive UI launch, app URI handler, sign-in, offline mode, update path,
+  and Store acceptance. The CI test verifies registration, capabilities and host process start, not a
+  human desktop session.
 
 ## 3 · Manual Windows test matrix (pending)
 

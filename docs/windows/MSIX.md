@@ -200,6 +200,7 @@ content requires the main package to have the runFullTrust capability.
 
 تم إثبات ذلك عمليًا في Run `44674821589` (خطوة Install and inspect). لذلك:
 - أُعيدت `runFullTrust` إلى المانيفست وإلى `pwabuilder-options.json`.
+- بعد الإعادة نجح التثبيت والفحص وإطلاق مضيف Edge في Run `44675317746`.
 - `Build-Msix.ps1` و`Test-MsixPackage.ps1` يفشلان إذا غابت.
 - `RuntimeBehavior` و`TrustLevel` ما زالا يعلنهما مضيف Edge ويطبّقهما Windows عبر
   `uap10:HostId="PWA"`؛ إضافتهما إلى `Application` هنا غير صحيحة.
