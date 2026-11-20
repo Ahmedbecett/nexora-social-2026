@@ -17,17 +17,17 @@
 
 | الملف | الحجم | الاستخدام |
 |---|---:|---|
-| `NEXORA-AI_4.4.0.0_neutral.msixupload` | 10,454,721 بايت | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
-| `NEXORA-AI_4.4.0.0_neutral.msixbundle` | 10,553,464 بايت | فحص/بديل إن طلب Partner Center صيغة الحزمة |
-| `NEXORA-AI_4.4.0.0_neutral.msix` | 10,551,680 بايت | فحص/بديل لصيغة أحادية |
-| `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` | 10,556,095 بايت | **اختبار محلي فقط**، ليس للمتجر |
+| `NEXORA-AI_4.4.0.0_neutral.msixupload` | 10,454,672 بايت | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
+| `NEXORA-AI_4.4.0.0_neutral.msixbundle` | 10,553,455 بايت | فحص/بديل إن طلب Partner Center صيغة الحزمة |
+| `NEXORA-AI_4.4.0.0_neutral.msix` | 10,551,673 بايت | فحص/بديل لصيغة أحادية |
+| `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` | 10,556,080 بايت | **اختبار محلي فقط**، ليس للمتجر |
 | `NEXORA-AI-test-certificate.cer` | 818 بايت | شهادة الاختبار العامة (بلا مفتاح خاص) |
 | `SHA256SUMS.txt` / `BUILD-INFO.txt` | — | البصمات وتفاصيل البناء |
 
 SHA-256 للحزمة المرفوعة في هذا البناء:
 
 ```text
-f8f871e61d30f259b60584066c5cb8c0bc4a6856b2a4fb9a20229aae39076581  NEXORA-AI_4.4.0.0_neutral.msixupload
+3966e88897e1f437d827605fa4fb443b4f76251aca40307eb4afc0c09c5d7f37  NEXORA-AI_4.4.0.0_neutral.msixupload
 ```
 
 ## مهم: المتجر لا يحتاج توقيعك
@@ -79,14 +79,17 @@ Partner Center؛ تلك النسخة للاختبار المحلي فقط.
 
 ```powershell
 # 1) ثق بشهادة الاختبار العامة (مرة واحدة، على جهاز اختبار فقط)
+#    الشهادة ذاتية التوقيع، فهي جذر نفسها: TrustedPeople وحدها لا تكفي.
 Import-Certificate -FilePath .\NEXORA-AI-test-certificate.cer `
   -CertStoreLocation Cert:\CurrentUser\TrustedPeople
+Import-Certificate -FilePath .\NEXORA-AI-test-certificate.cer `
+  -CertStoreLocation Cert:\CurrentUser\Root
 
 # 2) ثبّت نسخة الاختبار الموقّعة
 Add-AppxPackage -Path .\NEXORA-AI_4.4.0.0_neutral.test-signed.msix
 ```
 
-إذا رفض Windows بسبب `0x800B0109`، فالشهادة لم تُثبّت في المتجر الصحيح.
+إذا رفض Windows بسبب `0x800B0109`، فالجذر لم يُثبّت في `CurrentUser\Root`؛ أعد الخطوة 1.
 وإذا رفض الحزمة بسبب عدم وجود Edge Stable، ثبّت Edge ثم أعد المحاولة.
 
 ## إعادة البناء

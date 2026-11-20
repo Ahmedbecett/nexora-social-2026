@@ -137,9 +137,12 @@ $pwd = ConvertTo-SecureString -String "CHOOSE-A-STRONG-PASSWORD" -Force -AsPlain
 Export-PfxCertificate -Cert $cert -FilePath .\certs\nexora-test.pfx -Password $pwd
 Export-Certificate -Cert $cert -FilePath .\certs\nexora-test.cer
 
-# 2) ثق بالشهادة محليًا (Trusted People) — لا تفعل هذا على جهاز إنتاج
+# 2) ثق بالشهادة محليًا — لا تفعل هذا على جهاز إنتاج
+#    الشهادة ذاتية التوقيع، فيجب تثبيت جذرها أيضًا وإلا فشل التثبيت بـ 0x800B0109.
 Import-Certificate -FilePath .\certs\nexora-test.cer `
-  -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+  -CertStoreLocation Cert:\CurrentUser\TrustedPeople
+Import-Certificate -FilePath .\certs\nexora-test.cer `
+  -CertStoreLocation Cert:\CurrentUser\Root
 
 # 3) ثبّت الحزمة
 Add-AppxPackage -Path .\dist\NEXORA-AI-Windows.msix
@@ -197,7 +200,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 
 | الخطأ | السبب | الحل |
 |---|---|---|
-| `0x800B0109` | الشهادة غير موثوقة | ثبّت الشهادة في Trusted People (للاختبار) أو استخدم شهادة الإنتاج |
+| `0x800B0109` | الشهادة غير موثوقة | ثبّت شهادة الاختبار في `TrustedPeople` و`Root` (للاختبار)، أو استخدم حزمة المتجر غير الموقّعة |
 | `0x80073CF3` / `0x80073CFB` | عدم تطابق الهوية أو حزمة موجودة | أزل الحزمة القديمة، وتأكد من Identity/Publisher مطابقين |
 | `0x80073CF9` | تثبيت فاشل/مساحة/صلاحيات | راجع الأحداث، وأعد تثبيت WebView2 Runtime |
 | اسم التطبيق قديم بعد التغيير | `resources.pri` لم يُحدَّث | أعد البناء بـ `Build-Msix.ps1` بدل ترقيع المانيفست |
