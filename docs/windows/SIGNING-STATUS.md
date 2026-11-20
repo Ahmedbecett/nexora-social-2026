@@ -1,10 +1,10 @@
 # حالة بناء الحزمة والتوقيع — NEXORA AI by BECETTI · Windows Edition 4.4.0
 
-> **بناء تجريبي بدون `runFullTrust` (20 نوفمبر 2026):** المصدر في هذا الفرع يعلن
-> `internetClient` فقط. Run [`44663704164`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44663704164)
-> نجح، والحزمة في **Actions artifact** فقط. لم تُنشر في Release ولم تُختبر بالتثبيت
-> على Windows بعد. الأقسام التالية تصف بناء Release السابق (الذي يحمل الصلاحية)
-> حتى تكتمل إعادة البناء والتحقق.
+> **تحقق `runFullTrust` (20 نوفمبر 2026):** جُرّبت إزالتها في Run
+> [`44674821589`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44674821589)،
+> ففشل تثبيت MSIX بالخطأ **`0x80073D2F`**: host runtime dependency الخاص بـ Edge
+> يحتوي full-trust content ويشترط الصلاحية في الحزمة الرئيسية. أُعيدت الصلاحية،
+> وهي مطلوبة ولا تُحذف. أصول Release الحالية صالحة.
 
 **Display Name:** `NEXORA AI by BECETTI` (الاسم المحجوز في Partner Center)
 **الهوية:** `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596`
@@ -81,8 +81,10 @@ Partner Center؛ تلك النسخة للاختبار المحلي فقط.
 3. في **Packages** ارفع ملف `.msixupload`. لا تغيّر امتداده ولا تفتحه/تعيد ضغطه.
 4. أكمل **Store listing** و**Properties** و**Privacy** و**Support** من
    [`STORE-LISTING.md`](STORE-LISTING.md)، ثم أرسل للاعتماد.
-5. الحزمة لا تعلن `runFullTrust`؛ لا يوجد executable ولا full-trust process.
-   إن ظهر تحذير قديم، فتأكد أنك رفعت البناء الجديد وليس الحزمة السابقة.
+5. إذا طلب المُراجع توضيحًا لصلاحية `runFullTrust`: اكتب أنها مطلوبة لحل
+   **host runtime dependency** الخاص بـ Edge Stable (Hosted App Model)، وأن
+   التطبيق لا يحتوي executable ولا يقرأ ملفات المستخدم. بدونها يفشل التثبيت
+   بالخطأ `0x80073D2F`.
 6. `storeUrl` في `windows/package-identity.json` يبقى فارغًا حتى ظهور صفحة المتجر.
    لا تضع رابطًا قبل النشر.
 

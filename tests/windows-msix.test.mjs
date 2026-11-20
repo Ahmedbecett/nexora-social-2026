@@ -123,6 +123,7 @@ test('مانيفست الحزمة يستخدم Hosted App Model وليس StartPa
     '--app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix',
     '--windows-store-app',
     '<Capability Name="internetClient"',
+    '<rescap:Capability Name="runFullTrust"',
     'Assets\\StoreLogo.png',
     'Assets\\SplashScreen.png',
     'windows.appUriHandler',
@@ -134,18 +135,15 @@ test('مانيفست الحزمة يستخدم Hosted App Model وليس StartPa
   assert.match(manifest, /Hosted App Model/);
 });
 
-test('الحزمة لا تعلن runFullTrust: الشبكة فقط', () => {
-  assert.doesNotMatch(manifest, /runFullTrust/);
-  assert.doesNotMatch(manifest, /rescap:/);
+test('الحزمة تعلن runFullTrust المطلوبة لمضيف Edge', () => {
   assert.match(manifest, /<Capability Name="internetClient" \/>/);
+  assert.match(manifest, /<rescap:Capability Name="runFullTrust" \/>/);
+  assert.match(manifest, /xmlns:rescap=/);
 
-  // أي عودة للصلاحية يجب أن يرفضها المدقق قبل البناء.
-  const withFullTrust = manifest.replace(
-    '<Capability Name="internetClient" />',
-    '<Capability Name="internetClient" />\n    <rescap:Capability Name="runFullTrust" />',
-  );
-  const result = validateManifestXml(withFullTrust, identity);
-  assert.ok(result.errors.includes('manifest-unexpected-run-full-trust'));
+  // الحزمة لا تحتوي executable، لكن Windows يشترط الصلاحية لحل HostRuntimeDependency.
+  const withoutFullTrust = manifest.replace(/\s*<rescap:Capability Name="runFullTrust" \/>/, '');
+  const result = validateManifestXml(withoutFullTrust, identity);
+  assert.ok(result.errors.includes('manifest-run-full-trust'));
 });
 
 test('سكربتات Windows ترفض Product ID مخترعًا وتشترط التوقيع عند الطلب', () => {

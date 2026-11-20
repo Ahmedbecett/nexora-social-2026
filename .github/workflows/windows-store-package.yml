@@ -69,19 +69,12 @@ jobs:
       - name: Install and inspect the package
         timeout-minutes: 5
         shell: powershell
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
           trap {
             $details = ($_ | Out-String)
             Write-Host "::error title=MSIX install failed::$($_.Exception.Message)"
             Write-Host $details
-            if ($env:GH_TOKEN) {
-              $body = "MSIX install smoke failed on $env:GITHUB_SHA`n`n$details"
-              $payload = @{ body = $body } | ConvertTo-Json
-              $payload | gh api --method POST "repos/$env:GITHUB_REPOSITORY/commits/$env:GITHUB_SHA/comments" --input - | Out-Null
-            }
             exit 1
           }
           $msix = Get-ChildItem -LiteralPath 'dist\windows' -Filter '*.test-signed.msix' | Select-Object -First 1
@@ -100,7 +93,7 @@ jobs:
               ForEach-Object { $_.GetAttribute('Name') }
           )
           Write-Host "Capabilities: $($caps -join ', ')"
-          if ($caps -contains 'runFullTrust') { throw 'runFullTrust is present in the installed package.' }
+          if ($caps -notcontains 'runFullTrust') { throw 'runFullTrust is missing; Edge host runtime dependency requires it (0x80073D2F).' }
           if ($caps -notcontains 'internetClient') { throw 'internetClient is missing from the installed package.' }
 
           if (Get-Command Get-StartApps -ErrorAction SilentlyContinue) {

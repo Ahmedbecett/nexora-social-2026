@@ -1,7 +1,7 @@
 <#
   NEXORA AI - Inspect an MSIX package without installing it.
   Checks: AppxManifest presence, identity values, 4-part version, StartPage,
-  internetClient capability (and no runFullTrust), required tile/splash assets,
+  internetClient + runFullTrust capabilities, required tile/splash assets,
   and obvious secret leakage in text files.
 #>
 [CmdletBinding()]
@@ -87,8 +87,8 @@ try {
   if ($capabilityNames -notcontains 'internetClient') {
     $errors.Add('internetClient capability is missing.')
   }
-  if ($capabilityNames -contains 'runFullTrust') {
-    $errors.Add('runFullTrust must not be declared: the package has no full-trust executable.')
+  if ($capabilityNames -notcontains 'runFullTrust') {
+    $errors.Add('runFullTrust is required: Edge Stable is a full-trust host runtime (0x80073D2F without it).')
   }
 
   $required = @(

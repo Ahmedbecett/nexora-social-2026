@@ -181,27 +181,33 @@ powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixPackage.ps1 
 - أن الحزمة Hosted App Model: `HostId=PWA` و`Microsoft.MicrosoftEdge.Stable`،
   وأن `--app-fallback-url` يبدأ بـ HTTPS ويحتوي `?nx_surface=msix`،
   وأن `--app-id` مكوّن من 32 حرفًا بين a وp ومطابق للمشتق من Manifest ID.
-- وجود `internetClient` فقط، وغياب `runFullTrust`، وأصول الشعارات و`resources.pri`.
-
-### الصلاحيات: `internetClient` فقط
-
-الحزمة **Hosted App Model** بلا `Executable` أو `EntryPoint` أو `FullTrustProcessLauncher`،
-ولا تحتوي أي Win32/.NET binary. لذلك لا تعلن `runFullTrust` ولا يوجد ما يبررها في Partner Center.
-`RuntimeBehavior` و`TrustLevel` يعلنهما مضيف Edge في حزمته، ويطبّقهما Windows على تطبيقنا عبر
-`uap10:HostId="PWA"`؛ إضافتهما إلى `Application` هنا غير صحيحة.
-
-> تحذير: هذه إزالة تحتاج اختبار تثبيت وتشغيل فعلي على Windows 10 2004+ وWindows 11
-> قبل رفع الحزمة إلى المتجر أو استبدال أصول Release.
+- وجود `internetClient` و`runFullTrust` وأصول الشعارات و`resources.pri`.
 - أن `.msixupload` يحتوي bundle ثم msix ثم `AppxBlockMap.xml` و`[Content_Types].xml`،
   وأن نسخة المتجر بلا `AppxSignature.p7x`.
 - عدم وجود أي أثر لمفاتيح/أسرار خادم في ملفات الحزمة.
 
-## ٨) الرفع إلى Microsoft Store
+### الصلاحيات: لماذا `runFullTrust` مطلوبة
 
-> **مهم:** المصدر الحالي لا يعلن `runFullTrust`، لكن بناء الإزالة موجود في
-> **Actions artifact** فقط ولم يُنشر في Release ولم يُختبر تثبيتًا. لا ترفع ملف
-> Release القديم على أنه البناء الجديد، ولا تستبدل أصول Release قبل اجتياز
-> اختبارات التثبيت والتشغيل على Windows.
+الحزمة **Hosted App Model** بلا `Executable` أو `EntryPoint` أو `FullTrustProcessLauncher`،
+ولا تحتوي أي Win32/.NET binary. ومع ذلك `runFullTrust` **إلزامية**، لأن مضيف
+`Microsoft.MicrosoftEdge.Stable` هو host runtime بمحتوى full trust. عند محاولة تثبيت
+النسخة بدونها يفشل Windows Deployment بالخطأ:
+
+```text
+0x80073D2F — A host runtime dependency resolving to a package with full trust
+content requires the main package to have the runFullTrust capability.
+```
+
+تم إثبات ذلك عمليًا في Run `44674821589` (خطوة Install and inspect). لذلك:
+- أُعيدت `runFullTrust` إلى المانيفست وإلى `pwabuilder-options.json`.
+- `Build-Msix.ps1` و`Test-MsixPackage.ps1` يفشلان إذا غابت.
+- `RuntimeBehavior` و`TrustLevel` ما زالا يعلنهما مضيف Edge ويطبّقهما Windows عبر
+  `uap10:HostId="PWA"`؛ إضافتهما إلى `Application` هنا غير صحيحة.
+
+التبرير الصحيح في Partner Center: الصلاحية مطلوبة لحل host runtime dependency الخاص
+بـ Edge PWA، وليست لأن التطبيق يستخدم Win32 أو يقرأ ملفات المستخدم.
+
+## ٨) الرفع إلى Microsoft Store
 
 1. نزّل `NEXORA-AI_4.4.0.0_neutral.msixupload` من
    [Release Windows](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.0.0).
