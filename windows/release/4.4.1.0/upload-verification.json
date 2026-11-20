@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [
+    "msixupload: no .appxsym file — optional per Microsoft (crash analytics only); this Hosted App Model package ships no compiled code to symbolize"
+  ],
+  "stats": {
+    "entries": 1,
+    "verifiedBlocks": 195,
+    "compressedBlocks": 3,
+    "blockMapFiles": 56,
+    "family": "bundle",
+    "packageName": "NEXORA-AI_4.4.1.0_neutral.msixbundle",
+    "pngAssets": 53,
+    "referencedAssets": 6,
+    "manifestEntries": 57
+  },
+  "identity": {
+    "name": "Ahmedbecetti.NEXORAAIbyBECETTI",
+    "publisher": "CN=A5D5DC31-4A15-4059-8030-D96C51054596",
+    "displayName": "NEXORA AI by BECETTI",
+    "publisherDisplayName": "Ahmedbecetti",
+    "version": "4.4.1.0",
+    "capabilities": [
+      "internetClient",
+      "runFullTrust"
+    ],
+    "productId": "9ND09PBRDPKZ",
+    "packageFamilyName": "Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm"
+  }
+}

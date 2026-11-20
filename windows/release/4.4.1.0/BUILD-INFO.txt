@@ -10,12 +10,13 @@ Fallback URL:       https://nexora-social-2026.vercel.app/?nx_surface=msix
 Target family:      Windows.Desktop, MinVersion 10.0.19041.0
 Host:               Microsoft.MicrosoftEdge.Stable (HostId PWA)
 Capabilities:       internetClient, runFullTrust
-Built (UTC):        2026-11-20T11:28:34Z
+Built (UTC):        2026-11-20T12:03:20Z
 
 Store upload:  NEXORA-AI_4.4.1.0_neutral.msixupload (UNSIGNED; Store re-signs it)
 Bundle:        NEXORA-AI_4.4.1.0_neutral.msixbundle (UNSIGNED)
 Package:       NEXORA-AI_4.4.1.0_neutral.msix (UNSIGNED)
 Test package:  NEXORA-AI_4.4.1.0_neutral.test-signed.msix (self-signed, local sideload only)
+Symbols:        0 .appxsym file(s) (optional; 0 means no crash analytics)
 Test cert:     NEXORA-AI-test-certificate.cer (public certificate, no private key)
 
 Do NOT upload the test-signed package or the test certificate to Partner Center.
