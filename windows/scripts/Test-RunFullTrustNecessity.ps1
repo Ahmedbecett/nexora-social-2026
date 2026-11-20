@@ -48,7 +48,7 @@ function Find-WindowsSdkTool([string]$Name) {
   ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
   foreach ($root in $roots) {
     $candidate = Get-ChildItem -LiteralPath $root -Filter $Name -Recurse -ErrorAction SilentlyContinue |
-      Where-Object { $_.FullName -match '\\\(x64\|x86\|arm64\)\\' } |
+      Where-Object { $_.FullName -match '\\x64\\|\\x86\\|\\arm64\\' } |
       Sort-Object FullName -Descending | Select-Object -First 1
     if ($candidate) { return $candidate.FullName }
   }
