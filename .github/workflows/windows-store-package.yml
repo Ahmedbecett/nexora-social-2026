@@ -13,6 +13,11 @@ name: Build Windows Store package
 #   * Add-AppxPackage install test, Start entry, host launch, permission and identity checks.
 on:
   workflow_dispatch:
+    inputs:
+      commit_artifacts:
+        description: 'Commit the built packages and the verification JSON to this branch'
+        type: boolean
+        default: false
   push:
     paths:
       - '.github/workflows/windows-store-package.yml'
@@ -156,6 +161,24 @@ jobs:
             dist/runfulltrust-experiment/*
           if-no-files-found: error
 
+      - name: Commit packages and verification to the branch (optional)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_artifacts }}
+        shell: pwsh
+        run: |
+          $target = 'windows/release/4.4.1.0'
+          New-Item -ItemType Directory -Path $target -Force | Out-Null
+          Copy-Item 'dist/windows/*' -Destination $target -Recurse -Force
+          if (Test-Path 'dist/windows/install-test.json') { Copy-Item 'dist/windows/install-test.json' -Destination $target -Force }
+          if (Test-Path 'dist/runfulltrust-experiment') { Copy-Item 'dist/runfulltrust-experiment' -Destination (Join-Path $target 'runfulltrust-experiment') -Recurse -Force }
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add $target
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { Write-Host 'nothing to commit'; exit 0 }
+          git commit -m "build(windows): NEXORA AI by BECETTI 4.4.1.0 packages and verification [skip ci]"
+          git push
+          if ($LASTEXITCODE -ne 0) { throw 'git push failed' }
+
       - name: Publish GitHub release assets
         shell: pwsh
         env:
@@ -174,17 +197,31 @@ jobs:
 
           الهوية لم تتغيّر: `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596` · PFN `Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm` · Product ID `9ND09PBRDPKZ`.
           '@
-          gh release view $tag 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "NEXORA AI by BECETTI · Windows 4.4.1.0" --notes $notes --target $env:GITHUB_SHA
-            if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
+          function Invoke-Gh([string[]]$GhArgs, [string]$What) {
+            $output = & gh @GhArgs 2>&1
+            $code = $LASTEXITCODE
+            foreach ($line in $output) { Write-Host $line }
+            if ($code -ne 0) { Write-Host "::error title=$What::exit $code - $($output -join ' / ')" }
+            return $code
+          }
+
+          gh auth status 2>&1 | Write-Host
+          $exists = Invoke-Gh @('release', 'view', $tag) 'release-view'
+          if ($exists -ne 0) {
+            $created = Invoke-Gh @('release', 'create', $tag, '--title', 'NEXORA AI by BECETTI · Windows 4.4.1.0', '--notes', $notes, '--target', $env:GITHUB_SHA) 'release-create'
+            if ($created -ne 0) { throw "gh release create failed with exit code $created" }
           }
           else {
-            gh release edit $tag --title "NEXORA AI by BECETTI · Windows 4.4.1.0" --notes $notes
-            if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit code $LASTEXITCODE" }
+            $edited = Invoke-Gh @('release', 'edit', $tag, '--title', 'NEXORA AI by BECETTI · Windows 4.4.1.0', '--notes', $notes) 'release-edit'
+            if ($edited -ne 0) { throw "gh release edit failed with exit code $edited" }
           }
-          gh release upload $tag dist/windows/* dist/runfulltrust-experiment/* --clobber
-          if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE" }
+          $files = @(Get-ChildItem dist/windows -File | ForEach-Object { $_.FullName })
+          $files += @(Get-ChildItem dist/runfulltrust-experiment -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+          if ($files.Count -eq 0) { throw 'no package files to upload' }
+          $uploadArgs = @('release', 'upload', $tag) + $files + @('--clobber')
+          $uploaded = Invoke-Gh $uploadArgs 'release-upload'
+          if ($uploaded -ne 0) { throw "gh release upload failed with exit code $uploaded" }
+          Write-Host "Published $($files.Count) files to release $tag" 
 
       - name: Summary
         shell: pwsh
