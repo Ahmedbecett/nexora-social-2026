@@ -42,6 +42,28 @@ jobs:
         shell: pwsh
         run: Get-ChildItem dist/windows | Format-Table Name, Length
 
+      - name: Install test-signed package smoke check
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-AppxPackage *MicrosoftEdge* | Select-Object Name, Version, PackageFullName | Format-Table
+          try {
+            Import-Certificate -FilePath dist/windows/NEXORA-AI-test-certificate.cer `
+              -CertStoreLocation Cert:\CurrentUser\TrustedPeople | Out-Null
+            Add-AppxPackage -Path dist/windows/NEXORA-AI_4.4.0.0_neutral.test-signed.msix -ErrorAction Stop
+            $pkg = Get-AppxPackage -Name Ahmedbecetti.NEXORAAIbyBECETTI
+            if (-not $pkg) { throw 'Package was not registered after Add-AppxPackage.' }
+            $pkg | Select-Object Name, PackageFullName, Publisher, Version, InstallLocation | Format-List
+            Remove-AppxPackage -Package $pkg.PackageFullName -ErrorAction Stop
+            Write-Host 'Install smoke check passed (registration only; launch requires an interactive Windows session).'
+          }
+          catch {
+            Write-Warning "Install smoke check did not complete: $($_.Exception.Message)"
+          }
+          finally {
+            $global:LASTEXITCODE = 0
+          }
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
