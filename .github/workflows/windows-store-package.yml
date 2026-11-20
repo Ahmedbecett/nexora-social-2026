@@ -61,7 +61,7 @@ jobs:
           - `SHA256SUMS.txt` و`BUILD-INFO.txt` — البصمات وتفاصيل البناء.
 
           الهوية: `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596` · الإصدار `4.4.0.0`.
-          '#
+          '@
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag --title "NEXORA AI · Windows 4.4.0.0" --notes $notes --target $env:GITHUB_SHA
