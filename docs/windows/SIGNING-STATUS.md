@@ -18,18 +18,23 @@
 
 | الملف | الحجم | الاستخدام |
 |---|---:|---|
-| `NEXORA-AI_4.4.0.0_neutral.msixupload` | 10,454,672 بايت | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
-| `NEXORA-AI_4.4.0.0_neutral.msixbundle` | 10,553,455 بايت | فحص/بديل إن طلب Partner Center صيغة الحزمة |
-| `NEXORA-AI_4.4.0.0_neutral.msix` | 10,551,673 بايت | فحص/بديل لصيغة أحادية |
-| `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` | 10,556,080 بايت | **اختبار محلي فقط**، ليس للمتجر |
+| `NEXORA-AI_4.4.0.0_neutral.msixupload` | 10,454,721 بايت | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
+| `NEXORA-AI_4.4.0.0_neutral.msixbundle` | 10,553,527 بايت | فحص/بديل إن طلب Partner Center صيغة الحزمة |
+| `NEXORA-AI_4.4.0.0_neutral.msix` | 10,551,743 بايت | فحص/بديل لصيغة أحادية |
+| `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` | 10,556,153 بايت | **اختبار محلي فقط**، ليس للمتجر |
 | `NEXORA-AI-test-certificate.cer` | 818 بايت | شهادة الاختبار العامة (بلا مفتاح خاص) |
 | `SHA256SUMS.txt` / `BUILD-INFO.txt` | — | البصمات وتفاصيل البناء |
 
-SHA-256 للحزمة المرفوعة في هذا البناء:
+SHA-256 للحزمة المرفوعة في هذا البناء (من بيانات أصل Release على GitHub):
 
 ```text
-3966e88897e1f437d827605fa4fb443b4f76251aca40307eb4afc0c09c5d7f37  NEXORA-AI_4.4.0.0_neutral.msixupload
+c2adc350fc21805e0d1a8892873e8b48ca5ad0ab57726630afac6fb58039a88d  NEXORA-AI_4.4.0.0_neutral.msixupload
 ```
+
+> هذا البناء أُعيد في Run `44654597475` بعد تغيير الاسم. نجح
+> `Test-MsixPackage.ps1` الإلزامي داخل البناء، وهو يطابق
+> `Package/Properties/DisplayName` و`uap:VisualElements DisplayName` مع
+> `NEXORA AI by BECETTI`، ويطابق `Identity Name` و`Publisher` مع القيم الحالية.
 
 ## مهم: المتجر لا يحتاج توقيعك
 

@@ -1,8 +1,9 @@
-# Test report — NEXORA AI 4.4.0 Windows Edition
+# Test report — NEXORA AI by BECETTI 4.4.0 Windows Edition
 
-**Date:** 19 November 2026
-**Branch:** `arena/1ca98629-nexora-social-2026` (base `cfd80a8`)
+**Date:** 19 November 2026 (Store-name rebuild: 20 November 2026, UTC)
+**Branch:** `arena/f406a053-nexora-social-2026` (base `8a04269`)
 **App version:** 4.4.0 · **MSIX version:** 4.4.0.0
+**Store display name:** `NEXORA AI by BECETTI` (reserved in Partner Center)
 **Environment:** Linux workspace for source checks; GitHub Actions `windows-2025` runner with Windows SDK for the real package build. No interactive Windows host and no Partner Center submission.
 An unsigned Store package and a self-signed sideload test package were built; nothing has been submitted to Microsoft.
 Browser checks used `curl` and static analysis; **no headless browser is available in this sandbox**, so
@@ -22,6 +23,7 @@ real-window screenshots were not produced.
 | `node windows/tools/sync-version.mjs --check` | ✅ | `package.json 4.4.0` → MSIX `4.4.0.0` |
 | `npm run windows:check` | ✅ exit 0 | Partner Center identity verified; 1 warning: Store URL pending publication |
 | Windows package build | ✅ | `Build-Msix.ps1` on Windows Server 2025: `makepri`, `makeappx pack/bundle`, `.msixupload` structure check, `Test-MsixPackage.ps1` |
+| Store-name rebuild | ✅ | Run `44654597475`; `Test-MsixPackage.ps1` matched `DisplayName`/`VisualElements DisplayName` = `NEXORA AI by BECETTI` and unchanged Name/Publisher/version; release asset `c2adc350…a88d` |
 | Dev server route check | ✅ 9/9 HTTP 200 | `/`, `/windows/`, `/windows/en.html`, `/windows/privacy.html`, `/windows/ads-config.json`, `/sw.js`, `/offline.html`, `/manifest.webmanifest`, `/version.json` |
 
 ### What the new tests cover (`tests/windows-*.test.mjs`)
@@ -54,6 +56,19 @@ This is exactly the kind of bug a Store reviewer would hit by reopening the app 
   `3347511713` absent); test IDs are build-time dev-only now.
 - `windows/msix/Assets/` contains 53 PNGs (icons, tiles, splash scales, unplated variants).
 - `windows/msix/AppxManifest.reference.xml` is the **actual Hosted App Model manifest** copied into the package. The built artifacts are attached to the [Windows release](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.0.0).
+
+### Store-name rebuild (20 November 2026)
+
+- Reserved Store name **`NEXORA AI by BECETTI`** is set in:
+  - `Package/Properties/DisplayName`
+  - `uap:VisualElements DisplayName`
+  - `windows/package-identity.json` (`displayName`)
+- **Unchanged:** `Package/Identity/Name` `Ahmedbecetti.NEXORAAIbyBECETTI`, `Publisher`
+  `CN=A5D5DC31-4A15-4059-8030-D96C51054596`, Product ID `9ND09PBRDPKZ`, version `4.4.0.0`.
+- The rebuilt `.msixupload` is 10,454,721 bytes, SHA-256
+  `c2adc350fc21805e0d1a8892873e8b48ca5ad0ab57726630afac6fb58039a88d`.
+- **Not verified:** interactive Windows install, the Store listing UI, and Partner Center acceptance.
+  Those remain manual steps and must not be reported as done.
 
 ## 3 · Manual Windows test matrix (pending)
 
