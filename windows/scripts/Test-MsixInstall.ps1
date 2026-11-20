@@ -36,9 +36,6 @@ param(
   [switch]$SkipLaunch,
   [switch]$KeepInstalled,
   [switch]$AllowLaunchFailure,
-  # Trusting a self-signed cert as a root authority shows a confirmation dialog on
-  # interactive desktops and can stall a headless runner. Only ask for it explicitly.
-  [switch]$TrustRoot,
   # Expected capability set. Defaults to package-identity.json; the runFullTrust
   # experiment passes a reduced set on purpose.
   [string[]]$ExpectedCapabilities
@@ -89,14 +86,11 @@ catch {
 if ($CertificatePath) {
   try {
     if (-not (Test-Path -LiteralPath $CertificatePath)) { throw "Certificate not found: $CertificatePath" }
+    # TrustedPeople is the documented store for sideloaded packages and it never
+    # opens a modal dialog. Importing into CurrentUser\Root prompts for consent on
+    # interactive desktops and hangs a headless runner, so it is never automated.
     Import-Certificate -FilePath $CertificatePath -CertStoreLocation Cert:\CurrentUser\TrustedPeople | Out-Null
-    if ($TrustRoot) {
-      try { Import-Certificate -FilePath $CertificatePath -CertStoreLocation Cert:\CurrentUser\Root | Out-Null }
-      catch { Info 'trust-test-certificate-root' ("could not add the test cert to Root: " + $_.Exception.Message) }
-    }
-    else {
-      Info 'trust-test-certificate-root' 'root store not modified (pass -TrustRoot if Windows rejects the chain with 0x800B0109)'
-    }
+    Info 'trust-test-certificate-root' 'test cert added to TrustedPeople only (never to Root: the import dialog would hang a headless run)'
     $cer = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2((Resolve-Path -LiteralPath $CertificatePath).Path)
     if ($cer.Subject -ne [string]$identity.publisher) {
       Fail 'certificate-subject' "certificate subject '$($cer.Subject)' does not match Publisher '$($identity.publisher)'"

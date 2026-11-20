@@ -173,14 +173,16 @@ Add-AppxPackage -Path .\dist\NEXORA-AI-Windows.msix
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\windows\scripts\Test-MsixInstall.ps1 `
   -MsixPath .\dist\windows\NEXORA-AI_4.4.1.0_neutral.test-signed.msix `
-  -CertificatePath .\dist\windows\NEXORA-AI-test-certificate.cer -TrustRoot `
+  -CertificatePath .\dist\windows\NEXORA-AI-test-certificate.cer `
   -OutputJson .\dist\windows\install-test.json
 ```
 
 يفعل فعليًا: يثبّت الحزمة بـ `Add-AppxPackage`، يقرأ الحزمة المسجّلة (`Get-AppxPackage`) ويطابق
 Name وPublisher والإصدار وPFN، يقرأ الصلاحيات من مانيفست الحزمة المثبّتة، يتحقق من ظهور التطبيق في
 Start (`Get-StartApps`) ومن إدخال التشغيل `PFN!App`، يشغّل مضيف Edge عبر `explorer.exe shell:AppsFolder\…`،
-يتحقق من وصول سطح الإنتاج، ثم يزيل الحزمة. النتيجة JSON + جدول PASS/FAIL. بوابة CI:
+يتحقق من وصول سطح الإنتاج، ثم يزيل الحزمة. الشهادة تُضاف إلى `TrustedPeople` فقط — إضافتها إلى
+`Root` تفتح نافذة موافقة وتُعلّق أي runner بلا جلسة تفاعلية. إن ظهر `0x800B0109` أضف الشهادة إلى
+«Trusted Root Certification Authorities» يدويًا على جهاز اختبار واحد. النتيجة JSON + جدول PASS/FAIL. بوابة CI:
 `node windows/tools/assert-install-test.mjs <json> --allow-headless`.
 
 ## ٦ج) حزمة موقّعة للنشر المباشر (اختياري)

@@ -87,11 +87,12 @@ jobs:
       - name: Install test (Add-AppxPackage + Start entry + Edge host + permissions)
         id: install
         continue-on-error: true
+        timeout-minutes: 15
         shell: pwsh
         run: |
           $msix = "dist/windows/$($env:PKG_BASE)_$($env:PKG_VERSION)_neutral.test-signed.msix"
           $cer = 'dist/windows/NEXORA-AI-test-certificate.cer'
-          ./windows/scripts/Test-MsixInstall.ps1 -MsixPath $msix -CertificatePath $cer -TrustRoot `
+          ./windows/scripts/Test-MsixInstall.ps1 -MsixPath $msix -CertificatePath $cer `
             -AllowLaunchFailure -OutputJson dist/windows/install-test.json
 
       - name: Assert install test result
@@ -104,6 +105,7 @@ jobs:
 
       - name: Experiment — is runFullTrust really required?
         continue-on-error: true
+        timeout-minutes: 15
         shell: pwsh
         run: |
           $msix = "dist/windows/$($env:PKG_BASE)_$($env:PKG_VERSION)_neutral.msix"

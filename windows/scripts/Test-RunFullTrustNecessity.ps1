@@ -113,7 +113,6 @@ try {
     -MsixPath $experimentalPath `
     -IdentityFile $IdentityFile `
     -CertificatePath $cerPath `
-    -TrustRoot `
     -ExpectedCapabilities 'internetClient' `
     -AllowLaunchFailure `
     -OutputJson $jsonPath
