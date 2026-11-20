@@ -70,11 +70,16 @@
   (service worker) لا تخزّن `/api/` ولا الجلسات، وصفحة عدم اتصال، وتحديث آمن بموافقة المستخدم.
 - **إحساس Windows:** شريط عنوان Window Controls Overlay، قائمة تطبيق، اختصارات `Ctrl+N` و`Ctrl+,`
   و`F1`، أوضاع فاتح/داكن، RTL/LTR، وحالات تحميل وخطأ واضحة.
-- **حزمة MSIX جاهزة للرفع:** بُنيت فعليًا على Windows SDK بنموذج Hosted App Model، بالاسم المحجوز
-  `NEXORA AI by BECETTI` وهوية `Ahmedbecetti.NEXORAAIbyBECETTI` (Publisher Display: `Ahmedbecetti`)
-  وإصدار `4.4.1.0`، و53 أصلًا و`resources.pri`. حمّل `NEXORA-AI_4.4.1.0_neutral.msixupload` من
+- **حزمة MSIX جاهزة للرفع ومُختبرة تثبيتًا:** بُنيت فعليًا على Windows SDK بنموذج Hosted App Model،
+  بالاسم المحجوز `NEXORA AI by BECETTI` وهوية `Ahmedbecetti.NEXORAAIbyBECETTI` (Publisher Display:
+  `Ahmedbecetti`) وإصدار `4.4.1.0`، و53 أصلًا و`resources.pri`. الملفات الثلاثة
+  (`.msix` · `.msixbundle` · `.msixupload`) في
   [Release Windows](https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.1.0)
-  وارفعه إلى Partner Center؛ الحزمة غير موقّعة عمدًا لأن المتجر يعيد توقيعها.
+  ومحفوظة أيضًا في `windows/release/4.4.1.0/`. اختُبرت الحزمة فعليًا: `Add-AppxPackage` نجح،
+  التطبيق ظهر في Start، ومضيف Edge فتح نافذة NEXORA، والصلاحيات والهوية مطابقة، ثم أُزيلت الحزمة
+  (`18/18` فحصًا — [`TEST-REPORT.md`](docs/windows/TEST-REPORT.md)). الحزمة غير موقّعة عمدًا لأن
+  المتجر يعيد توقيعها؛ أما صلاحية `runFullTrust` فقد أثبت Windows نفسه أنها إلزامية
+  (`0x80073D2F`) والتبرير جاهز في [`RUNFULLTRUST-REVIEW.md`](docs/windows/RUNFULLTRUST-REVIEW.md).
   Product ID `9ND09PBRDPKZ` ما زال مسودة؛ **لا يوجد رابط متجر قبل الاعتماد**.
 - **الإعلانات معطّلة بصدق:** AdMob لا يدعم Windows، وMG Ads UWP SDK لا يعمل مع حزمة WebView2،
   ونسختا MG C++/H5 غير موثقتين لهذه البيئة، وAdSense ممنوع في أغلفة التطبيقات. لذلك `enabled: false` و`provider: none` مع خانة محجوزة وموافقة

@@ -1,14 +1,17 @@
-# حالة بناء الحزمة والتوقيع — NEXORA AI by BECETTI · Windows Edition 4.4.1
+# حالة بناء الحزمة والتوقيع — NEXORA AI by BECETTI · Windows Edition 4.4.1.0
 
 **Display Name:** `NEXORA AI by BECETTI` (الاسم المحجوز في Partner Center)
 **الهوية:** `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596`
 **Publisher Display Name:** `Ahmedbecetti` · **Product ID:** `9ND09PBRDPKZ` (Draft)
+**Package Family Name:** `Ahmedbecetti.NEXORAAIbyBECETTI_y0zvy3a8v70hm`
 **الإصدار:** `4.4.1.0` · **نوع الحزمة:** Hosted App Model (Edge Stable، `HostId=PWA`)
 
-## الخلاصة: الحزمة موجودة وقابلة للتنزيل
+## الخلاصة
 
-تم بناء الحزمة فعليًا على **Windows Server 2025 + Windows SDK** داخل GitHub Actions،
-وليست ملفًا وصفيًا ولا نموذجًا وهميًا. الناتج منشور كأصول Release عامة:
+الحزمة مبنية فعليًا على Windows SDK داخل GitHub Actions، وتم **تثبيتها فعليًا** على Windows
+عبر `Add-AppxPackage` وتشغيلها (Edge PWA Host) والتحقق من صلاحياتها وهُويتها ثم إزالتها.
+البناء النهائي: Run [`44727837544`](https://github.com/Ahmedbecett/nexora-social-2026/actions/runs/44727837544)
+— `18/18` فحص تثبيت ناجح، `0` فشل.
 
 **صفحة التحميل:**
 <https://github.com/Ahmedbecett/nexora-social-2026/releases/tag/windows-v4.4.1.0>
@@ -16,98 +19,89 @@
 **الملف الذي ترفعه إلى Partner Center:**
 <https://github.com/Ahmedbecett/nexora-social-2026/releases/download/windows-v4.4.1.0/NEXORA-AI_4.4.1.0_neutral.msixupload>
 
-| الملف | الحجم | الاستخدام |
-|---|---:|---|
-| `NEXORA-AI_4.4.1.0_neutral.msixupload` | 10,454,721 بايت | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
-| `NEXORA-AI_4.4.1.0_neutral.msixbundle` | 10,553,527 بايت | فحص/بديل إن طلب Partner Center صيغة الحزمة |
-| `NEXORA-AI_4.4.1.0_neutral.msix` | 10,551,743 بايت | فحص/بديل لصيغة أحادية |
-| `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | 10,556,153 بايت | **اختبار محلي فقط**، ليس للمتجر |
-| `NEXORA-AI-test-certificate.cer` | 818 بايت | شهادة الاختبار العامة (بلا مفتاح خاص) |
-| `SHA256SUMS.txt` / `BUILD-INFO.txt` | — | البصمات وتفاصيل البناء |
+| الملف | الحجم | SHA-256 | الاستخدام |
+|---|---:|---|---|
+| `NEXORA-AI_4.4.1.0_neutral.msixupload` | 10,455,141 | `d306d0e8…745e59f2` | **ارفعه إلى Partner Center** (غير موقّع عمدًا) |
+| `NEXORA-AI_4.4.1.0_neutral.msixbundle` | 10,553,805 | `dab10c41…6f090e6b` | bundle بديل/فحص |
+| `NEXORA-AI_4.4.1.0_neutral.msix` | 10,552,021 | `5e36c3c2…49c1aa91` | حزمة أحادية/فحص |
+| `NEXORA-AI_4.4.1.0_neutral.test-signed.msix` | 10,556,429 | `2a82bd35…ade1c972` | **اختبار محلي فقط** |
+| `NEXORA-AI-test-certificate.cer` | 818 | — | شهادة الاختبار العامة (بلا مفتاح خاص) |
+| `install-test.json` | 3,678 | — | نتيجة اختبار التثبيت الفعلي |
+| `SHA256SUMS.txt` / `BUILD-INFO.txt` | 514 / 1,138 | — | البصمات وتفاصيل البناء |
 
-SHA-256 للحزمة المرفوعة في هذا البناء (من بيانات أصل Release على GitHub):
-
-```text
-c2adc350fc21805e0d1a8892873e8b48ca5ad0ab57726630afac6fb58039a88d  NEXORA-AI_4.4.1.0_neutral.msixupload
-```
-
-> هذا البناء أُعيد في Run `44654597475` بعد تغيير الاسم. نجح
-> `Test-MsixPackage.ps1` الإلزامي داخل البناء، وهو يطابق
-> `Package/Properties/DisplayName` و`uap:VisualElements DisplayName` مع
-> `NEXORA AI by BECETTI`، ويطابق `Identity Name` و`Publisher` مع القيم الحالية.
+> الحزمة نفسها محفوظة أيضًا داخل المستودع في `windows/release/4.4.1.0/`، و
+> `sha256sum -c SHA256SUMS.txt` ينجح عليها.
 
 ## مهم: المتجر لا يحتاج توقيعك
 
-Microsoft Store **يعيد توقيع حزم MSIX/AppX** أثناء الاعتماد. لذلك ملف
-`.msixupload` أعلاه **غير موقّع**. لا ترفع `test-signed.msix` ولا الشهادة إلى
-Partner Center؛ تلك النسخة للاختبار المحلي فقط.
+Microsoft Store **يعيد توقيع** حزم MSIX أثناء الاعتماد، ولهذا ملف `.msixupload` أعلاه
+**غير موقّع**. لا ترفع `test-signed.msix` ولا شهادة الاختبار إلى Partner Center.
 
-التوقيع الذاتي الموجود في Release يثبت أن الحزمة يمكن توقيعها، لكن سلسلتها
-غير موثوقة على أي جهاز آخر إلا بعد تثبيت `NEXORA-AI-test-certificate.cer`
-في `Trusted People`. لا تستخدمها للنشر.
+إن احتجت توزيعًا **موقّعًا** خارج المتجر (sideload / Intune / تثبيت مباشر)، استخدم
+[`Sign-StorePackage.ps1`](../../windows/scripts/Sign-StorePackage.ps1): يرفض أي شهادة لا يطابق
+موضوعها `Package/Identity/Publisher`، ويشترط سلسلة موثوقة، ويوقّع SHA-256 مع timestamp،
+ويكتب `SIGNATURE-INFO.txt`. لا تُرفع الشهادات إلى المستودع أبدًا.
 
-## ما تم التحقق منه فعليًا
+## ما تم التحقق منه فعليًا (Run 44727837544)
 
-- البناء نجح على Windows SDK: `makepri createconfig` + `makepri new` +
-  `makeappx pack` + `makeappx bundle`.
-- `Test-MsixPackage.ps1` قرأ الحزمة وطابق:
-  - `Name = Ahmedbecetti.NEXORAAIbyBECETTI`
-  - `Publisher = CN=A5D5DC31-4A15-4059-8030-D96C51054596`
-  - `Version = 4.4.1.0` · `DisplayName = NEXORA AI by BECETTI` (Properties وVisualElements) · `PublisherDisplayName = Ahmedbecetti`
-  - `HostId = PWA`، و`--app-id=pkojfojlpmhfnldcmaemlmpbkcdmihle`
-  - `--app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix`
-  - الأصول الـ53 و`resources.pri` موجودة، والإعلانات ما زالت معطّلة.
-- فُكّ `.msixupload` وتحقّق التسلسل: يحتوي `.msixbundle` → بداخله `.msix` →
-  بداخله `AppxManifest.xml` و`AppxBlockMap.xml` و`[Content_Types].xml` و`resources.pri`،
-  وبلا `AppxSignature.p7x` (نسخة المتجر غير موقّعة).
-- `signtool` وقّع نسخة الاختبار وطابق Publisher. `signtool verify` أبلغ أن
-  السلسلة الذاتية غير موثوقة — متوقع، ولهذا لا تُرفع نسخة الاختبار للمتجر.
+- `Add-AppxPackage` نجح في **1.1 ثانية**، والحزمة ظهرت مسجّلة:
+  `Ahmedbecetti.NEXORAAIbyBECETTI_4.4.1.0_neutral__y0zvy3a8v70hm` بحالة `Ok`.
+- `Get-AppxPackage` أعاد Name وPublisher وVersion وPFN مطابقة تمامًا لـ
+  `windows/package-identity.json`.
+- الصلاحيات المعلنة في **مانيفست الحزمة المثبّتة**: `internetClient` و`runFullTrust` فقط.
+- المدخل `Id=App` مع `HostId=PWA`، والتطبيق ظهر في Start:
+  `NEXORA AI by BECETTI → …!App`.
+- التشغيل عبر `explorer.exe shell:AppsFolder\…` أنشأ **13 عملية msedge** بعنوان نافذة حقيقي:
+  «NEXORA Studio | ابنِ تطبيقًا كاملًا بالوصف — محرر وطرفية ومعاينة ونشر»، وبلا أخطاء تنشيط.
+- سطح الإنتاج استجاب `HTTP 200` (12,157 بايت) لـ `?nx_surface=msix`.
+- الإزالة (`Remove-AppxPackage`) نظفت التسجيل بلا بقايا.
+- `Test-MsixPackage.ps1` أكّد أن الحزمة بلا `AppxSignature.p7x` وأنها تحتوي
+  `resources.pri` و`AppxBlockMap.xml` و`[Content_Types].xml` و53 أصلًا.
 
-**ما لم يتم:** لم نثبّت الحزمة على جهاز Windows فعلي، ولم نرسلها إلى Partner Center،
-ولم تُنشر في المتجر. هذه خطوات تحتاج جهازك/حسابك، ولا يمكن ادّعاء نجاحها من هنا.
-الحزمة بنيوية وصالحة للرفع، لكن اعتماد المتجر يبقى قرار Microsoft.
+## لماذا `runFullTrust` موجودة ولا تُزال
 
-## طريقة الرفع إلى Partner Center
+الحزمة Hosted App Model: لا executable ولا خدمة، والمضيف هو Edge Stable. جرّبنا بناء نسخة
+**بدون** `runFullTrust` ورفضها نظام Windows نفسه:
+
+```text
+0x80073D2F — A host runtime dependency resolving to a package with full trust content
+requires the main package to have the runFullTrust capability.
+```
+
+لذلك تبقى الصلاحية، مع تبرير جاهز للصق في Partner Center في
+[`RUNFULLTRUST-REVIEW.md`](RUNFULLTRUST-REVIEW.md) (ونصه محفوظ أيضًا في
+`windows/package-identity.json → capabilities.restricted.runFullTrust.partnerCenterJustification`).
+
+## ما لم يتم
+
+- لم تُرسل الحزمة إلى Partner Center (يحتاج حسابك)، ولم يعتمدها Microsoft Store.
+- لم تُلتقط لقطات شاشة المتجر من جلسة سطح مكتب تفاعلية.
+- لا يوجد رابط متجر قبل النشر؛ `storeUrl` يبقى فارغًا و`Product ID` يبقى مسودة.
+
+## طريقة الرفع
 
 1. نزّل `NEXORA-AI_4.4.1.0_neutral.msixupload` من الرابط أعلاه.
-2. افتح Partner Center → تطبيق **NEXORA AI by BECETTI** (Product ID `9ND09PBRDPKZ`) →
-   **Submissions → New submission**.
-3. في **Packages** ارفع ملف `.msixupload`. لا تغيّر امتداده ولا تفتحه/تعيد ضغطه.
-4. أكمل **Store listing** و**Properties** و**Privacy** و**Support** من
-   [`STORE-LISTING.md`](STORE-LISTING.md)، ثم أرسل للاعتماد.
-5. إذا طلب المُراجع توضيحًا لصلاحية `runFullTrust`: الحزمة hosted PWA تعتمد على
-   Edge Stable كمضيف (وفق Hosted App Model من Microsoft)، والتطبيق لا يثبّت
-   برامج أخرى ولا يقرأ ملفات المستخدم.
-6. `storeUrl` في `windows/package-identity.json` يبقى فارغًا حتى ظهور صفحة المتجر.
-   لا تضع رابطًا قبل النشر.
+2. Partner Center → تطبيق **NEXORA AI by BECETTI** (`9ND09PBRDPKZ`) → **New submission**.
+3. **Packages**: ارفع `.msixupload` كما هو.
+4. **Submission options → restricted capabilities**: الصق نص `runFullTrust` من
+   `RUNFULLTRUST-REVIEW.md §4`.
+5. أكمل Store listing وProperties وPrivacy وSupport من [`STORE-LISTING.md`](STORE-LISTING.md).
 
 ## الاختبار المحلي (اختياري)
 
 ```powershell
-# 1) ثق بشهادة الاختبار العامة (مرة واحدة، على جهاز اختبار فقط)
-#    الشهادة ذاتية التوقيع، فهي جذر نفسها: TrustedPeople وحدها لا تكفي.
-Import-Certificate -FilePath .\NEXORA-AI-test-certificate.cer `
-  -CertStoreLocation Cert:\CurrentUser\TrustedPeople
-Import-Certificate -FilePath .\NEXORA-AI-test-certificate.cer `
-  -CertStoreLocation Cert:\CurrentUser\Root
-
-# 2) ثبّت نسخة الاختبار الموقّعة
+# شهادة الاختبار العامة من صفحة Release، ثم:
+Import-Certificate -FilePath .\NEXORA-AI-test-certificate.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+Import-Certificate -FilePath .\NEXORA-AI-test-certificate.cer -CertStoreLocation Cert:\LocalMachine\Root
 Add-AppxPackage -Path .\NEXORA-AI_4.4.1.0_neutral.test-signed.msix
 ```
 
-إذا رفض Windows بسبب `0x800B0109`، فالجذر لم يُثبّت في `CurrentUser\Root`؛ أعد الخطوة 1.
-وإذا رفض الحزمة بسبب عدم وجود Edge Stable، ثبّت Edge ثم أعد المحاولة.
+إن رفض Windows بسبب `0x800B0109` فالجذر غير موثوق: أعد استيراد الشهادة إلى
+`LocalMachine\Root` (يحتاج صلاحيات مدير)، ثم أعد المحاولة.
 
 ## إعادة البناء
 
 - سكربت البناء: `windows/scripts/Build-Msix.ps1`
-- سير العمل: `.github/workflows/windows-store-package.yml`
-  (يعمل عند تغيير ملفات `windows/**` أو مانيفست الموقع، ويمكن تشغيله يدويًا من Actions).
-- الهوية والنسخة: `windows/package-identity.json` + `windows/msix/AppxManifest.reference.xml`.
-- لا تُضف `.pfx` أو كلمة مرور إلى المستودع؛ الشهادة المؤقتة تُنشأ وتُحذف داخل runner.
-
-## لماذا لا نستخدم PWABuilder الآن
-
-محاولات PWABuilder السابقة فشلت من جهتهم: خدمة الصور أعادت `503` ومانيفست
-finder أعاد `500`. لم نعد نعتمد عليها في البناء؛ الحزمة تُبنى محليًا على Windows
-باستخدام Windows SDK، والمسار موثق في `Build-Msix.ps1`.
+- اختبار التثبيت: `windows/scripts/Test-MsixInstall.ps1` + بوابة `windows/tools/assert-install-test.mjs`
+- سير العمل: `.github/workflows/windows-store-package.yml` (ينشر Release تلقائيًا)
+- الهوية والصلاحيات: `windows/package-identity.json` + `windows/msix/AppxManifest.reference.xml`
