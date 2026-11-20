@@ -4,8 +4,8 @@
   "identityName": "Ahmedbecetti.NEXORAAIbyBECETTI",
   "version": "4.4.1.0",
   "publisher": "CN=A5D5DC31-4A15-4059-8030-D96C51054596",
-  "testedAtUtc": "2026-11-20T11:13:16Z",
-  "machine": "runnervmbpeip / Microsoft Windows NT 10.0.26100.0",
+  "testedAtUtc": "2026-11-20T11:18:17Z",
+  "machine": "runnervmm7ud1 / Microsoft Windows NT 10.0.26100.0",
   "passed": 18,
   "failed": 0,
   "checks": [
@@ -17,12 +17,12 @@
     {
       "check": "certificate-subject",
       "status": "PASS",
-      "detail": "trusted test certificate subject matches Publisher (8FBAA7F5DB8D57C31FE9F9AE6453CA3976796B4F)"
+      "detail": "trusted test certificate subject matches Publisher (C43AD133F4494B8C68964D932B016E3F22ED9AE2)"
     },
     {
       "check": "add-appxpackage",
       "status": "PASS",
-      "detail": "install completed in 1.2s"
+      "detail": "install completed in 1.0s"
     },
     {
       "check": "package-registered",
@@ -102,7 +102,7 @@
     {
       "check": "launch-edge-host",
       "status": "PASS",
-      "detail": "13 new msedge process(es); window titles: NEXORA Studio | ابنِ تطبيقًا كاملًا بالوصف — محرر وطرفية ومعاينة ونشر"
+      "detail": "11 new msedge process(es); window titles: NEXORA Studio | ابنِ تطبيقًا كاملًا بالوصف — محرر وطرفية ومعاينة ونشر"
     },
     {
       "check": "activation-event-log",

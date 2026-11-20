@@ -10,7 +10,7 @@ Fallback URL:       https://nexora-social-2026.vercel.app/?nx_surface=msix
 Target family:      Windows.Desktop, MinVersion 10.0.19041.0
 Host:               Microsoft.MicrosoftEdge.Stable (HostId PWA)
 Capabilities:       internetClient, runFullTrust
-Built (UTC):        2026-11-20T11:12:56Z
+Built (UTC):        2026-11-20T11:17:58Z
 
 Store upload:  NEXORA-AI_4.4.1.0_neutral.msixupload (UNSIGNED; Store re-signs it)
 Bundle:        NEXORA-AI_4.4.1.0_neutral.msixbundle (UNSIGNED)
