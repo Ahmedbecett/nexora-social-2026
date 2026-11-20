@@ -22,7 +22,6 @@ on:
     paths:
       - '.github/workflows/windows-store-package.yml'
       - 'windows/**'
-      - 'docs/windows/**'
       - 'package.json'
       - 'public/manifest.webmanifest'
 
@@ -169,10 +168,11 @@ jobs:
         shell: pwsh
         run: |
           $target = 'windows/release/4.4.1.0'
+          if (Test-Path $target) { Remove-Item $target -Recurse -Force }
           New-Item -ItemType Directory -Path $target -Force | Out-Null
           Copy-Item 'dist/windows/*' -Destination $target -Recurse -Force
           if (Test-Path 'dist/windows/install-test.json') { Copy-Item 'dist/windows/install-test.json' -Destination $target -Force }
-          if (Test-Path 'dist/runfulltrust-experiment') { Copy-Item 'dist/runfulltrust-experiment' -Destination (Join-Path $target 'runfulltrust-experiment') -Recurse -Force }
+          if (Test-Path 'dist/runfulltrust-experiment') { Copy-Item 'dist/runfulltrust-experiment' -Destination $target -Recurse -Force }
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add $target

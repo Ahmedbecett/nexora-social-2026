@@ -122,13 +122,33 @@ workflow runs it automatically on a real Windows machine:
 3. `Add-AppxPackage` it and launch it with `Test-MsixInstall.ps1`;
 4. record the outcome; the artifact stays in the workflow artifacts, never in a release.
 
+**Measured result on Windows 11 build 26100 (GitHub Actions `windows-latest`, run
+`44727089084`, 2026-11-20):**
+
 | Variant | Add-AppxPackage | Start entry | Edge host launch | Used for Store |
 |---|---|---|---|---|
-| with `runFullTrust` (shipping) | PASS | PASS | PASS | **yes** |
-| without `runFullTrust` (experiment) | see workflow summary | see summary | see summary | no |
+| with `runFullTrust` (shipping) | **PASS**, 1.1 s | PASS | PASS — 11 `msedge` processes, window title "NEXORA Studio …" | **yes** |
+| without `runFullTrust` (experiment) | **FAIL — `0x80073D2F`** | not reached | not reached | no |
 
-The experiment never fails the build; its JSON result is uploaded next to the packages so
-the claim can be re-checked on every rebuild. Command:
+The deployment engine rejected the package with this exact message:
+
+```text
+Deployment failed with HRESULT: 0x80073D2F, A host runtime dependency resolving to a package
+with full trust content requires the main package to have the runFullTrust capability.
+
+The package Ahmedbecetti.NEXORAAIbyBECETTI_4.4.1.0_neutral__y0zvy3a8v70hm has a host runtime
+dependency resolving to package Microsoft.MicrosoftEdge.Stable_156.0.4314.58_neutral__8wekyb3d8bbwe
+containing full trust content which requires the main package ... to have the runFullTrust
+capability which it does not have.
+```
+
+This is the operating system itself stating the requirement — not an assumption, not a
+Store preference. **`runFullTrust` is mandatory for this package model**, so it stays, and
+the Partner Center justification in section 4 is accurate.
+
+The experiment never fails the build; its JSON result is committed next to the packages
+(`windows/release/4.4.1.0/runfulltrust-experiment/`) so the claim can be re-checked on every
+rebuild. Command:
 
 ```powershell
 node windows/tools/check-windows.mjs
