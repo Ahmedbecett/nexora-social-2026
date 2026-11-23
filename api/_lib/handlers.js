@@ -14,7 +14,6 @@ import { configureSubscriptions, subsEnsure, plansAll, planPublic, startCheckout
          userSubscriptionView, revenueOverview, adminConfirmPayment, cancelOrResume, refundCreate, adminUpdatePlan,
          usageGate, recordUsage, usageSummary, providersStatus, walletInfo, AI_COST_ESTIMATE_USD } from './subscriptions.js';
 import { registerStudioRoutes } from './studio/routes.js';
-import { CatalogValidationError, getDefaultBecettiCatalog, normalizeBecettiCatalog } from './becetti-catalog.js';
 
 /* علم اختياري للمالك: NEXORA_FREE_MODE=1 يجعل المنصة كلها مجانية (لا خصم نقاط ولا
    حدود خطط) — مناسب لنسخة APK البسيطة. معطّل افتراضيًا؛ سلوك الإنتاج لا يتغيّر
@@ -212,8 +211,7 @@ route('GET', '', async () => ({
   routes: routes.filter((r) => r.pattern !== '').map((r) => ({
     method: r.method,
     path: '/' + r.pattern.replace(/:(\w+)/g, ':$1'),
-    auth: r.pattern === 'becetti/admin' || r.pattern === 'becetti/image-token' || (r.pattern === 'becetti/catalog' && r.method !== 'GET')
-      || /^(me|conversations|notifications|follow-requests|upload|client-errors|ai|users|posts|stories|feed|explore|reels|suggestions|tags|world|highlights|comments|messages|credits)/.test(r.pattern)
+    auth: /^(me|conversations|notifications|follow-requests|upload|client-errors|ai|users|posts|stories|feed|explore|reels|suggestions|tags|world|highlights|comments|messages|credits)/.test(r.pattern)
   }))
 }));
 route('GET', 'index', async () => dispatch('GET', '', { headers: {}, body: {}, query: {} }));
@@ -2427,61 +2425,6 @@ const adminGuard = async (req) => {
   if (!isAdminUser(me)) throw new HttpError(403, 'forbidden');
   return me;
 };
-let becettiSchemaReady = false;
-async function becettiEnsureSchema() {
-  if (becettiSchemaReady) return;
-  await q(`create table if not exists settings (key text primary key, value jsonb not null, updated_at timestamptz not null default now())`);
-  becettiSchemaReady = true;
-}
-async function becettiReadCatalog() {
-  await becettiEnsureSchema();
-  const row = await one('select value from settings where key=$1', ['becetti_catalog']);
-  if (!row?.value) return getDefaultBecettiCatalog();
-  try { return normalizeBecettiCatalog(row.value); }
-  catch (error) {
-    console.error('BECETTI catalogue is invalid; using the verified source catalogue:', String(error?.message || 'invalid').slice(0, 120));
-    return getDefaultBecettiCatalog();
-  }
-}
-route('GET', 'becetti/catalog', async () => ({ catalog: await becettiReadCatalog() }));
-route('GET', 'becetti/admin', async ({ req }) => {
-  const me = await adminGuard(req);
-  return { authorized: true, user: { username: me.username, fullName: me.full_name } };
-});
-route('PUT', 'becetti/catalog', async ({ req, body }) => {
-  const me = await adminGuard(req);
-  if (aiRateLimit('becetti-catalog:' + me.id, 30)) throw new HttpError(429, 'rate_limited', 'rate_limited');
-  let catalog;
-  try { catalog = normalizeBecettiCatalog(body.catalog); }
-  catch (error) {
-    const detail = error instanceof CatalogValidationError ? error.message : 'Invalid catalogue data.';
-    throw new HttpError(400, 'invalid_catalog', 'invalid_catalog', detail);
-  }
-  catalog.updatedAt = new Date().toISOString();
-  await becettiEnsureSchema();
-  const saved = await one(`insert into settings(key, value, updated_at) values($1,$2,now())
-    on conflict (key) do update set value=$2, updated_at=now() returning value`, ['becetti_catalog', JSON.stringify(catalog)]);
-  return { catalog: normalizeBecettiCatalog(saved?.value || catalog) };
-});
-route('POST', 'becetti/image-token', async ({ req, body }) => {
-  const me = await adminGuard(req);
-  if (aiRateLimit('becetti-image:' + me.id, 30)) throw new HttpError(429, 'rate_limited', 'rate_limited');
-  const contentType = String(body.contentType || '').toLowerCase();
-  const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
-  if (!extensions[contentType]) throw bad('unsupported_type');
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) throw new HttpError(503, 'image_storage_not_configured');
-  const pathname = `becetti/${me.id}/${Date.now().toString(36)}.${extensions[contentType]}`;
-  const clientToken = await generateClientTokenFromReadWriteToken({
-    token,
-    pathname,
-    allowedContentTypes: [contentType],
-    maximumSizeInBytes: 5 * 1024 * 1024,
-    addRandomSuffix: true,
-    validUntil: Date.now() + 10 * 60 * 1000,
-  });
-  return { clientToken, pathname };
-});
 route('GET', 'admin/revenue', async ({ req }) => {
   await adminGuard(req);
   return { ...(await revenueOverview()), aiProviders: aiFreeProviderStatus() };

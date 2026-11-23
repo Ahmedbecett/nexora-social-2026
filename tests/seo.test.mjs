@@ -7,7 +7,7 @@ import { pairs } from '../scripts/generate-seo-pages.mjs';
 const base = 'https://nexora-social-2026.vercel.app';
 const pages = Object.values(pairs).flatMap((pair) => [pair.ar, pair.en]);
 const read = (p) => readFileSync(p, 'utf8');
-const file = (path) => path === '/' ? 'index.html' : path.startsWith('/becetti/') ? path.slice(1) : `public${path}`;
+const file = (path) => path === '/' ? 'index.html' : `public${path}`;
 const tag = (html, name, attribute, value) =>
   [...html.matchAll(new RegExp(`<${name}\\s+[^>]*>`, 'g'))].map(([s]) => s)
     .find((s) => new RegExp(`\\b${attribute}="${value}"`).test(s));
