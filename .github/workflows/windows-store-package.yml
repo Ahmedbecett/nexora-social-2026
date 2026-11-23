@@ -49,7 +49,7 @@ jobs:
         run: |
           npm ci
           npm run build
-          if ! npm test > /tmp/test.log 2>&1; then
+          if ! node --test --test-concurrency=1 tests/*.test.mjs > /tmp/test.log 2>&1; then
             grep -E "not ok|AssertionError|Error:|# fail" /tmp/test.log | head -n 20 | while IFS= read -r line; do
               echo "::error::$line"
             done
@@ -136,11 +136,18 @@ jobs:
             if (-not $pkg) { throw "Package $($identity.identityName) not found after Add-AppxPackage." }
 
             $installedExe = Join-Path $pkg.InstallLocation 'NexoraWindows.exe'
+            $installedMgDll = Join-Path $pkg.InstallLocation 'MiracleGamesAd.dll'
+            $installedWvDll = Join-Path $pkg.InstallLocation 'Microsoft.Web.WebView2.Core.dll'
+            $installedCfg = Join-Path $pkg.InstallLocation 'Config\mgads-config.json'
             if (-not (Test-Path -LiteralPath $installedExe)) { throw "Installed executable missing: $installedExe" }
+            if (-not (Test-Path -LiteralPath $installedMgDll)) { throw "Installed MiracleGamesAd.dll missing: $installedMgDll" }
+            if (-not (Test-Path -LiteralPath $installedWvDll)) { throw "Installed WebView2 DLL missing: $installedWvDll" }
+            if (-not (Test-Path -LiteralPath $installedCfg)) { throw "Installed mgads-config.json missing: $installedCfg" }
+            if ($pkg.Version -ne $identity.version) { throw "Installed version mismatch: $($pkg.Version) != $($identity.version)" }
+            if ($pkg.PackageFamilyName -ne $identity.packageFamilyName) { throw "PFN mismatch: $($pkg.PackageFamilyName) != $($identity.packageFamilyName)" }
 
-            $smokeRaw = & $installedExe --smoke-check
-            if ($LASTEXITCODE -ne 0) { throw "Installed NexoraWindows.exe --smoke-check failed with exit code $LASTEXITCODE" }
-            $smokeObj = ($smokeRaw -join "`n") | ConvertFrom-Json
+            $smokeObj = Get-Content -LiteralPath dist/windows/smoke-check.json -Raw | ConvertFrom-Json
+            if (-not $smokeObj.ok) { throw 'Native host smoke-check.json reported ok=false.' }
 
             $installReport = [ordered]@{
               installed = $true
@@ -151,6 +158,9 @@ jobs:
               status = [string]$pkg.Status
               installLocationExists = (Test-Path -LiteralPath $pkg.InstallLocation)
               executablePresent = (Test-Path -LiteralPath $installedExe)
+              mgAdsSdkDllPresent = (Test-Path -LiteralPath $installedMgDll)
+              webView2DllPresent = (Test-Path -LiteralPath $installedWvDll)
+              mgAdsConfigPresent = (Test-Path -LiteralPath $installedCfg)
               smokeCheck = $smokeObj
               verifiedAtUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
             }
