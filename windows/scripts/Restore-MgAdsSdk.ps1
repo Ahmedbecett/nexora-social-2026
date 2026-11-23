@@ -8,7 +8,7 @@
 [CmdletBinding()]
 param(
   [string]$Destination = (Join-Path $PSScriptRoot '..\host\vendor\mgads-sdk'),
-  [string]$SdkUrl = 'https://github.com/MiracleGames/sdk/raw/main/win32/1.2.1/C++SDK1.2.1.zip',
+  [string]$SdkUrl = 'https://raw.githubusercontent.com/MiracleGames/sdk/main/win32/1.2.1/C%2B%2BSDK1.2.1.zip',
   [string]$ExpectedSha256 = 'dc04de9bec8e67aa5ebb424c8219a425c65fe5bdfd0df446c128e58ff1ba1e49',
   [switch]$Force
 )

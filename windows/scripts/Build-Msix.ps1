@@ -78,8 +78,9 @@ $makepri = Find-WindowsSdkTool 'makepri.exe'
 $signtool = if ($SkipTestSignature) { $null } else { Find-WindowsSdkTool 'signtool.exe' }
 
 # 1. Restore official MG Ads C# SDK V1.2.1 (SHA-256 verified)
+$global:LASTEXITCODE = 0
 & (Join-Path $PSScriptRoot 'Restore-MgAdsSdk.ps1')
-if ($LASTEXITCODE -ne 0) { throw "Restore-MgAdsSdk.ps1 failed with exit code $LASTEXITCODE" }
+if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "Restore-MgAdsSdk.ps1 failed with exit code $LASTEXITCODE" }
 
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ('nx-msix-' + [guid]::NewGuid().ToString('N'))
 $hostOut = Join-Path $work 'host-out'
@@ -103,12 +104,18 @@ $vaultGeneratedPath = Join-Path (Split-Path -Parent $HostProjectPath) 'Config\Na
 try {
   # 2. Generate ephemeral native secret vault ONLY if MG_ADS_SECRET_KEY is supplied in build env
   try {
+    $global:LASTEXITCODE = 0
     & (Join-Path $PSScriptRoot 'Write-NativeSecretVault.ps1') -OutputFile $vaultGeneratedPath
-    if ($LASTEXITCODE -ne 0) { throw "Write-NativeSecretVault.ps1 failed with exit code $LASTEXITCODE" }
+    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "Write-NativeSecretVault.ps1 failed with exit code $LASTEXITCODE" }
 
     Write-Host "Building native C# + WebView2 + MG Ads host ($($identity.version), x64)"
-    & dotnet build $HostProjectPath -c Release -p:Platform=x64 -p:Version=$($identity.version) -o $hostOut
-    if ($LASTEXITCODE -ne 0) { throw "dotnet build failed with exit code $LASTEXITCODE" }
+    $buildOut = & dotnet build $HostProjectPath -c Release -p:Platform=x64 -p:Version=$($identity.version) -o $hostOut 2>&1
+    $buildCode = $LASTEXITCODE
+    $buildOut | ForEach-Object { Write-Host $_ }
+    if ($buildCode -ne 0) {
+      ($buildOut | Select-String -Pattern 'error [A-Z]{2}\d+|error MSB|Build FAILED' | Select-Object -First 15) | ForEach-Object { Write-Host "::error::$($_.Line)" }
+      throw "dotnet build failed with exit code $buildCode"
+    }
   }
   finally {
     if (Test-Path -LiteralPath $vaultGeneratedPath) {
@@ -165,8 +172,9 @@ try {
   Write-Host 'Verifying the packed package structure'
   & $makeappx unpack /p $msixPath /d $verify /o
   if ($LASTEXITCODE -ne 0) { throw "makeappx unpack failed with exit code $LASTEXITCODE" }
+  $global:LASTEXITCODE = 0
   & (Join-Path $PSScriptRoot 'Test-MsixPackage.ps1') -MsixPath $msixPath -IdentityFile $IdentityFile
-  if ($LASTEXITCODE -ne 0) { throw "Test-MsixPackage.ps1 failed with exit code $LASTEXITCODE" }
+  if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "Test-MsixPackage.ps1 failed with exit code $LASTEXITCODE" }
 
   # 7. Bundle .msixbundle + .msixupload
   Write-Host "Bundling $bundlePath"
