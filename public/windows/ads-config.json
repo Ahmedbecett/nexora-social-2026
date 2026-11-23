@@ -1,14 +1,13 @@
 {
-  "schemaVersion": 1,
-  "enabled": false,
-  "provider": "none",
-  "placement": "ai-home-banner",
-  "format": "responsive-banner",
+  "schemaVersion": 2,
+  "enabled": true,
+  "provider": "mgads",
+  "placement": "windows-native-banner",
+  "format": "native-banner",
   "allowedSurfaces": [
-    "web",
-    "windows-browser"
+    "windows-msix"
   ],
-  "allowInMsix": false,
+  "allowInMsix": true,
   "reserve": {
     "minHeight": 96,
     "maxHeight": 140
@@ -16,15 +15,53 @@
   "frequency": {
     "minIntervalMinutes": 30,
     "maxPerDay": 3,
-    "visibleSeconds": 15
+    "visibleSeconds": 0
   },
   "consent": {
     "required": true,
+    "nativeCmp": true,
     "storageKey": "nx_ads_consent",
     "policyUrl": "/windows/privacy.html#ads",
-    "providerDisclosure": "Google AdSense"
+    "providerDisclosure": "MG Ads (Miracle Games)"
   },
   "providers": {
+    "mgads": {
+      "enabled": true,
+      "sdk": "MG Ads C# SDK V1.2.1",
+      "appId": "6b03f6af1f812ea86a26de4f",
+      "requiresNativeHost": true,
+      "allowedSurfaces": [
+        "windows-msix"
+      ],
+      "units": {
+        "banner": {
+          "unitId": "d461565a9efe49f0ac63ae71048fb594",
+          "size": "728x90",
+          "type": "show",
+          "enabled": true
+        },
+        "rewarded": {
+          "unitId": "48f66ca841444050a166841f331b6adb",
+          "type": "rewarded",
+          "enabled": true
+        },
+        "couplet": {
+          "unitId": "168ce66592d743bea2c16cdf908165b3",
+          "size": "300x600",
+          "type": "show",
+          "enabled": true,
+          "minViewportWidth": 1560,
+          "minViewportHeight": 760
+        },
+        "interstitial": {
+          "unitId": "",
+          "size": "1024x768",
+          "type": "interstitial",
+          "enabled": false
+        }
+      },
+      "notes": "Official MG Ads C# SDK V1.2.1 integrated natively inside the Windows Store C# + WebView2 host (NexoraWindows.exe). Private Key is NEVER stored in this file or in JavaScript; it is resolved securely on the native side only. Interstitial stays disabled until an official 1024x768 Unit ID is issued."
+    },
     "adsense": {
       "client": "",
       "slot": "",
@@ -32,24 +69,18 @@
         "web",
         "windows-browser"
       ],
-      "notes": "AdSense is a website advertising product. It is not enabled in the installed Windows app or the MSIX/WebView2 package; written confirmation for any broader use is required. See docs/windows/ADS-INTEGRATION.md."
+      "notes": "Website-only advertising product; strictly excluded from Windows PWA and MSIX."
     },
     "monetag": {
       "enabled": false,
       "zone": "",
       "allowedSurfaces": [],
-      "notes": "Not integrated. Monetag tag compatibility with the MSIX/WebView2 package has not been verified in writing."
+      "notes": "Not enabled in Windows MSIX."
     },
     "adsterra": {
       "enabled": false,
       "allowedSurfaces": [],
-      "notes": "Existing website banner loader stays on the public web pages only; not enabled in the Windows app shell."
-    },
-    "mgads": {
-      "enabled": false,
-      "sdk": "MG Ads SDK for UWP; C++/Win32 and H5 SDKs not verified for WebView2",
-      "allowedSurfaces": [],
-      "notes": "MG Ads UWP SDK cannot attach to a PWABuilder Win32/PWA host; MG's C++/Win32 and H5 SDKs need a native host or a verified H5/WebView2 integration. See docs/windows/MG-ADS-FEASIBILITY.md."
+      "notes": "Website-only; strictly excluded from Windows MSIX."
     }
   }
 }

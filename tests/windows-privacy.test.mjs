@@ -1,10 +1,5 @@
 /**
  * NEXORA AI — Windows privacy, support and advertising documentation.
- *
- * Microsoft Store requires a reachable privacy policy and support contact.
- * The advertising investigation must say plainly that nothing is live, and no
- * document may promise a signed package, Store ID or ad revenue that does not
- * exist yet.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,7 +18,7 @@ test('سياسة الخصوصية العامة لـ Windows موجودة وقا�
     assert.ok(existsSync(file), file);
   }
   assert.match(privacy, /<link rel="canonical" href="https:\/\/nexora-social-2026\.vercel\.app\/windows\/privacy\.html"/);
-  assert.match(privacy, /Effective 19 November 2026/);
+  assert.match(privacy, /Effective 23 November 2026/);
   assert.match(privacy, /ahmedbecetti35@gmail\.com/);
   assert.match(privacy, /Microsoft Store/);
   assert.match(privacy, /PWA/);
@@ -43,27 +38,24 @@ test('السياسة تغطي البيانات والتخزين المحلي و�
   assert.match(privacy, /credential vault|خزنة اعتماد/);
 });
 
-test('الإعلانات مذكورة بصدق: لا مزوّد مفعّل، ولا قياس مزيف', () => {
-  assert.match(privacy, /no third-party advertising network is enabled/i);
-  assert.match(privacy, /no ad request is sent/i);
-  assert.match(privacy, /Impressions and clicks will be measured by that provider/i);
-  assert.match(privacy, /Google AdSense is used on the public website only/i);
-  assert.match(privacy, /current MG Ads SDK for UWP cannot be attached/i);
-  assert.match(privacy, /لا توجد شبكة إعلانات طرف ثالث مفعّلة/i);
+test('الإعلانات موثّقة بدقة: MG Ads C# SDK V1.2.1 وCMP ومنع القياس المزيف واستبعاد إعلانات الويب', () => {
+  assert.match(privacy, /MG Ads \(Miracle Games\) C# SDK V1\.2\.1/);
+  assert.match(privacy, /Consent Management Platform \(CMP\)/);
+  assert.match(privacy, /no empty advertising space is shown/i);
+  assert.match(privacy, /never generates fake impressions/i);
+  assert.match(privacy, /strictly excluded from the Windows Store MSIX/i);
+  assert.match(privacy, /منصة إدارة الموافقة \(CMP\)/);
   assert.match(privacy, /لا يولّد التطبيق انطباعات أو نقرات/i);
-  assert.doesNotMatch(privacy, /ads are (now )?(live|working|operational)/i);
 });
 
-test('صفحات Windows تقدّم دعوى دعم ورابط خصوصية صحيحين', () => {
+test('صفحات Windows تقدّم دعمًا ورابط خصوصية وإصدار 4.5.0 صحيحين', () => {
   for (const page of [ar, en]) {
     assert.ok(ids(page).has('support'), 'قسم الدعم مطلوب');
     assert.ok(page.includes('href="/windows/privacy.html"'), 'رابط السياسة');
     assert.ok(page.includes('mailto:ahmedbecetti35@gmail.com'), 'بريد الدعم');
     assert.match(page, /Windows 10/);
-    assert.match(page, /4\.4\.0/);
+    assert.match(page, /4\.5\.0/);
   }
-  // نقطة الدعم التي يستخدمها المتجر موجودة في الصفحة العربية
-  assert.ok(ids(ar).has('support'));
   assert.match(ar, /قبل أن تراسلنا/);
   assert.match(en, /Before contacting us/);
 });
@@ -78,22 +70,22 @@ test('لا رابط متجر وهمي ولا Product ID مخترع في أي ص�
   assert.match(en, /no official Store link|do not use any other Store link/i);
 });
 
-test('تحقيق الإعلانات يوثّق MG Ads وAdSense وAdMob بوضوح', () => {
-  assert.match(adsDoc, /Status: not operational/i);
-  assert.match(adsDoc, /MG Ads SDK for UWP/);
-  assert.match(adsDoc, /C\+\+ SDK/);
-  assert.match(adsDoc, /Win32\/WebView2/);
-  assert.match(adsDoc, /AdMob.*Windows desktop/s);
-  assert.match(adsDoc, /AdSense/);
-  assert.match(adsDoc, /Monetag/);
-  assert.match(adsDoc, /allowInMsix/);
+test('توثيق الإعلانات وMG Ads يغطي الوحدات الإنتاجية والضوابط الأمنية', () => {
+  assert.match(adsDoc, /MG Ads.*C# SDK V1\.2\.1/);
+  assert.match(adsDoc, /d461565a9efe49f0ac63ae71048fb594/);
+  assert.match(adsDoc, /48f66ca841444050a166841f331b6adb/);
+  assert.match(adsDoc, /168ce66592d743bea2c16cdf908165b3/);
   assert.match(adsDoc, /3940256099942544/);
-  assert.match(adsDoc, /do not change|لا تغيّر/i);
-  assert.match(adsDoc, /written verification|تحقق كتابي/i);
   assert.match(adsDoc, /https:\/\/www\.mg-ads\.com\//);
+
+  const mg = read('docs/windows/MG-ADS-FEASIBILITY.md');
+  assert.match(mg, /6b03f6af1f812ea86a26de4f/);
+  assert.match(mg, /MiracleGamesAd\.dll/);
+  assert.match(mg, /MG_ADS_SECRET_KEY/);
+  assert.match(mg, /NexoraWindows\.exe/);
 });
 
-test('الاختبار والتقرير والقيود موجودة وتقول ما لم يُختبر على Windows', () => {
+test('ملفات التوثيق الأساسية موجودة', () => {
   for (const doc of [
     'docs/windows/README.md',
     'docs/windows/BUILD-AND-DEPLOY.md',
@@ -108,22 +100,6 @@ test('الاختبار والتقرير والقيود موجودة وتقول �
   ]) {
     assert.ok(existsSync(doc), doc);
   }
-});
-
-test('تحقيق MG Ads يثبت عدم التوافق مع نوع الحزمة الحالي', () => {
-  const mg = read('docs/windows/MG-ADS-FEASIBILITY.md');
-  assert.match(mg, /MG Ads SDK for UWP/);
-  assert.match(mg, /MiracleGames\.Sdk\.Uwp/);
-  assert.match(mg, /UAP 10\.0/);
-  assert.match(mg, /Win32\/WebView2/);
-  assert.match(mg, /AdvertisingManager\.ShowAd/);
-  assert.match(mg, /2\.8\.7\.0/);
-  assert.match(mg, /C\+\+ SDK/);
-  assert.match(mg, /H5 SDK/);
-  assert.match(mg, /V1\.2\.6\.6/);
-  assert.match(mg, /cannot be integrated|لا يتم دمج/i);
-  assert.match(mg, /Draft|مسودة/);
-  assert.doesNotMatch(mg, /ads are (now )?(live|working|operational)/i);
 });
 
 test('صفحات Windows محمية من الفهرسة الخاطئة وتربط الترجمة', () => {

@@ -1,27 +1,24 @@
 <#
-  NEXORA AI - Build the real Windows Store package on Windows.
-  ------------------------------------------------------------
-  This is the build that runs in .github/workflows/windows-store-package.yml.
-  It does NOT use pwabuilder.com. It builds the Hosted App Model package with
-  the Microsoft Windows SDK:
+  NEXORA AI by BECETTI — Build the native Windows Store MSIX package on Windows.
+  ------------------------------------------------------------------------------
+  Upgraded from the legacy Hosted App Model to a Native C# (.NET Framework 4.7.2)
+  + WebView2 + Official MG Ads C# SDK V1.2.1 Desktop Bridge host (NexoraWindows.exe):
 
-    1. copies the real AppxManifest.reference.xml and the 53 PNG assets;
-    2. generates a real resources.pri with makepri.exe;
-    3. packs NEXORA-AI_<version>_neutral.msix with makeappx.exe;
-    4. bundles it into a .msixbundle (single neutral package);
-    5. wraps the bundle in a .msixupload (plain ZIP, Store re-signs it);
-    6. creates a separate self-signed test copy for local sideload only.
+    1. Restores the official MG Ads C# SDK V1.2.1 (SHA-256 verified) if missing;
+    2. Optionally generates an ephemeral, gitignored native secret vault from
+       $env:MG_ADS_SECRET_KEY (deleted immediately after compilation);
+    3. Compiles windows/host/NexoraWindows/NexoraWindows.csproj (Release|x64);
+    4. Runs NexoraWindows.exe --smoke-check and saves smoke-check.json;
+    5. Stages NexoraWindows.exe, MG Ads & WebView2 binaries, mgads-config.json,
+       AppxManifest.xml, and the 53 PNG Store assets;
+    6. Generates resources.pri with makepri.exe;
+    7. Packs NEXORA-AI_<version>_x64.msix with makeappx.exe and verifies with
+       Test-MsixPackage.ps1;
+    8. Bundles into .msixbundle and .msixupload (UNSIGNED; Microsoft Store signs);
+    9. Creates a self-signed test copy (.test-signed.msix + .cer) for local QA.
 
-  The Store upload is intentionally UNSIGNED. Microsoft Store signs it during
-  certification. The test certificate is generated in a temp folder, never
-  written to the repository, and its password is never printed.
-
-  Requirements: Windows 10/11 or Windows Server, Windows SDK (makeappx.exe,
-  makepri.exe, signtool.exe), PowerShell 5.1+.
-
-  Example:
-    powershell -ExecutionPolicy Bypass -File .\windows\scripts\Build-Msix.ps1 `
-      -OutputDirectory .\dist\windows
+  Requirements: Windows 10/11 or Windows Server (windows-latest), .NET SDK 8+,
+  Windows 10/11 SDK (makeappx.exe, makepri.exe, signtool.exe), PowerShell 5.1+.
 #>
 [CmdletBinding()]
 param(
@@ -29,6 +26,7 @@ param(
   [string]$IdentityFile = (Join-Path $PSScriptRoot '..\package-identity.json'),
   [string]$ManifestPath = (Join-Path $PSScriptRoot '..\msix\AppxManifest.reference.xml'),
   [string]$AssetsDirectory = (Join-Path $PSScriptRoot '..\msix\Assets'),
+  [string]$HostProjectPath = (Join-Path $PSScriptRoot '..\host\NexoraWindows\NexoraWindows.csproj'),
   [switch]$SkipTestSignature
 )
 
@@ -51,22 +49,6 @@ function Find-WindowsSdkTool([string]$Name) {
   throw "$Name was not found. Install the Windows 10/11 SDK."
 }
 
-function New-WebAppId([string]$ManifestId) {
-  if ($ManifestId -notmatch '^https://') { throw "Manifest ID must be HTTPS: $ManifestId" }
-  $sha = [System.Security.Cryptography.SHA256]::Create()
-  try {
-    $hash = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($ManifestId))
-  }
-  finally {
-    $sha.Dispose()
-  }
-  $hex = (($hash[0..15] | ForEach-Object { $_.ToString('x2') }) -join '')
-  $mapped = foreach ($c in $hex.ToCharArray()) {
-    if ([char]::IsDigit($c)) { [char]([int]$c + 49) } else { [char]([int]$c + 10) }
-  }
-  return (-join $mapped)
-}
-
 function Assert-TextContains([string]$Text, [string]$Needle, [string]$Message) {
   if (-not $Text.Contains($Needle)) { throw $Message }
 }
@@ -74,6 +56,7 @@ function Assert-TextContains([string]$Text, [string]$Needle, [string]$Message) {
 if (-not (Test-Path -LiteralPath $IdentityFile)) { throw "Identity file not found: $IdentityFile" }
 if (-not (Test-Path -LiteralPath $ManifestPath)) { throw "Manifest not found: $ManifestPath" }
 if (-not (Test-Path -LiteralPath $AssetsDirectory)) { throw "Assets folder not found: $AssetsDirectory" }
+if (-not (Test-Path -LiteralPath $HostProjectPath)) { throw "Native host project not found: $HostProjectPath" }
 
 $identity = Get-Content -LiteralPath $IdentityFile -Raw | ConvertFrom-Json
 if ($identity.version -notmatch '^\d{1,5}\.\d{1,5}\.\d{1,5}\.0$') {
@@ -86,54 +69,75 @@ $manifestText = Get-Content -LiteralPath $ManifestPath -Raw
 Assert-TextContains $manifestText "Version=`"$($identity.version)`"" 'Manifest version does not match package-identity.json.'
 Assert-TextContains $manifestText "Name=`"$($identity.identityName)`"" 'Manifest identityName does not match package-identity.json.'
 Assert-TextContains $manifestText "Publisher=`"$($identity.publisher)`"" 'Manifest publisher does not match package-identity.json.'
-Assert-TextContains $manifestText 'uap10:HostId="PWA"' 'Manifest is not a Hosted App Model package.'
-Assert-TextContains $manifestText 'Name="Microsoft.MicrosoftEdge.Stable"' 'Manifest does not declare the Edge stable host.'
-Assert-TextContains $manifestText '--windows-store-app' 'Manifest is missing the Store launch flag.'
-
-$appIdMatch = [regex]::Match($manifestText, '--app-id=([a-p]{32})\b')
-if (-not $appIdMatch.Success) { throw 'Manifest has no valid --app-id (32 characters a-p).' }
-$appId = $appIdMatch.Groups[1].Value
-
-$manifestId = [string]$identity.webAppManifestId
-if (-not $manifestId) { throw 'package-identity.json must contain webAppManifestId.' }
-$computedAppId = New-WebAppId $manifestId
-if ($identity.webAppId -and $identity.webAppId -ne $computedAppId) {
-  throw "webAppId in package-identity.json ($($identity.webAppId)) does not match SHA-256 derivation ($computedAppId)."
-}
-if ($appId -ne $computedAppId) {
-  throw "Manifest --app-id ($appId) does not match webAppManifestId derivation ($computedAppId)."
-}
-
-$fallbackMatch = [regex]::Match($manifestText, '--app-fallback-url=(\S+)')
-if (-not $fallbackMatch.Success) { throw 'Manifest has no --app-fallback-url.' }
-if ($fallbackMatch.Groups[1].Value -ne [string]$identity.startPage) {
-  throw "Manifest fallback URL ($($fallbackMatch.Groups[1].Value)) does not match package-identity.json ($($identity.startPage))."
-}
+Assert-TextContains $manifestText 'ProcessorArchitecture="x64"' 'Manifest must declare ProcessorArchitecture="x64" for native WebView2 + MG Ads binaries.'
+Assert-TextContains $manifestText 'Executable="NexoraWindows.exe"' 'Manifest must target native executable NexoraWindows.exe.'
+Assert-TextContains $manifestText 'EntryPoint="Windows.FullTrustApplication"' 'Manifest must declare Desktop Bridge entry point Windows.FullTrustApplication.'
 
 $makeappx = Find-WindowsSdkTool 'makeappx.exe'
 $makepri = Find-WindowsSdkTool 'makepri.exe'
 $signtool = if ($SkipTestSignature) { $null } else { Find-WindowsSdkTool 'signtool.exe' }
 
+# 1. Restore official MG Ads C# SDK V1.2.1 (SHA-256 verified)
+& (Join-Path $PSScriptRoot 'Restore-MgAdsSdk.ps1')
+if ($LASTEXITCODE -ne 0) { throw "Restore-MgAdsSdk.ps1 failed with exit code $LASTEXITCODE" }
+
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ('nx-msix-' + [guid]::NewGuid().ToString('N'))
+$hostOut = Join-Path $work 'host-out'
 $layout = Join-Path $work 'layout'
 $verify = Join-Path $work 'verify'
 $bundleInput = Join-Path $work 'bundle'
-New-Item -ItemType Directory -Path $layout, $verify, $bundleInput, $OutputDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $hostOut, $layout, $verify, $bundleInput, $OutputDirectory -Force | Out-Null
 
 $safeName = 'NEXORA-AI'
-$baseName = "${safeName}_$($identity.version)_neutral"
+$arch = 'x64'
+$baseName = "${safeName}_$($identity.version)_${arch}"
 $msixPath = Join-Path $OutputDirectory "$baseName.msix"
 $bundlePath = Join-Path $OutputDirectory "$baseName.msixbundle"
 $uploadPath = Join-Path $OutputDirectory "$baseName.msixupload"
 $testMsixPath = Join-Path $OutputDirectory "$baseName.test-signed.msix"
 $testCerPath = Join-Path $OutputDirectory 'NEXORA-AI-test-certificate.cer'
+$smokeJsonPath = Join-Path $OutputDirectory 'smoke-check.json'
+
+$vaultGeneratedPath = Join-Path (Split-Path -Parent $HostProjectPath) 'Config\NativeSecretVault.g.cs'
 
 try {
-  Write-Host "Staging $($identity.displayName) $($identity.version)"
+  # 2. Generate ephemeral native secret vault ONLY if MG_ADS_SECRET_KEY is supplied in build env
+  try {
+    & (Join-Path $PSScriptRoot 'Write-NativeSecretVault.ps1') -OutputFile $vaultGeneratedPath
+    if ($LASTEXITCODE -ne 0) { throw "Write-NativeSecretVault.ps1 failed with exit code $LASTEXITCODE" }
+
+    Write-Host "Building native C# + WebView2 + MG Ads host ($($identity.version), x64)"
+    & dotnet build $HostProjectPath -c Release -p:Platform=x64 -p:Version=$($identity.version) -o $hostOut
+    if ($LASTEXITCODE -ne 0) { throw "dotnet build failed with exit code $LASTEXITCODE" }
+  }
+  finally {
+    if (Test-Path -LiteralPath $vaultGeneratedPath) {
+      Remove-Item -LiteralPath $vaultGeneratedPath -Force -ErrorAction SilentlyContinue
+      Write-Host 'Removed ephemeral NativeSecretVault.g.cs immediately after build.'
+    }
+  }
+
+  $hostExe = Join-Path $hostOut 'NexoraWindows.exe'
+  if (-not (Test-Path -LiteralPath $hostExe)) { throw "Expected executable missing after build: $hostExe" }
+
+  # 3. Verify compiled native host & MG Ads SDK assembly loading
+  Write-Host 'Running native host --smoke-check'
+  $smokeOutput = & $hostExe --smoke-check
+  if ($LASTEXITCODE -ne 0) { throw "NexoraWindows.exe --smoke-check failed with exit code $LASTEXITCODE" }
+  $smokeOutput | Set-Content -LiteralPath $smokeJsonPath -Encoding UTF8
+  Write-Host ($smokeOutput -join "`n")
+
+  # 4. Stage MSIX package layout
+  Write-Host "Staging $($identity.displayName) $($identity.version) ($arch)"
+  Copy-Item -Path (Join-Path $hostOut '*') -Destination $layout -Recurse -Force
+  # Remove PDB debug symbols from Store package layout
+  Get-ChildItem -Path $layout -Filter '*.pdb' -Recurse -File | Remove-Item -Force -ErrorAction SilentlyContinue
+
   New-Item -ItemType Directory -Path (Join-Path $layout 'Assets') -Force | Out-Null
   Copy-Item -Path (Join-Path $AssetsDirectory '*.png') -Destination (Join-Path $layout 'Assets') -Force
   Copy-Item -LiteralPath $ManifestPath -Destination (Join-Path $layout 'AppxManifest.xml') -Force
 
+  # 5. Generate resources.pri with makepri.exe
   Write-Host 'Generating resources.pri with makepri.exe'
   $priConfig = Join-Path $work 'priconfig.xml'
   Push-Location $layout
@@ -142,7 +146,6 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "makepri createconfig failed with exit code $LASTEXITCODE" }
     $lines = @(Get-Content -LiteralPath $priConfig)
     $filtered = @($lines | Where-Object { $_ -notmatch 'autoResourcePackage\s+qualifier="Scale"' })
-    if ($filtered.Count -eq $lines.Count) { Write-Warning 'Scale qualifier was not found in priconfig.xml.' }
     Set-Content -LiteralPath $priConfig -Value $filtered -Encoding UTF8
     & $makepri new /pr $layout /cf $priConfig /v /o
     if ($LASTEXITCODE -ne 0) { throw "makepri new failed with exit code $LASTEXITCODE" }
@@ -154,6 +157,7 @@ try {
     throw 'resources.pri was not generated in the package layout.'
   }
 
+  # 6. Pack .msix
   Write-Host "Packing $msixPath"
   & $makeappx pack /d $layout /p $msixPath /o /v
   if ($LASTEXITCODE -ne 0) { throw "makeappx pack failed with exit code $LASTEXITCODE" }
@@ -164,18 +168,19 @@ try {
   & (Join-Path $PSScriptRoot 'Test-MsixPackage.ps1') -MsixPath $msixPath -IdentityFile $IdentityFile
   if ($LASTEXITCODE -ne 0) { throw "Test-MsixPackage.ps1 failed with exit code $LASTEXITCODE" }
 
+  # 7. Bundle .msixbundle + .msixupload
   Write-Host "Bundling $bundlePath"
   Copy-Item -LiteralPath $msixPath -Destination (Join-Path $bundleInput "$baseName.msix") -Force
   & $makeappx bundle /d $bundleInput /p $bundlePath /bv $identity.version /o /v
   if ($LASTEXITCODE -ne 0) { throw "makeappx bundle failed with exit code $LASTEXITCODE" }
 
-  # .msixupload is a plain ZIP containing the bundle; the Store re-signs it.
   Write-Host "Creating $uploadPath"
   $uploadZip = Join-Path $work "$baseName.zip"
   Compress-Archive -LiteralPath $bundlePath -DestinationPath $uploadZip -Force
   Copy-Item -LiteralPath $uploadZip -Destination $uploadPath -Force
 
-  Write-Host 'Verifying .msixupload content (bundle -> msix -> manifest/blockmap/PRI)'
+  # 8. Verify .msixupload contents (unsigned Store candidate)
+  Write-Host 'Verifying .msixupload content (bundle -> msix -> manifest/blockmap/PRI/exe/SDK)'
   $uploadVerify = Join-Path $work 'upload-verify'
   New-Item -ItemType Directory -Path $uploadVerify -Force | Out-Null
   Expand-Archive -LiteralPath $uploadZip -DestinationPath $uploadVerify -Force
@@ -199,13 +204,14 @@ try {
   Copy-Item -LiteralPath $msixInBundle.FullName -Destination $msixZip -Force
   New-Item -ItemType Directory -Path $msixVerify -Force | Out-Null
   Expand-Archive -LiteralPath $msixZip -DestinationPath $msixVerify -Force
-  foreach ($required in @('AppxManifest.xml', 'AppxBlockMap.xml', '[Content_Types].xml', 'resources.pri')) {
+  foreach ($required in @('AppxManifest.xml', 'AppxBlockMap.xml', '[Content_Types].xml', 'resources.pri', 'NexoraWindows.exe', 'MiracleGamesAd.dll', 'Config\mgads-config.json')) {
     if (-not (Test-Path -LiteralPath (Join-Path $msixVerify $required))) { throw "Missing package file: $required" }
   }
   if (Test-Path -LiteralPath (Join-Path $msixVerify 'AppxSignature.p7x')) {
     throw 'The Store upload must stay unsigned; unexpected AppxSignature.p7x inside the package.'
   }
 
+  # 9. Create self-signed test package for local Windows sideload QA
   if (-not $SkipTestSignature) {
     Write-Host 'Creating a self-signed test certificate and test-signed copy (local sideload only)'
     $cert = New-SelfSignedCertificate -Type CodeSigningCert `
@@ -233,7 +239,7 @@ try {
     }
   }
 
-  $files = @($msixPath, $bundlePath, $uploadPath)
+  $files = @($msixPath, $bundlePath, $uploadPath, $smokeJsonPath)
   if (Test-Path -LiteralPath $testMsixPath) { $files += $testMsixPath }
   if (Test-Path -LiteralPath $testCerPath) { $files += $testCerPath }
   $hashLines = foreach ($file in $files) {
@@ -245,17 +251,16 @@ try {
   $hashLines | Set-Content -LiteralPath (Join-Path $OutputDirectory 'SHA256SUMS.txt') -Encoding ASCII
 
   @"
-NEXORA AI by BECETTI Windows package
-====================================
+NEXORA AI by BECETTI Windows package (Native C# + WebView2 + MG Ads C# SDK V1.2.1)
+===================================================================================
 Display name:       $($identity.displayName)
 Identity name:      $($identity.identityName)
 Publisher:          $($identity.publisher)
 Version:            $($identity.version)
-Web App Manifest ID:$manifestId
-Web App ID:         $appId
-Fallback URL:       $($identity.startPage)
+Architecture:       $arch
 Target family:      Windows.Desktop, MinVersion $($identity.minWindowsVersion)
-Host:               Microsoft.MicrosoftEdge.Stable (HostId PWA)
+Host executable:    NexoraWindows.exe (Windows.FullTrustApplication + WebView2)
+MG Ads SDK:         Miracle Games C# SDK V1.2.1 (AppId 6b03f6af1f812ea86a26de4f)
 Built (UTC):        $([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'))
 
 Store upload:  $([System.IO.Path]::GetFileName($uploadPath)) (UNSIGNED; Store re-signs it)
@@ -263,6 +268,7 @@ Bundle:        $([System.IO.Path]::GetFileName($bundlePath)) (UNSIGNED)
 Package:       $([System.IO.Path]::GetFileName($msixPath)) (UNSIGNED)
 Test package:  $([System.IO.Path]::GetFileName($testMsixPath)) (self-signed, local sideload only)
 Test cert:     $([System.IO.Path]::GetFileName($testCerPath)) (public certificate, no private key)
+Smoke check:   smoke-check.json
 
 Do NOT upload the test-signed package or the test certificate to Partner Center.
 "@ | Set-Content -LiteralPath (Join-Path $OutputDirectory 'BUILD-INFO.txt') -Encoding UTF8
@@ -278,6 +284,4 @@ finally {
   if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
-# signtool verify returns 1 for a self-signed chain by design. That warning is
-# not a build failure; the package for Partner Center is the unsigned upload.
 exit 0

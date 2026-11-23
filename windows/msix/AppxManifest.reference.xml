@@ -1,38 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  NEXORA AI — Windows package manifest (Hosted App Model).
-  ======================================================
-  هذا هو المانيفست الفعلي الذي تستخدمه حزمة Windows، وليس مجرد نموذج وصفي.
-  الحزمة تُبنى على Windows SDK عبر windows/scripts/Build-Msix.ps1:
-  يُنسخ هذا الملف إلى AppxManifest.xml، ثم يُولَّد resources.pri بـ makepri،
-  ثم تُحزم الأصول بـ makeappx في .msix و.msixbundle و.msixupload.
+  NEXORA AI by BECETTI — Windows Store MSIX manifest (Native C# + WebView2 + MG Ads SDK V1.2.1).
+  =============================================================================================
+  Upgraded from the legacy Edge Hosted App Model to a native Win32/.NET 4.7.2 + WebView2
+  Desktop Bridge host (NexoraWindows.exe) so the official MG Ads C# SDK V1.2.1 runs natively
+  while preserving 100% of NEXORA AI features and the exact Microsoft Partner Center identity.
 
-  PWA hosted app: لا يوجد Executable ولا StartPage. Edge هو المضيف (Host=PWA)،
-  والرابط يُمرَّر في uap10:Parameters باسم app-fallback-url. معرّف تطبيق الويب
-  (app-id) مشتق من Manifest ID عبر خوارزمية Chromium: SHA-256 ثم أول 16 بايت
-  وتحويل hexadecimal إلى أحرف a-p. القيمة محسوبة من:
-  https://nexora-social-2026.vercel.app/
-  ولا تُغيّرها يدويًا إلا إذا تغيّر Manifest ID في public/manifest.webmanifest.
-
-  الهوية أدناه منسوخة من Partner Center (19-11-2026) — لا تعدّلها إلا بقيم
-  جديدة من Partner Center.
+  Identity values below are copied verbatim from Partner Center (19-11-2026).
+  Do NOT modify Name, Publisher, DisplayName, or PublisherDisplayName manually.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
-  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap3 uap10 rescap">
+  IgnorableNamespaces="uap uap3 rescap">
 
   <Identity
     Name="Ahmedbecetti.NEXORAAIbyBECETTI"
     Publisher="CN=A5D5DC31-4A15-4059-8030-D96C51054596"
-    Version="4.4.0.0"
-    ProcessorArchitecture="neutral" />
+    Version="4.5.0.0"
+    ProcessorArchitecture="x64" />
 
   <Properties>
-    <!-- الاسم المحجوز في Partner Center كما هو حرفيًا. لا تُغيّره إلا باسم جديد محجوز. -->
+    <!-- Reserved Microsoft Store name in Partner Center verbatim. -->
     <DisplayName>NEXORA AI by BECETTI</DisplayName>
     <PublisherDisplayName>Ahmedbecetti</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
@@ -44,10 +35,6 @@
       Name="Windows.Desktop"
       MinVersion="10.0.19041.0"
       MaxVersionTested="10.0.26100.0" />
-    <uap10:HostRuntimeDependency
-      Name="Microsoft.MicrosoftEdge.Stable"
-      Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
-      MinVersion="1.0.0.0" />
   </Dependencies>
 
   <Resources>
@@ -57,8 +44,8 @@
   <Applications>
     <Application
       Id="App"
-      uap10:HostId="PWA"
-      uap10:Parameters="--app-id=pkojfojlpmhfnldcmaemlmpbkcdmihle --ip-edge-aumid=Microsoft.MicrosoftEdge.stable_8wekyb3d8bbwe!MSEDGE --app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix --display-mode=standalone --windows-store-app">
+      Executable="NexoraWindows.exe"
+      EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         DisplayName="NEXORA AI by BECETTI"
         Description="AI conversations, writing, coding and NEXORA Studio in a native Windows window."
@@ -80,7 +67,7 @@
       </uap:VisualElements>
 
       <Extensions>
-        <!-- يربط روابط الموقع بالتطبيق المثبّت (web-to-app linking). -->
+        <!-- Links nexora-social-2026.vercel.app URLs directly into the installed Windows app. -->
         <uap3:Extension Category="windows.appUriHandler">
           <uap3:AppUriHandler>
             <uap3:Host Name="nexora-social-2026.vercel.app" />

@@ -25,6 +25,10 @@ export function adsAllowed() {
     if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) return false;
     if (/NexoraAI/i.test(navigator.userAgent || '')) return false; // داخل تطبيقنا
     if (document.documentElement.classList.contains('native')) return false;
+    // Windows Store MSIX uses official native MG Ads SDK only — exclude website AdSense.
+    if (document.documentElement.dataset?.nxNativeHost === 'webview2-mgads') return false;
+    if (window.sessionStorage && window.sessionStorage.getItem('nx_surface') === 'msix') return false;
+    if (new URLSearchParams(window.location?.search || '').get('nx_surface') === 'msix') return false;
   } catch (e) { /* تجاهل */ }
   return true;
 }

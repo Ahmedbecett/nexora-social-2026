@@ -1,8 +1,10 @@
 <#
-  NEXORA AI - Inspect an MSIX package without installing it.
-  Checks: AppxManifest presence, identity values, 4-part version, StartPage,
-  internetClient capability, required tile/splash assets, and obvious secret
-  leakage in text files.
+  NEXORA AI by BECETTI — Inspect an MSIX package without installing it.
+  Supports both the upgraded Native C# + WebView2 + MG Ads SDK V1.2.1 host
+  (NexoraWindows.exe) and legacy Hosted App Model inspection.
+  Checks: AppxManifest presence, exact Partner Center identity, 4-part version,
+  capabilities, native binaries & MG Ads config, required tile/splash assets,
+  and strict secret/private-key/demo-ID leakage scanning.
 #>
 [CmdletBinding()]
 param(
@@ -32,11 +34,16 @@ try {
   Write-Host "  Name:        $($identity.Name)"
   Write-Host "  Publisher:   $($identity.Publisher)"
   Write-Host "  Version:     $($identity.Version)"
+  Write-Host "  Arch:        $($identity.ProcessorArchitecture)"
   Write-Host "  DisplayName: $($manifest.Package.Properties.DisplayName)"
   Write-Host "  PublisherDN: $($manifest.Package.Properties.PublisherDisplayName)"
   $uap10Ns = 'http://schemas.microsoft.com/appx/manifest/uap/windows10/10'
   $hostId = $app.GetAttribute('HostId', $uap10Ns)
   $parameters = $app.GetAttribute('Parameters', $uap10Ns)
+  $executable = $app.GetAttribute('Executable')
+  $entryPoint = $app.GetAttribute('EntryPoint')
+  if ($executable) { Write-Host "  Executable:  $executable" }
+  if ($entryPoint) { Write-Host "  EntryPoint:  $entryPoint" }
   if ($hostId) { Write-Host "  HostId:      $hostId" }
   if ($parameters) { Write-Host "  Parameters:  $parameters" }
   if ($app.StartPage) { Write-Host "  StartPage:   $($app.StartPage)" }
@@ -45,7 +52,6 @@ try {
   if ($identity.Name -match 'REPLACE|PARTNER-CENTER|TODO') { $errors.Add('Identity Name is still a placeholder.') }
   if ($identity.Publisher -match 'REPLACE|PARTNER-CENTER|TODO') { $errors.Add('Publisher is still a placeholder.') }
 
-  # قارن الهوية بالملف المعتمد من Partner Center — لا يكفي أن يكون الشكل صحيحًا.
   $expectedDisplayName = 'NEXORA AI by BECETTI'
   if ($IdentityFile -and (Test-Path -LiteralPath $IdentityFile)) {
     $expected = Get-Content -LiteralPath $IdentityFile -Raw | ConvertFrom-Json
@@ -55,55 +61,92 @@ try {
     if ($identity.Version -ne $expected.version) { $errors.Add("Version does not match package-identity.json: $($identity.Version)") }
     if ($manifest.Package.Properties.DisplayName -ne $expectedDisplayName) { $errors.Add("DisplayName does not match package-identity.json: $($manifest.Package.Properties.DisplayName)") }
     if ($manifest.Package.Properties.PublisherDisplayName -ne $expected.publisherDisplayName) { $errors.Add("PublisherDisplayName does not match package-identity.json: $($manifest.Package.Properties.PublisherDisplayName)") }
-    if ($hostId) {
-      if ($parameters -notmatch '--app-fallback-url=(?<url>https://\S+)') { $errors.Add('Hosted package has no --app-fallback-url.') }
-      elseif ($Matches['url'] -ne $expected.startPage) { $errors.Add("Fallback URL does not match package-identity.json: $($Matches['url'])") }
-      if ($parameters -notmatch '--app-id=[a-p]{32}') { $errors.Add('Hosted package has no valid --app-id.') }
-      if ($parameters -notmatch '--ip-edge-aumid=Microsoft\.MicrosoftEdge\.stable_8wekyb3d8bbwe!MSEDGE') { $errors.Add('Hosted package does not target Microsoft Edge stable.') }
-    }
-    elseif ($app.StartPage -ne $expected.startPage) { $errors.Add("StartPage does not match package-identity.json: $($app.StartPage)") }
   }
   else {
     Write-Warning "Identity file not found ($IdentityFile); only structural identity checks were performed."
   }
-  if ($manifest.Package.Properties.DisplayName -ne $expectedDisplayName) { $errors.Add("Properties/DisplayName must be the reserved Store name (got: $($manifest.Package.Properties.DisplayName)).") }
+
+  if ($manifest.Package.Properties.DisplayName -ne $expectedDisplayName) {
+    $errors.Add("Properties/DisplayName must be the reserved Store name (got: $($manifest.Package.Properties.DisplayName)).")
+  }
   $visualElements = $app.SelectSingleNode("*[local-name()='VisualElements']")
   if ($visualElements -and $visualElements.GetAttribute('DisplayName') -ne $expectedDisplayName) {
     $errors.Add("VisualElements/DisplayName must match the reserved Store name (got: $($visualElements.GetAttribute('DisplayName'))).")
   }
-  if ($manifest.Package.Properties.PublisherDisplayName -ne 'Ahmedbecetti') { $errors.Add('PublisherDisplayName must be "Ahmedbecetti" (Partner Center).') }
-  if ($hostId) {
+  if ($manifest.Package.Properties.PublisherDisplayName -ne 'Ahmedbecetti') {
+    $errors.Add('PublisherDisplayName must be "Ahmedbecetti" (Partner Center).')
+  }
+
+  if ($executable) {
+    # Native C# + WebView2 + MG Ads Desktop Bridge package
+    if ($executable -ne 'NexoraWindows.exe') { $errors.Add("Unexpected Executable: $executable") }
+    if ($entryPoint -ne 'Windows.FullTrustApplication') { $errors.Add("Native executable must use EntryPoint='Windows.FullTrustApplication' (got: $entryPoint)") }
+    foreach ($nativeFile in @('NexoraWindows.exe', 'MiracleGamesAd.dll', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'MgAdSDKCSharpDLL.dll', 'WebView2Loader.dll', 'Config\mgads-config.json')) {
+      $plain = $nativeFile -replace '\\', '/'
+      if (-not (Test-Path -LiteralPath (Join-Path $temp $plain))) { $errors.Add("Missing native runtime file: $nativeFile") }
+    }
+    $mgCfgPath = Join-Path $temp 'Config/mgads-config.json'
+    if (Test-Path -LiteralPath $mgCfgPath) {
+      $mgCfg = Get-Content -LiteralPath $mgCfgPath -Raw | ConvertFrom-Json
+      if ($mgCfg.appId -ne '6b03f6af1f812ea86a26de4f') { $errors.Add("Unexpected MG Ads AppId in mgads-config.json: $($mgCfg.appId)") }
+      if ($mgCfg.startUrl -notmatch '\?nx_surface=msix') { $errors.Add('mgads-config.json startUrl must include ?nx_surface=msix so MSIX-only policies apply.') }
+      if ($mgCfg.units.interstitial.enabled -eq $true -and -not $mgCfg.units.interstitial.unitId) {
+        $errors.Add('Interstitial cannot be enabled without an official unitId.')
+      }
+    }
+  }
+  elseif ($hostId) {
     if ($hostId -ne 'PWA') { $errors.Add("Unsupported HostId: $hostId") }
     if ($parameters -notmatch '--app-fallback-url=https://\S*\?nx_surface=msix') { $errors.Add('Fallback URL must include ?nx_surface=msix so MSIX-only policies apply.') }
     if ($parameters -notmatch '--app-id=[a-p]{32}\b') { $errors.Add('Hosted package must carry a 32-character a-p web app id.') }
     if ($parameters -notmatch '--windows-store-app') { $errors.Add('Hosted package must include --windows-store-app.') }
   }
-  elseif ($app.StartPage -notmatch '\?nx_surface=msix') { $errors.Add('StartPage must include ?nx_surface=msix so MSIX-only policies apply.') }
-  if (-not $hostId -and $app.StartPage -notmatch '^https://') { $errors.Add('StartPage must use HTTPS.') }
-  if (-not ($manifest.Package.Capabilities.ChildNodes | Where-Object { $_.Name -eq 'internetClient' })) {
-    $errors.Add('internetClient capability is missing.')
+  else {
+    $errors.Add('Application must declare either Executable="NexoraWindows.exe" or HostId="PWA".')
   }
 
-  $required = @(
+  $capNodes = @($manifest.Package.Capabilities.ChildNodes)
+  if (-not ($capNodes | Where-Object { $_.Name -eq 'internetClient' })) {
+    $errors.Add('internetClient capability is missing.')
+  }
+  if (-not ($capNodes | Where-Object { $_.Name -eq 'runFullTrust' })) {
+    $errors.Add('runFullTrust capability is missing.')
+  }
+
+  $requiredAssets = @(
     'Assets\StoreLogo.png',
     'Assets\Square44x44Logo.png',
     'Assets\Square150x150Logo.png',
     'Assets\Wide310x150Logo.png',
     'Assets\SplashScreen.png'
   )
-  foreach ($asset in $required) {
+  foreach ($asset in $requiredAssets) {
     $plain = $asset -replace '\\', '/'
     if (-not (Test-Path -LiteralPath (Join-Path $temp $plain))) { $errors.Add("Missing asset: $asset") }
   }
 
-  # Safety: no provider/service keys should ever ship in a Windows package.
-  $forbidden = @('DATABASE_URL', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'VERCEL_TOKEN', 'FIREBASE_PRIVATE_KEY', 'serviceAccount')
-  Get-ChildItem -Path $temp -Recurse -File -Include *.js,*.json,*.html,*.xml,*.txt |
+  # Safety: no provider/service secrets, private keys, or MG/Google demo IDs may appear in package text files.
+  $forbidden = @(
+    'DATABASE_URL',
+    'OPENAI_API_KEY',
+    'GEMINI_API_KEY',
+    'VERCEL_TOKEN',
+    'FIREBASE_PRIVATE_KEY',
+    'serviceAccount',
+    'MIGTAgEA',
+    'BEGIN PRIVATE KEY',
+    'BEGIN EC PRIVATE KEY',
+    '3940256099942544',
+    '69316b6861328938223cc124',
+    'cb7d9688a2d9499992febb6b642b3625',
+    '2cb66a1301404561881a3f26b6ce5ba7'
+  )
+  Get-ChildItem -Path $temp -Recurse -File -Include *.js,*.json,*.html,*.xml,*.txt,*.config |
     Where-Object { $_.Length -lt 4MB } |
     ForEach-Object {
       $text = Get-Content -LiteralPath $_.FullName -Raw -ErrorAction SilentlyContinue
       foreach ($needle in $forbidden) {
-        if ($text -and $text.Contains($needle)) { $errors.Add("Secret-like token '$needle' found in $($_.Name)") }
+        if ($text -and $text.Contains($needle)) { $errors.Add("Forbidden secret or test ID '$needle' found in $($_.Name)") }
       }
     }
 

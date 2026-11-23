@@ -1,25 +1,37 @@
 name: Build Windows Store package
 
-# This workflow replaces the old PWABuilder image-service path, which returned
-# 500/503 and could not produce a package. It builds the Hosted App Model MSIX
-# locally on a Windows runner with the Microsoft Windows SDK.
+# Builds the native C# (.NET Framework 4.7.2) + WebView2 + MG Ads C# SDK V1.2.1
+# MSIX package on windows-latest, runs full regression + smoke + sideload install
+# checks, and uploads build artifacts.
+#
+# Release publishing is gated strictly behind manual workflow_dispatch with
+# publish_release=true (never auto-publishes before verification).
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish GitHub release assets after all checks pass (keep false until QA passes)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
   push:
     paths:
       - '.github/workflows/windows-store-package.yml'
-      - 'windows/scripts/Build-Msix.ps1'
-      - 'windows/scripts/Test-MsixPackage.ps1'
-      - 'windows/msix/**'
-      - 'windows/package-identity.json'
+      - 'windows/**'
+      - 'src/ads/**'
+      - 'public/windows/ads-config.json'
       - 'public/manifest.webmanifest'
+      - 'package.json'
 
 permissions:
   contents: write
 
 jobs:
   windows-package:
-    name: Build and publish MSIX
+    name: Build, verify and package MSIX (x64)
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -30,48 +42,113 @@ jobs:
         with:
           node-version: 20
 
-      - name: Verify Windows readiness
-        shell: pwsh
-        run: node windows/tools/check-windows.mjs
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-      - name: Build unsigned Store package and test-signed copy
+      - name: Install Node dependencies & run full regression test suite
         shell: pwsh
+        run: |
+          npm ci
+          npm test
+
+      - name: Verify Windows readiness & version consistency
+        shell: pwsh
+        run: |
+          node windows/tools/sync-version.mjs --check
+          node windows/tools/check-windows.mjs
+
+      - name: Build native C# + WebView2 + MG Ads MSIX package
+        shell: pwsh
+        env:
+          # Optional GitHub Actions Secret (never stored in repo, never printed).
+          # When set, embedded strictly into native AES-encrypted build vault and deleted right after compile.
+          MG_ADS_SECRET_KEY: ${{ secrets.MG_ADS_SECRET_KEY }}
         run: ./windows/scripts/Build-Msix.ps1 -OutputDirectory dist/windows
 
-      - name: Show output
+      - name: Verify test-signed MSIX installs cleanly on Windows
+        shell: pwsh
+        run: |
+          $identity = Get-Content -LiteralPath windows/package-identity.json -Raw | ConvertFrom-Json
+          $version = $identity.version
+          $testMsix = "dist/windows/NEXORA-AI_${version}_x64.test-signed.msix"
+          $testCer = "dist/windows/NEXORA-AI-test-certificate.cer"
+
+          if (-not (Test-Path -LiteralPath $testMsix)) { throw "Missing test-signed MSIX: $testMsix" }
+          if (-not (Test-Path -LiteralPath $testCer)) { throw "Missing test certificate: $testCer" }
+
+          # Trust the ephemeral self-signed cert in LocalMachine\Root for non-interactive CI install test
+          Import-Certificate -FilePath $testCer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Add-AppxPackage -Path $testMsix
+
+          $pkg = Get-AppxPackage -Name $identity.identityName
+          if (-not $pkg) { throw "Package $($identity.identityName) not found after Add-AppxPackage." }
+
+          $installedExe = Join-Path $pkg.InstallLocation 'NexoraWindows.exe'
+          if (-not (Test-Path -LiteralPath $installedExe)) { throw "Installed executable missing: $installedExe" }
+
+          $smokeRaw = & $installedExe --smoke-check
+          if ($LASTEXITCODE -ne 0) { throw "Installed NexoraWindows.exe --smoke-check failed with exit code $LASTEXITCODE" }
+          $smokeObj = ($smokeRaw -join "`n") | ConvertFrom-Json
+
+          $installReport = [ordered]@{
+            installed = $true
+            packageFullName = $pkg.PackageFullName
+            packageFamilyName = $pkg.PackageFamilyName
+            version = $pkg.Version
+            architecture = [string]$pkg.Architecture
+            status = [string]$pkg.Status
+            installLocationExists = (Test-Path -LiteralPath $pkg.InstallLocation)
+            executablePresent = (Test-Path -LiteralPath $installedExe)
+            smokeCheck = $smokeObj
+            verifiedAtUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+          }
+
+          $installReport | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath dist/windows/install-test.json -Encoding UTF8
+          Get-Content -LiteralPath dist/windows/install-test.json
+
+          # Clean up test package from runner
+          Remove-AppxPackage -Package $pkg.PackageFullName
+
+      - name: Show generated artifacts
         shell: pwsh
         run: Get-ChildItem dist/windows | Format-Table Name, Length
 
-      - name: Upload build artifact
+      - name: Upload build and verification artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nexora-windows-4.4.0.0
+          name: nexora-windows-4.5.0.0-x64
           path: dist/windows/*
           if-no-files-found: error
 
-      - name: Publish GitHub release assets
+      - name: Publish GitHub release assets (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'windows-v4.4.0.0'
-          $notes = @'
-          حزمة Windows الحقيقية لـ **NEXORA AI by BECETTI** (Hosted App Model).
+          $identity = Get-Content -LiteralPath windows/package-identity.json -Raw | ConvertFrom-Json
+          $version = $identity.version
+          $tag = "windows-v${version}"
+          $notes = @"
+          NEXORA AI by BECETTI — Windows Store MSIX (${version}, x64 Native C# + WebView2 + MG Ads C# SDK V1.2.1).
 
-          - `NEXORA-AI_4.4.0.0_neutral.msixupload` — ارفع هذا الملف إلى Partner Center. غير موقّع عمدًا؛ Microsoft Store يعيد توقيعه.
-          - `NEXORA-AI_4.4.0.0_neutral.msixbundle` و`.msix` — نسخ فحص غير موقّعة.
-          - `NEXORA-AI_4.4.0.0_neutral.test-signed.msix` + `NEXORA-AI-test-certificate.cer` — للاختبار المحلي فقط (تثبيت الشهادة في Trusted People). لا ترفعها إلى المتجر.
-          - `SHA256SUMS.txt` و`BUILD-INFO.txt` — البصمات وتفاصيل البناء.
+          - ``NEXORA-AI_${version}_x64.msixupload`` — Upload to Microsoft Partner Center (UNSIGNED; Store re-signs).
+          - ``NEXORA-AI_${version}_x64.msixbundle`` & ``.msix`` — Unsigned inspection artifacts.
+          - ``NEXORA-AI_${version}_x64.test-signed.msix`` + ``NEXORA-AI-test-certificate.cer`` — Local sideload QA only.
+          - ``smoke-check.json`` & ``install-test.json`` — Automated Windows verification reports.
+          - ``SHA256SUMS.txt`` & ``BUILD-INFO.txt`` — Checksums and build metadata.
 
-          الاسم المحجوز: `NEXORA AI by BECETTI` · الهوية: `Ahmedbecetti.NEXORAAIbyBECETTI` · `CN=A5D5DC31-4A15-4059-8030-D96C51054596` · الإصدار `4.4.0.0`.
-          '@
+          Identity: ``$($identity.identityName)`` · ``$($identity.publisher)`` · PFN ``$($identity.packageFamilyName)`` · Store Product ID ``$($identity.productId)`` · MG Ads AppId ``6b03f6af1f812ea86a26de4f``.
+          "@
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "NEXORA AI by BECETTI · Windows 4.4.0.0" --notes $notes --target $env:GITHUB_SHA
+            gh release create $tag --title "NEXORA AI by BECETTI · Windows ${version}" --notes $notes --target $env:GITHUB_SHA
             if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
           }
           else {
-            gh release edit $tag --title "NEXORA AI by BECETTI · Windows 4.4.0.0" --notes $notes
+            gh release edit $tag --title "NEXORA AI by BECETTI · Windows ${version}" --notes $notes
             if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit code $LASTEXITCODE" }
           }
           gh release upload $tag dist/windows/* --clobber

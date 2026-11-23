@@ -5,6 +5,7 @@ import AIPlatform from './ai/AIPlatform.jsx';
 import UpdateNotice from './UpdateNotice.jsx';
 import WindowsShell from './WindowsShell.jsx';
 import { isWindowsApp } from './platform.js';
+import { isNativeMgAdsHost, syncViewContext } from './ads/mgAdsBridge.js';
 
 /**
  * NEXORA is an AI app builder first: the Studio is the default surface.
@@ -17,6 +18,9 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('nx_view', view);
     try { document.documentElement.dataset.nxView = view; } catch { /* بيئات مقيدة */ }
+    if (isNativeMgAdsHost()) {
+      syncViewContext({ view, hasMessages: false }).catch(() => {});
+    }
   }, [view]);
   useEffect(() => {
     const openChat = () => setView('chat');

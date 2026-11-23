@@ -29,6 +29,10 @@
     if (document.documentElement.classList.contains('native')) return false;
     try {
       if (window.Capacitor?.isNativePlatform?.()) return false;
+      // Exclude Windows Store MSIX native WebView2 host (official MG Ads SDK only)
+      if (document.documentElement.dataset?.nxNativeHost === 'webview2-mgads') return false;
+      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('nx_surface') === 'msix') return false;
+      if (typeof URLSearchParams !== 'undefined' && new URLSearchParams(location.search || '').get('nx_surface') === 'msix') return false;
     } catch { return false; }
     return true;
   }

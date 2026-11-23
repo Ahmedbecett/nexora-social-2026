@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 2,
+  "productTitle": "NEXORA AI by BECETTI",
+  "storePackageIdentity": "Ahmedbecetti.NEXORAAIbyBECETTI",
+  "platform": "Miracle Games",
+  "sdkVersion": "1.2.1",
+  "appOrigin": "https://nexora-social-2026.vercel.app",
+  "startUrl": "https://nexora-social-2026.vercel.app/?nx_surface=msix&nx_host=native-webview2",
+  "appId": "6b03f6af1f812ea86a26de4f",
+  "cmp": {
+    "ignoreExpiredCheck": false,
+    "width": 900,
+    "height": 500
+  },
+  "retry": {
+    "maxInitAttempts": 3,
+    "initialBackoffMs": 1500
+  },
+  "units": {
+    "banner": {
+      "unitId": "d461565a9efe49f0ac63ae71048fb594",
+      "width": 728,
+      "height": 90,
+      "type": "show",
+      "enabled": true,
+      "refreshCooldownSeconds": 180
+    },
+    "rewarded": {
+      "unitId": "48f66ca841444050a166841f331b6adb",
+      "type": "rewarded",
+      "enabled": true,
+      "fullScreen": true,
+      "rewardDurationHours": 24
+    },
+    "couplet": {
+      "unitId": "168ce66592d743bea2c16cdf908165b3",
+      "width": 300,
+      "height": 600,
+      "type": "show",
+      "enabled": true,
+      "minWindowWidth": 1560,
+      "minWindowHeight": 760,
+      "dismissCooldownMinutes": 30
+    },
+    "interstitial": {
+      "unitId": "",
+      "width": 1024,
+      "height": 768,
+      "type": "interstitial",
+      "enabled": false,
+      "minIntervalMinutes": 15
+    }
+  }
+}

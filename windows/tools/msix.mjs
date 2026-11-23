@@ -1,11 +1,12 @@
 /* ==========================================================================
    NEXORA AI — أدوات MSIX مشتركة (Node، تعمل على Linux وWindows)
    --------------------------------------------------------------------------
-   لا تُشغّل هذه الأدوات أي أمر بناء أو توقيع؛ تتحقق فقط من:
-     • تحويل 4.4.0 ⟹ 4.4.0.0 (إصدار الحزمة الرباعي)
-     • أن هوية الحزمة لا تزال Placeholder قبل Partner Center
-     • أن أصول الشعارات المطلوبة موجودة فعلًا
-     • أن المرجع AppxManifest يحتوي القيم الصحيحة ولا يحتوي Product ID مخترعًا
+   تتحقق هذه الأدوات من:
+     • تحويل 4.5.0 ⟹ 4.5.0.0 (إصدار الحزمة الرباعي)
+     • تطابق هوية Partner Center الرسمية بدون placeholders
+     • وجود أصول الشعارات الـ 53 المطلوبة في windows/msix/Assets
+     • صحة AppxManifest.reference.xml للمضيف الأصلي C# + WebView2 + MG Ads
+       (NexoraWindows.exe / Windows.FullTrustApplication / x64)
    ========================================================================== */
 
 import { existsSync } from 'node:fs';
@@ -40,7 +41,7 @@ export const REQUIRED_ASSETS = [
   'LockScreenLogo.scale-200.png',
 ];
 
-/** 4.4.0 → 4.4.0.0؛ الإصدار الرابع (revision) صفر دائمًا عند البناء. */
+/** 4.5.0 → 4.5.0.0؛ الإصدار الرابع (revision) صفر دائمًا عند البناء. */
 export function toMsixVersion(version) {
   const raw = String(version || '').trim();
   const match = raw.match(/^(\d{1,5})\.(\d{1,5})\.(\d{1,5})$/);
@@ -56,9 +57,7 @@ export function isValidMsixVersion(value) {
 }
 
 /**
- * معرّف تطبيق الويب الذي يتوقعه Edge في uap10:Parameters.
- * نفس خوارزمية Chromium GenerateId: SHA-256 للمعرّف المطلق، أول 16 بايت،
- * ثم تحويل كل nibble hexadecimal إلى حرف بين a وp.
+ * معرّف تطبيق الويب (خوارزمية Chromium GenerateId) للتحقق التاريخي والروابط.
  */
 export function webAppIdFromManifestId(manifestId) {
   const value = String(manifestId || '').trim();
@@ -110,7 +109,6 @@ export function validateIdentity(identity) {
     errors.push('web-app-id-invalid');
   }
 
-  // يُسمح بالمعرّف الحقيقي بعد Partner Center؛ نرفض فقط القيم غير الصالحة.
   if (id.productId && !looksLikeStoreProductId(id.productId)) errors.push('product-id-invalid');
   if (id.packageFamilyName) {
     const pfn = String(id.packageFamilyName);
@@ -126,16 +124,16 @@ export function findMissingAssets(assetsDir) {
   return REQUIRED_ASSETS.filter((file) => !existsSync(resolve(assetsDir, file)));
 }
 
-/** يكشف Product IDs المخترعة (تبدأ 9 وتتبع نمط Store) إن ظهرت في نص. */
+/** يكشف Product IDs صالحة بنمط Microsoft Store (9XXXXXXXXXXX). */
 export function looksLikeStoreProductId(value) {
   return /^9[A-Z0-9]{11}$/.test(String(value || '').trim());
 }
 
-/** فحص ملف AppxManifest المرجعي. */
+/** فحص ملف AppxManifest المرجعي (المضيف الأصلي C# + WebView2 + MG Ads أو Hosted App). */
 export function validateManifestXml(xml, identity = {}) {
   const text = String(xml || '');
   const errors = [];
-  const version = identity.version || '4.4.0.0';
+  const version = identity.version || '4.5.0.0';
 
   if (!text.includes(`Version="${version}"`)) errors.push('manifest-version-mismatch');
   if (!text.includes(`<DisplayName>${OFFICIAL_DISPLAY_NAME}</DisplayName>`)) errors.push('manifest-display-name');
@@ -143,8 +141,17 @@ export function validateManifestXml(xml, identity = {}) {
   if (!text.includes(`<PublisherDisplayName>${OFFICIAL_PUBLISHER_DISPLAY_NAME}</PublisherDisplayName>`)) errors.push('manifest-publisher-display-name');
   if (identity.identityName && !text.includes(`Name="${identity.identityName}"`)) errors.push('manifest-identity-name');
   if (identity.publisher && !text.includes(`Publisher="${identity.publisher}"`)) errors.push('manifest-publisher');
-  if (!text.includes('StartPage=')) {
-    // Hosted App Model: لا يوجد StartPage، والرابط في --app-fallback-url.
+
+  if (text.includes('StartPage=')) {
+    errors.push('manifest-legacy-startpage-forbidden');
+  } else if (text.includes('Executable=')) {
+    // Native C# + WebView2 + MG Ads SDK V1.2.1 Desktop Bridge host
+    const expectedExe = identity.executable || 'NexoraWindows.exe';
+    if (!text.includes(`Executable="${expectedExe}"`)) errors.push('manifest-executable-mismatch');
+    if (!text.includes('EntryPoint="Windows.FullTrustApplication"')) errors.push('manifest-entrypoint-fulltrust');
+    if (!text.includes('ProcessorArchitecture="x64"')) errors.push('manifest-arch-x64');
+  } else {
+    // Legacy Hosted App Model fallback validation
     if (!text.includes('uap10:HostId="PWA"')) errors.push('manifest-host-id');
     if (!text.includes('uap10:HostRuntimeDependency')) errors.push('manifest-host-runtime-dependency');
     if (!text.includes('Name="Microsoft.MicrosoftEdge.Stable"')) errors.push('manifest-edge-host');
@@ -152,9 +159,8 @@ export function validateManifestXml(xml, identity = {}) {
     if (identity.webAppId && !text.includes(`--app-id=${identity.webAppId}`)) errors.push('manifest-web-app-id-mismatch');
     if (!text.includes('--app-fallback-url=https://nexora-social-2026.vercel.app/?nx_surface=msix')) errors.push('manifest-fallback-url');
     if (!text.includes('--windows-store-app')) errors.push('manifest-store-launch-flag');
-  } else {
-    errors.push('manifest-must-use-hosted-app-model');
   }
+
   if (!text.includes('Name="Windows.Desktop"')) errors.push('manifest-target-family');
   if (!text.includes('<Capability Name="internetClient"')) errors.push('manifest-internet-capability');
   if (!text.includes('<rescap:Capability Name="runFullTrust"')) errors.push('manifest-run-full-trust');

@@ -13,6 +13,14 @@ import './AIPlatform.css';
 import { APP_VERSION_LABEL } from '../version.js';
 import ThinkingPhase from './ThinkingPhase.jsx';
 import WindowsAdSlot from '../ads/WindowsAdSlot.jsx';
+import { runtimeSurface } from '../platform.js';
+import {
+  isNativeMgAdsHost,
+  getMgAdsState,
+  onMgAdsStateChange,
+  showNativeRewardedAd,
+  syncViewContext,
+} from '../ads/mgAdsBridge.js';
 
 // Rich Markdown (KaTeX/highlighter) and the owner dashboard are not needed at sign-in.
 const Markdown = lazy(() => import('./Markdown.jsx'));
@@ -344,10 +352,43 @@ export default function AIPlatform() {
   useEffect(()=>{const el=field.current;if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,160)+'px'},[input]);
   const onHome=messages.length===0;
   useEffect(()=>{ setAdSlot(onHome); return ()=>setAdSlot(false); },[onHome]);
+  const [mgState,setMgState]=useState(null);
+  useEffect(()=>{
+    if(!isNativeMgAdsHost())return undefined;
+    let alive=true;
+    getMgAdsState().then(s=>{if(alive&&s&&s.provider==='mgads')setMgState(s)}).catch(()=>{});
+    const off=onMgAdsStateChange(s=>{if(alive&&s)setMgState(s)});
+    return()=>{alive=false;off()};
+  },[]);
+  useEffect(()=>{
+    if(!isNativeMgAdsHost())return;
+    syncViewContext({view:'chat',hasMessages:!onHome}).catch(()=>{});
+  },[onHome]);
   const [rewardedFreeAt,setRewardedFreeAt]=useState(()=>{try{return Number(localStorage.getItem('nx_ads_inter_free_until')||0)}catch{return 0}});
   const [rewardedBusy,setRewardedBusy]=useState(false);
+  const windowsRewardedReady=Boolean(mgState&&mgState.initialized&&mgState.rewardedConfigured);
   const watchRewarded=async()=>{
     if(rewardedBusy)return;
+    if(windowsRewardedReady&&isNativeMgAdsHost()){
+      if(mgState?.adFreeUntilUtcMs&&mgState.adFreeUntilUtcMs>Date.now()){
+        toast('أنت مشمول بمكافأة 24 ساعة بلا إعلانات — شكرًا لدعمك!');
+        return;
+      }
+      setRewardedBusy(true);
+      const res=await showNativeRewardedAd({comment:'nexora-windows-24h-reward'});
+      setRewardedBusy(false);
+      if(res&&res.completed){
+        const until=Date.now()+24*60*60*1000;
+        try{localStorage.setItem('nx_ads_inter_free_until',String(until))}catch{}
+        setRewardedFreeAt(until);
+        toast('شكرًا لك! تم تفعيل مكافأة 24 ساعة بلا إعلانات');
+      }else if(res&&res.shown){
+        toast('أُغلق الإعلان قبل اكتماله — لم تُضف المكافأة');
+      }else{
+        toast('إعلانات المكافأة غير متاحة حاليًا — حاول لاحقًا');
+      }
+      return;
+    }
     if(Date.now()<interstitialFreeUntil()){toast('أنت مشمول بيوم بلا إعلانات بينية — شكرًا لدعمك!');return}
     setRewardedBusy(true);
     const r=await showRewardedAd();
@@ -496,9 +537,10 @@ export default function AIPlatform() {
       <small>NEXORA AI · نسخة Ahmed Becetti</small></div>
     {toastMsg&&<div className="nx-ai-toast">{toastMsg}</div>}
   </div>;
-  if(addingAccount)return <AppCtx.Provider value={ctx}><div className="nx-ai-auth"><div className="nx-ai-auth-brand"><Glyph size={45}/><strong>إضافة حساب</strong><p>سجّل الدخول بحساب آخر — تبقى حساباتك محفوظة للتبديل السريع</p></div><AuthFlow onCancel={()=>setAddingAccount(false)}/>{!Capacitor.isNativePlatform()&&<AdsterraBanner/>}<button className="nx-ai-wide" onClick={()=>setAddingAccount(false)}>رجوع</button></div></AppCtx.Provider>;
+  const isMsixSurface = runtimeSurface() === 'windows-msix';
+  if(addingAccount)return <AppCtx.Provider value={ctx}><div className="nx-ai-auth"><div className="nx-ai-auth-brand"><Glyph size={45}/><strong>إضافة حساب</strong><p>سجّل الدخول بحساب آخر — تبقى حساباتك محفوظة للتبديل السريع</p></div><AuthFlow onCancel={()=>setAddingAccount(false)}/>{!Capacitor.isNativePlatform()&&!isMsixSurface&&<AdsterraBanner/>}<button className="nx-ai-wide" onClick={()=>setAddingAccount(false)}>رجوع</button></div></AppCtx.Provider>;
   if(!token||!me){
-    const showPublic = !Capacitor.isNativePlatform() && !/NexoraAI/i.test(navigator.userAgent || '');
+    const showPublic = !Capacitor.isNativePlatform() && !isMsixSurface && !/NexoraAI/i.test(navigator.userAgent || '');
     return <AppCtx.Provider value={ctx}><>
       <div className="nx-ai-auth"><div className="nx-ai-auth-brand"><Glyph size={45}/><strong>NEXORA <b>AI</b></strong><p>مساحتك للإبداع والمعرفة</p><em className="nx-ai-credit auth">AI BECETTI</em>
         {showPublic && <a className="nx-ai-discover-link" href="#discover">اكتشف NEXORA AI ↓</a>}
@@ -538,7 +580,7 @@ export default function AIPlatform() {
           {!convs.length&&<div className="nx-ai-conv-empty">لا محادثات بعد — ابدأ واحدة وستُحفظ تلقائيًا.</div>}
         </div>
         <div className="nx-ai-spacer"/>
-        {Capacitor.isNativePlatform()&&<button type="button" className="nx-ai-upgrade nx-ai-rewarded-btn" disabled={rewardedBusy} onClick={watchRewarded}><Icon name="spark" size={16}/> {rewardedBusy?'جارٍ تحميل الإعلان…':(Date.now()<rewardedFreeAt?'يوم بلا إعلانات بينية ✓ شكرًا لك':'شاهد إعلانًا — يوم بلا إعلانات بينية')}</button>}
+        {(Capacitor.isNativePlatform()||windowsRewardedReady)&&<button type="button" className="nx-ai-upgrade nx-ai-rewarded-btn" disabled={rewardedBusy} onClick={watchRewarded}><Icon name="spark" size={16}/> {rewardedBusy?'جارٍ تحميل الإعلان…':(Date.now()<rewardedFreeAt?'يوم بلا إعلانات ✓ شكرًا لك':'شاهد إعلانًا — يوم بلا إعلانات')}</button>}
         {(!Capacitor.isNativePlatform()&&me&&(me.username==='official.nexora'||me.id===12))&&<button type="button" className="nx-ai-upgrade nx-ai-admin-btn" onClick={()=>setSheet('revenue')}>الإيرادات</button>}
         <div className="nx-ai-account"><span className="nx-ai-avatar">{(me.fullName||me.username||'N').slice(0,1).toUpperCase()}</span><span className="nx-ai-account-name"><b>{me.fullName||me.username}</b><small>@{me.username}</small></span>
           <button onClick={()=>setSheet('account')} title="الحساب والأمان"><Icon name="user"/></button>

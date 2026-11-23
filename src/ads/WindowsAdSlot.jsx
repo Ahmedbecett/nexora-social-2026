@@ -1,13 +1,17 @@
 /* ==========================================================================
-   NEXORA AI — خانة إعلان Windows (معطّلة افتراضيًا)
+   NEXORA AI — خانة إعلان Windows
    --------------------------------------------------------------------------
-   لا يُطلب أي إعلان حتى تتحقق كل الشروط: الإعدادات مفعّلة، السطح مسموح،
-   المزوّد منفَّذ، والموافقة ممنوحة. أي فشل ⇒ لا شيء يُرسم (fail closed).
-   القياس الحقيقي لدى المزوّد فقط؛ هذا الملف لا يرسل انطباعات ولا نقرات.
+   • عند تشغيل MG Ads داخل المضيف الأصلي C# + WebView2 MSIX:
+     تنسّق الخانة طلب البانر الأصلي عبر الجسر الآمن (mgAdsBridge.js) ولا ترسم
+     أي مساحة فارغة في DOM إطلاقًا (المضيف الأصلي يعرض البانر فقط عند توفر
+     مادة إعلانية حقيقية، ويخفيه فورًا عند الفشل أو الإغلاق).
+   • خارج المضيف الأصلي: يفشل مغلقًا (fail closed) ولا يرسم شيئًا.
+   • القياس الحقيقي لدى المزوّد فقط؛ هذا الملف لا يرسل انطباعات ولا نقرات.
    ========================================================================== */
 
 import { useEffect, useRef, useState } from 'react';
 import { isCapacitorNative, runtimeSurface } from '../platform.js';
+import { isNativeMgAdsHost, requestBanner } from './mgAdsBridge.js';
 import {
   ADS_CONFIG_URL,
   adWindowOpen,
@@ -86,10 +90,21 @@ export default function WindowsAdSlot({ placement = 'ai-home-banner', className 
 
   const config = state.config;
   const reason = disabledReason(config, { surface, consent });
+  const adapter = config ? providerAdapter(config, surface) : null;
 
-  // بوابة التكرار: تُحتسب عند عرض إعلان فعلي فقط.
+  // مسار MG Ads الأصلي: ننسّق مع المضيف الأصلي C# + WebView2 دون أي مساحة فارغة في DOM.
+  useEffect(() => {
+    if (reason !== 'eligible' || !adapter || adapter.name !== 'mgads') return undefined;
+    if (!isNativeMgAdsHost()) return undefined;
+    if (!adapter.units?.banner?.enabled) return undefined;
+    requestBanner({ force: false }).catch(() => { /* fail closed */ });
+    return undefined;
+  }, [reason, adapter, placement]);
+
+  // بوابة التكرار للويب (AdSense فقط): تُحتسب عند عرض إعلان فعلي.
   useEffect(() => {
     if (reason !== 'eligible' || claimed.current) return undefined;
+    if (!adapter || adapter.name !== 'adsense') return undefined;
     if (!adWindowOpen(config, storage())) return undefined;
     claimed.current = true;
     markAdWindow(config, storage());
@@ -97,12 +112,11 @@ export default function WindowsAdSlot({ placement = 'ai-home-banner', className 
     if (seconds <= 0) return undefined;
     const timer = window.setTimeout(() => setVisible(false), seconds * 1000);
     return () => window.clearTimeout(timer);
-  }, [reason, config, surface]);
+  }, [reason, config, surface, adapter]);
 
-  // طلب AdSense الحقيقي — مرة واحدة، وبعد أن تصبح الخانة مرئية.
+  // طلب AdSense الحقيقي على المتصفح فقط (غير متاح في MSIX).
   useEffect(() => {
     if (reason !== 'eligible' || !visible) return undefined;
-    const adapter = providerAdapter(config, surface);
     if (!adapter || adapter.name !== 'adsense') return undefined;
     const ins = insRef.current;
     if (!ins) return undefined;
@@ -118,14 +132,15 @@ export default function WindowsAdSlot({ placement = 'ai-home-banner', className 
       (window.adsbygoogle = window.adsbygoogle || []).push({});
     } catch { /* مانع إعلانات أو حجب شبكة — لا نعطّل التطبيق */ }
     return undefined;
-  }, [reason, visible, config, surface]);
+  }, [reason, visible, config, surface, adapter]);
 
-  // طلب الموافقة يُعرض فقط إذا كان الإعلان مُفعّلًا ومسموحًا لهذا السطح.
+  // طلب الموافقة اليدوية يُعرض فقط للمزوّدات التي لا تدير CMP أصليًا.
   const consentNeeded = config
     && config.enabled === true
     && config.surfaces.includes(surface)
     && config.consent.required === true
-    && Boolean(providerAdapter(config, surface))
+    && config.consent.nativeCmp !== true
+    && Boolean(adapter)
     && !consentSatisfied(config, consent);
 
   if (state.status !== 'ready' && state.status !== 'invalid') return null;
@@ -157,7 +172,7 @@ export default function WindowsAdSlot({ placement = 'ai-home-banner', className 
 
   if (reason !== 'eligible' || !visible) return null;
 
-  const adapter = providerAdapter(config, surface);
+  // MG Ads يُعرض أصليًا داخل لوحة المضيف السفلية فقط عند توفر مادة حقيقية — صفر مساحات فارغة في DOM.
   if (!adapter || adapter.name !== 'adsense') return null;
 
   return (

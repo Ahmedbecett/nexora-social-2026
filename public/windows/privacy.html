@@ -73,10 +73,10 @@
     <p class="eyebrow">NEXORA AI · Windows Edition</p>
     <h1>Privacy Policy for Windows</h1>
     <p class="lead">This policy covers the official NEXORA AI application for Windows, distributed as an installable PWA and, when published, as an MSIX package in the Microsoft Store.</p>
-    <p class="updated">Version 1.0 · Effective 19 November 2026 · Applies to NEXORA AI 4.4.0 (Windows)</p>
+    <p class="updated">Version 2.0 · Effective 23 November 2026 · Applies to NEXORA AI 4.5.0 (Windows)</p>
 
     <div class="callout">
-      <p><strong>In one paragraph:</strong> NEXORA AI uses the same account and production backend as the website and Android app. It stores your session and preferences on your device, sends your prompts over HTTPS to the NEXORA backend and the configured AI providers, and does not sell your data. No third-party advertising is currently enabled inside the Windows app. Settings that require consent stay off until you accept them.</p>
+      <p><strong>In one paragraph:</strong> NEXORA AI uses the same account and production backend as the website and Android app. It stores your session and preferences on your device, sends your prompts over HTTPS to the NEXORA backend and the configured AI providers, and does not sell your data. In the Microsoft Store MSIX app (4.5.0), advertising is provided natively through the official MG Ads (Miracle Games) C# SDK with native CMP consent handling, while website ad scripts are strictly excluded. Settings that require consent stay off until you accept them.</p>
     </div>
 
     <nav class="toc" aria-label="Contents">
@@ -181,18 +181,16 @@
     <section id="ads">
       <h2>6. Advertising</h2>
       <div class="callout">
-        <p><strong>Current status:</strong> no third-party advertising network is enabled inside the NEXORA AI Windows app (PWA or MSIX) in version 4.4.0. No ad request is sent, no impression is counted and no advertising identifier is created by the app.</p>
+        <p><strong>Current status:</strong> the Microsoft Store Windows edition (NEXORA AI by BECETTI 4.5.0, native C# + WebView2 MSIX host) integrates the official <strong>MG Ads (Miracle Games) C# SDK V1.2.1</strong> for Banner (728×90), optional Rewarded ads, and desktop-guarded Couplet ads (300×600). Interstitial ads remain disabled until an official unit is configured. If an ad fails to load or no inventory is available, no empty advertising space is shown.</p>
       </div>
-      <p>A responsive banner area is reserved in the interface so a legitimate provider can be added without covering the main content; when present it occupies its own space in the layout. Advertising configuration is kept outside the application code in a separate configuration file and fails closed: if the provider, surface or consent is not valid, nothing is shown.</p>
-      <p>If a provider is enabled in a future release:</p>
+      <p>Advertising configuration is kept outside application logic in a separate production configuration file and fails closed: if credentials, inventory, or consent are not valid, no ad space is displayed and NEXORA AI continues to work normally.</p>
       <ul>
-        <li>You will be asked for consent before the first ad request, with an equally clear option to decline. Declining does not limit the AI features.</li>
-        <li>The provider will be named in the consent prompt and in this policy.</li>
-        <li>Impressions and clicks will be measured by that provider under its own policy. The app will not generate impressions, clicks or statistics locally.</li>
-        <li>Advertising will not be enabled for the MSIX/WebView2 package unless the provider has confirmed in writing that its product is permitted in that environment and Microsoft Store requirements are met.</li>
+        <li><strong>Consent &amp; CMP:</strong> MG Ads initializes its native Consent Management Platform (CMP) before requesting ads in applicable regions. Declining personalized ads does not restrict any NEXORA AI features.</li>
+        <li><strong>Real provider measurement only:</strong> Impressions, clicks, and rewarded completions are verified and measured exclusively by MG Ads (Miracle Games) under its privacy and advertising policies. The app never generates fake impressions, clicks, or local reward claims.</li>
+        <li><strong>Rewarded ads:</strong> Watching a rewarded ad is always 100% optional and user-initiated. Rewards are granted only after MG Ads confirms full completion and fulfillment is reported.</li>
+        <li><strong>Strict separation from website ads:</strong> Website-only ad networks (such as Google AdSense, Adsterra, or Monetag) are strictly excluded from the Windows Store MSIX app. Mobile SDKs such as Google AdMob are used on Android only.</li>
       </ul>
-      <p>Google AdSense is used on the public website only. It is not enabled inside the Windows app, because AdSense program policies restrict ads in desktop application wrappers and WebView technologies. Mobile SDKs such as Google AdMob do not support Windows desktop. The current MG Ads SDK for UWP cannot be attached to a Win32/WebView2 PWA package, and MG's separately listed Win32 and H5 SDKs have no verified WebView2 integration.</p>
-      <p>You can withdraw advertising consent at any time by clearing the <code>nx_ads_consent</code> value for this app; the prompt will appear again the next time advertising is eligible.</p>
+      <p>You can review or withdraw advertising consent via MG Ads CMP privacy choices in the Windows app or by clearing local app data.</p>
     </section>
 
     <section id="store">
@@ -255,7 +253,7 @@
     <section id="contact">
       <h2>15. Contact</h2>
       <p><strong>Controller and support:</strong> Ahmed Becetti (BECETTI) · <a href="mailto:ahmedbecetti35@gmail.com">ahmedbecetti35@gmail.com</a><br />
-      <strong>App:</strong> NEXORA AI for Windows · version 4.4.0 · <a href="/windows/en.html">Windows app page</a> · <a href="/privacy.html">general privacy policy</a></p>
+      <strong>App:</strong> NEXORA AI for Windows · version 4.5.0 · <a href="/windows/en.html">Windows app page</a> · <a href="/privacy.html">general privacy policy</a></p>
     </section>
   </div>
 
@@ -264,11 +262,11 @@
   <div id="ar" class="ar" lang="ar" dir="rtl">
     <p class="eyebrow">NEXORA AI · نسخة Windows</p>
     <h1>سياسة الخصوصية لنسخة Windows</h1>
-    <p class="lead">تغطي هذه السياسة تطبيق NEXORA AI الرسمي على Windows، سواء ثبّته كتطبيق ويب تقدّمي (PWA) أو حصلت عليه كحزمة MSIX من Microsoft Store بعد اعتمادها.</p>
-    <p class="updated">الإصدار 1.0 · سارية من 19 نوفمبر 2026 · تنطبق على NEXORA AI 4.4.0 (Windows)</p>
+    <p class="lead">تغطي هذه السياسة تطبيق NEXORA AI الرسمي على Windows، سواء ثبّته كتطبيق ويب تقدّمي (PWA) أو حصلت عليه كحزمة MSIX من Microsoft Store.</p>
+    <p class="updated">الإصدار 2.0 · سارية من 23 نوفمبر 2026 · تنطبق على NEXORA AI 4.5.0 (Windows)</p>
 
     <div class="callout">
-      <p><strong>باختصار:</strong> يستخدم تطبيق Windows نفس الحساب ونفس الخادم الإنتاجي للموقع وتطبيق أندرويد. يخزّن جلستك وتفضيلاتك على جهازك، ويرسل طلباتك عبر HTTPS إلى خادم NEXORA ومزوّدي الذكاء الاصطناعي المضبوطين، ولا يبيع بياناتك. لا توجد إعلانات طرف ثالث مفعّلة داخل التطبيق حاليًا، وأي إعداد يحتاج موافقة يبقى متوقفًا حتى توافق.</p>
+      <p><strong>باختصار:</strong> يستخدم تطبيق Windows نفس الحساب ونفس الخادم الإنتاجي للموقع وتطبيق أندرويد. يخزّن جلستك وتفضيلاتك على جهازك، ويرسل طلباتك عبر HTTPS إلى خادم NEXORA ومزوّدي الذكاء الاصطناعي المضبوطين، ولا يبيع بياناتك. في حزمة Microsoft Store MSIX (الإصدار 4.5.0)، تُقدَّم الإعلانات أصليًا عبر حزمة MG Ads (Miracle Games) C# SDK مع منصة الموافقة CMP الأصلية، مع استبعاد إعلانات الويب بالكامل، وأي إعداد يحتاج موافقة يبقى متوقفًا حتى توافق.</p>
     </div>
 
     <nav class="toc" aria-label="المحتويات">
@@ -373,18 +371,16 @@
     <section id="ads-ar">
       <h2>٦. الإعلانات</h2>
       <div class="callout">
-        <p><strong>الحالة الحالية:</strong> لا توجد شبكة إعلانات طرف ثالث مفعّلة داخل تطبيق Windows (PWA أو MSIX) في الإصدار 4.4.0. لا يُرسَل أي طلب إعلان، ولا يُحتسب أي انطباع، ولا يُنشئ التطبيق معرّفًا إعلانيًا.</p>
+        <p><strong>الحالة الحالية:</strong> تدمج نسخة Microsoft Store لنظام Windows (NEXORA AI by BECETTI 4.5.0، المضيف الأصلي C# + WebView2 MSIX) حزمة <strong>MG Ads (Miracle Games) C# SDK V1.2.1</strong> الرسمية لإعلانات البانر (728×90)، وإعلانات المكافأة الاختيارية، وإعلانات Couplet المحكومة بحجم الشاشة (300×600). وتبقى الإعلانات البينية (Interstitial) معطّلة حتى يتوفر معرّفها الرسمي. عند فشل التحميل أو غياب المخزون لا تُعرض أي مساحة إعلانية فارغة.</p>
       </div>
-      <p>المساحة الإعلانية محجوزة في التصميم ليُضاف مزوّد شرعي لاحقًا دون تغطية المحتوى أو إزاحته. إعداد الإعلانات منفصل عن كود التطبيق في ملف تهيئة مستقل، ويعمل بمبدأ «الفشل المغلق»: إذا لم يكن المزوّد أو السطح أو الموافقة صالحًا لا يُعرض شيء.</p>
-      <p>إذا فُعِّل مزوّد في إصدار مستقبلي:</p>
+      <p>إعداد الإعلانات منفصل عن كود التطبيق في ملف تهيئة إنتاجي مستقل، ويعمل بمبدأ «الفشل المغلق»: إذا لم تتوفر بيانات الاعتماد أو المخزون أو الموافقة لا تُعرض أي مساحة فارغة ويعمل NEXORA AI بالكامل دون تأثر.</p>
       <ul>
-        <li>سيُطلب منك الإذن قبل أول طلب إعلان، مع خيار رفض واضح بالقدر نفسه. الرفض لا يحدّ من ميزات الذكاء الاصطناعي.</li>
-        <li>سيُسمّى المزوّد في نافذة الموافقة وفي هذه السياسة.</li>
-        <li>يقيس المزوّد الانطباعات والنقرات وفق سياسته. لا يولّد التطبيق انطباعات أو نقرات أو إحصاءات محليًا.</li>
-        <li>لن تُفعَّل الإعلانات في حزمة MSIX/WebView2 إلا إذا أكّد المزوّد كتابيًا السماح بمنتجه في هذه البيئة واستيفاء متطلبات Microsoft Store.</li>
+        <li><strong>الموافقة ومنصة CMP:</strong> تشغّل حزمة MG Ads منصة إدارة الموافقة (CMP) الأصلية قبل طلب الإعلانات في المناطق التي تتطلب ذلك. رفض الإعلانات المخصّصة لا يحدّ من أي ميزة ذكاء اصطناعي.</li>
+        <li><strong>القياس الحقيقي لدى المزوّد فقط:</strong> تقيس MG Ads (Miracle Games) الانطباعات والنقرات وإتمام المكافآت وفق سياستها. لا يولّد التطبيق انطباعات أو نقرات أو مكافآت وهمية محليًا.</li>
+        <li><strong>إعلانات المكافأة الاختيارية:</strong> مشاهدة إعلان مكافأة قرار اختياري بالكامل من المستخدم، وتُمنح المكافأة فقط بعد تأكيد إتمام العرض وإرسال إشعار التحقق إلى MG Ads.</li>
+        <li><strong>فصل تام عن إعلانات الموقع:</strong> تُستبعد شبكات إعلانات الويب (مثل Google AdSense وAdsterra وMonetag) بالكامل من حزمة Microsoft Store MSIX. وتُستخدم حزمة AdMob على أندرويد فقط.</li>
       </ul>
-      <p>يُستخدم Google AdSense على صفحات الموقع العامة فقط، ولا يُفعَّل داخل تطبيق Windows لأن سياسات AdSense تمنع الإعلانات في أغلفة تطبيقات سطح المكتب وتقنيات WebView. ولا تدعم حزم AdMob للهواتف سطح مكتب Windows. وMG Ads SDK الحالي لتطبيقات UWP لا يمكن ربطه بحزمة PWA من نوع Win32/WebView2، ولا توجد نسخة Win32 أو H5 موثّقة ومتحقق منها لهذه البيئة.</p>
-      <p>يمكنك سحب موافقة الإعلانات في أي وقت بمسح قيمة <code>nx_ads_consent</code> لهذا التطبيق، وستظهر نافذة الموافقة مجددًا عند أول إعلان مؤهل.</p>
+      <p>يمكنك مراجعة خيارات موافقة الإعلانات عبر CMP في تطبيق Windows أو بمسح بيانات التطبيق المحلية.</p>
     </section>
 
     <section id="store-ar">
@@ -447,7 +443,7 @@
     <section id="contact-ar">
       <h2>١٥. التواصل</h2>
       <p><strong>المتحكّم والدعم:</strong> أحمد بسيتي (BECETTI) · <a href="mailto:ahmedbecetti35@gmail.com">ahmedbecetti35@gmail.com</a><br />
-      <strong>التطبيق:</strong> NEXORA AI لـ Windows · الإصدار 4.4.0 · <a href="/windows/">صفحة نسخة Windows</a> · <a href="/privacy.html">سياسة الخصوصية العامة</a></p>
+      <strong>التطبيق:</strong> NEXORA AI لـ Windows · الإصدار 4.5.0 · <a href="/windows/">صفحة نسخة Windows</a> · <a href="/privacy.html">سياسة الخصوصية العامة</a></p>
     </section>
   </div>
 </main>
@@ -461,7 +457,7 @@
       <a href="/">NEXORA AI</a>
       <a href="mailto:ahmedbecetti35@gmail.com">Support</a>
     </nav>
-    <div>NEXORA AI · Windows Edition · Version 4.4.0 · Publisher (planned) Ahmedbecetti · Effective 19 November 2026</div>
+    <div>NEXORA AI · Windows Edition · Version 4.5.0 · Publisher: Ahmedbecetti · Effective 23 November 2026</div>
   </div>
 </footer>
 </body>

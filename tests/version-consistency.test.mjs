@@ -23,7 +23,7 @@ const STALE = ['v4.0', 'v4.1', 'v4.2', 'v4.3', '2.6.0', '4.3.0'];
 
 test('package.json هو مصدر الإصدار والترقيم صحيح', () => {
   assert.match(pkg.version, /^\d+\.\d+\.\d+$/, 'version يجب أن يكون x.y.z');
-  assert.equal(pkg.version, '4.4.0');
+  assert.equal(pkg.version, '4.5.0');
 });
 
 test('src/version.js يشتق الرقم من package.json لا من نص ثابت', () => {

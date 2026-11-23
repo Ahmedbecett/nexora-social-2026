@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <Prefer32Bit>false</Prefer32Bit>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>NexoraWindows</AssemblyName>
+    <RootNamespace>NexoraWindows</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>4.5.0.0</Version>
+    <AssemblyVersion>4.5.0.0</AssemblyVersion>
+    <FileVersion>4.5.0.0</FileVersion>
+    <Product>NEXORA AI by BECETTI</Product>
+    <Company>Ahmedbecetti</Company>
+    <Description>NEXORA AI by BECETTI — Native Windows Store WebView2 host with MG Ads C# SDK V1.2.1</Description>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <MgAdsSdkDir Condition="'$(MgAdsSdkDir)' == ''">$(MSBuildProjectDirectory)\..\vendor\mgads-sdk</MgAdsSdkDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Security" />
+    <Reference Include="MiracleGamesAd">
+      <HintPath>$(MgAdsSdkDir)\MiracleGamesAd.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.Core">
+      <HintPath>$(MgAdsSdkDir)\Microsoft.Web.WebView2.Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.WinForms">
+      <HintPath>$(MgAdsSdkDir)\Microsoft.Web.WebView2.WinForms.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Config\mgads-config.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!-- Official MG Ads C# SDK V1.2.1 companion & native WebView2 runtime binaries -->
+  <Target Name="CopyMgAdsRuntimeFiles" AfterTargets="Build">
+    <MakeDir Directories="$(OutDir)x64;$(OutDir)runtimes\win-x64\native" />
+    <Copy SourceFiles="$(MgAdsSdkDir)\AxInterop.WMPLib.dll;$(MgAdsSdkDir)\Interop.WMPLib.dll"
+          DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MgAdsSdkDir)\x64\MgAdSDKCSharpDLL.dll"
+          DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MgAdsSdkDir)\x64\MgAdSDKCSharpDLL.dll"
+          DestinationFolder="$(OutDir)x64" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MgAdsSdkDir)\runtimes\win-x64\native\WebView2Loader.dll"
+          DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MgAdsSdkDir)\runtimes\win-x64\native\WebView2Loader.dll"
+          DestinationFolder="$(OutDir)runtimes\win-x64\native" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Fail fast with a clear message if the official MG Ads SDK has not been restored yet -->
+  <Target Name="VerifyMgAdsSdkRestored" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(MgAdsSdkDir)\MiracleGamesAd.dll')"
+           Text="MG Ads C# SDK V1.2.1 is missing at '$(MgAdsSdkDir)'. Run .\windows\scripts\Restore-MgAdsSdk.ps1 first." />
+  </Target>
+
+</Project>

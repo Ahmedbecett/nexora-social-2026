@@ -27,3 +27,11 @@ public/studio/vendor/
 *.cer
 certs/
 windows/store/screenshots/
+
+# Windows native C# host build artifacts, vendor SDK download, and CI-only generated secrets
+windows/host/vendor/
+windows/host/**/bin/
+windows/host/**/obj/
+windows/host/.vs/
+windows/host/**/NativeSecretVault.g.cs
+*.cred.dat
