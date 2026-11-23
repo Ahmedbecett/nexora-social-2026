@@ -44,6 +44,8 @@ jobs:
           node-version: 22
 
       - name: Install dependencies, build web bundle, run all tests
+        env:
+          STUDIO_ALLOW_KEYLESS: '0'
         run: |
           npm ci
           npm run build
@@ -77,6 +79,8 @@ jobs:
       - name: Run Windows MSIX, MG Ads & readiness tests
         shell: pwsh
         run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $out = & node --test `
             tests/version-consistency.test.mjs `
             tests/windows-ads.test.mjs `
