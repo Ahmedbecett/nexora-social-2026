@@ -238,6 +238,26 @@
       "source": "/en/privacy/",
       "destination": "/en/privacy.html",
       "permanent": true
+    },
+    {
+      "source": "/becetti",
+      "destination": "/becetti/index.html",
+      "permanent": true
+    },
+    {
+      "source": "/becetti/",
+      "destination": "/becetti/index.html",
+      "permanent": true
+    },
+    {
+      "source": "/becetti/en",
+      "destination": "/becetti/en/index.html",
+      "permanent": true
+    },
+    {
+      "source": "/becetti/fr",
+      "destination": "/becetti/fr/index.html",
+      "permanent": true
     }
   ],
   "rewrites": [

@@ -38,6 +38,10 @@ const pages = () => {
 const toFile = (url) => {
   const clean = url.replace(/[?#].*$/, '');
   if (!clean || clean === '/') return existsSync('index.html') ? 'index.html' : null;
+  if (clean.startsWith('/becetti/')) {
+    const target = clean.slice(1);
+    return existsSync(target) ? target : null;
+  }
   const target = clean.startsWith('/') ? `public${clean}` : resolve(dirname('index.html'), clean);
   return existsSync(target) ? target : null;
 };

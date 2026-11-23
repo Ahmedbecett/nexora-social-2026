@@ -1,7 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(fileURLToPath(import.meta.url));
@@ -15,6 +16,19 @@ const APP_TITLE = 'NEXORA Studio | ابنِ تطبيقًا كاملًا بالو
 // يُحقن في JS (ليعرف التطبيق نسخته) ويُكتب في /version.json (ليعرف أحدث نسخة منشورة).
 const BUILD_ID = (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 12)
   || `local-${Date.now().toString(36)}`;
+const PROJECT_ROOT = fileURLToPath(new URL('./', import.meta.url));
+function collectHtmlPages(directory, relative = '') {
+  return readdirSync(resolve(directory, relative), { withFileTypes: true }).flatMap((entry) => {
+    const child = relative ? `${relative}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) return collectHtmlPages(directory, child);
+    return entry.isFile() && entry.name.endsWith('.html') ? [child] : [];
+  });
+}
+const becettiHtml = collectHtmlPages(PROJECT_ROOT, 'becetti');
+const htmlInputs = Object.fromEntries([
+  ['index', resolve(PROJECT_ROOT, 'index.html')],
+  ...becettiHtml.map((path) => [path.slice(0, -5), resolve(PROJECT_ROOT, path)]),
+]);
 
 export default defineConfig({
   plugins: [
@@ -56,5 +70,5 @@ export default defineConfig({
     host: '0.0.0.0', port: 5173, allowedHosts: true,
     proxy: { '/api': { target: process.env.API_PROXY || 'http://127.0.0.1:3001', changeOrigin: true, secure: true } },
   },
-  build: { outDir: 'dist', chunkSizeWarningLimit: 1200 },
+  build: { outDir: 'dist', chunkSizeWarningLimit: 1200, rollupOptions: { input: htmlInputs } },
 });

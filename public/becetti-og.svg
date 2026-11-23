@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07162b"/><stop offset="1" stop-color="#102d50"/></linearGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#9ecbff"/><stop offset="1" stop-color="#397ad2"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#2774cd" stop-opacity=".35"/><stop offset="1" stop-color="#2774cd" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1020" cy="100" r="370" fill="url(#glow)"/>
+  <g fill="none" stroke="#94b6de" stroke-opacity=".13">
+    <path d="M735 0v630M825 0v630M915 0v630M1005 0v630M1095 0v630M1185 0v630"/>
+    <path d="M700 70h500M700 160h500M700 250h500M700 340h500M700 430h500M700 520h500"/>
+  </g>
+  <rect x="82" y="77" width="82" height="82" rx="25" fill="#f1f6ff"/>
+  <path d="M108 98h20c11 0 18 5 18 14 0 6-4 10-9 12 7 1 12 6 12 13 0 10-8 16-21 16h-20V98Zm12 10v12h7c5 0 7-2 7-6s-3-6-7-6h-7Zm0 22v13h8c5 0 8-2 8-6s-3-7-8-7h-8Z" fill="#12335b"/>
+  <path d="M98 97h8v57h-8z" fill="#5488c7"/>
+  <text x="190" y="137" fill="#f5f8fd" font-family="Arial, sans-serif" font-size="48" font-weight="700" letter-spacing="5">BECETTI</text>
+  <text x="86" y="317" fill="#f4f7fc" font-family="Arial, sans-serif" font-size="82" font-weight="700" letter-spacing="-2">Technology</text>
+  <text x="86" y="407" fill="url(#line)" font-family="Arial, sans-serif" font-size="82" font-weight="700" letter-spacing="-2">that works.</text>
+  <text x="90" y="480" fill="#b5c4d8" font-family="Arial, sans-serif" font-size="25">A digital ecosystem for useful products and ideas.</text>
+  <text x="90" y="558" fill="#8295af" font-family="Arial, sans-serif" font-size="17" letter-spacing="3">AI  ·  GAMES  ·  BUSINESS  ·  SECURITY  ·  TOOLS</text>
+  <path d="M1020 232c66 0 119 53 119 119s-53 119-119 119-119-53-119-119 53-119 119-119Z" stroke="#75abec" stroke-opacity=".25" stroke-width="2"/>
+  <path d="M1020 268c46 0 83 37 83 83s-37 83-83 83-83-37-83-83 37-83 83-83Z" stroke="#75abec" stroke-opacity=".24" stroke-width="2"/>
+  <path d="M993 313h26c14 0 22 7 22 18 0 8-5 13-12 15 10 2 16 8 16 17 0 13-10 21-28 21h-24V313Zm14 12v15h9c7 0 10-3 10-8 0-4-4-7-10-7h-9Zm0 27v19h10c8 0 12-3 12-10 0-6-4-9-12-9h-10Z" fill="url(#line)"/>
+  <path d="M977 312h10v73h-10z" fill="#d8e7f8"/>
+</svg>
