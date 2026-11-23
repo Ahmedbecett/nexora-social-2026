@@ -62,6 +62,7 @@ jobs:
   windows-package:
     name: Build, verify and package MSIX (x64)
     runs-on: windows-latest
+    needs: [regression-tests]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -186,8 +187,8 @@ jobs:
           path: dist/windows/*
           if-no-files-found: error
 
-      - name: Publish GitHub release assets (manual dispatch only)
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release == 'true'
+      - name: Upload standalone prerelease assets after all tests & install verification pass
+        if: github.event_name == 'push' || inputs.publish_release == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
