@@ -129,10 +129,10 @@ try {
 
   # 3. Verify compiled native host & MG Ads SDK assembly loading
   Write-Host 'Running native host --smoke-check'
-  $smokeOutput = & $hostExe --smoke-check
-  if ($LASTEXITCODE -ne 0) { throw "NexoraWindows.exe --smoke-check failed with exit code $LASTEXITCODE" }
-  $smokeOutput | Set-Content -LiteralPath $smokeJsonPath -Encoding UTF8
-  Write-Host ($smokeOutput -join "`n")
+  $smokeProc = Start-Process -FilePath $hostExe -ArgumentList @('--smoke-check', '--smoke-check-out', $smokeJsonPath) -Wait -PassThru -NoNewWindow
+  if ($smokeProc.ExitCode -ne 0) { throw "NexoraWindows.exe --smoke-check failed with exit code $($smokeProc.ExitCode)" }
+  if (-not (Test-Path -LiteralPath $smokeJsonPath)) { throw "Expected smoke-check report not written: $smokeJsonPath" }
+  Get-Content -LiteralPath $smokeJsonPath | ForEach-Object { Write-Host $_ }
 
   # 4. Stage MSIX package layout
   Write-Host "Staging $($identity.displayName) $($identity.version) ($arch)"

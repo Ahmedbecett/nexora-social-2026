@@ -23,7 +23,7 @@ namespace NexoraWindows
             // WebView2 assembly loading, production IDs, and secret vault hygiene without UI.
             if (HasArg(args, "--smoke-check"))
             {
-                return RunSmokeCheck();
+                return RunSmokeCheck(GetArgValue(args, "--smoke-check-out"));
             }
 
             // Local developer utility: stores MG Ads Private Key securely in Windows DPAPI
@@ -58,7 +58,7 @@ namespace NexoraWindows
             return 0;
         }
 
-        private static int RunSmokeCheck()
+        private static int RunSmokeCheck(string outputFilePath)
         {
             try
             {
@@ -98,12 +98,24 @@ namespace NexoraWindows
                     validationErrors = config.ValidationErrors
                 };
 
-                Console.WriteLine(JsonConvert.SerializeObject(report, Formatting.Indented));
+                string json = JsonConvert.SerializeObject(report, Formatting.Indented);
+                if (!string.IsNullOrWhiteSpace(outputFilePath))
+                {
+                    string dir = Path.GetDirectoryName(outputFilePath);
+                    if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                    File.WriteAllText(outputFilePath, json, System.Text.Encoding.UTF8);
+                }
+                Console.WriteLine(json);
                 return report.ok ? 0 : 1;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("Smoke check failed: " + ex.GetType().Name + ": " + ex.Message);
+                string err = "Smoke check failed: " + ex.GetType().Name + ": " + ex.Message;
+                if (!string.IsNullOrWhiteSpace(outputFilePath))
+                {
+                    try { File.WriteAllText(outputFilePath, err, System.Text.Encoding.UTF8); } catch { }
+                }
+                Console.Error.WriteLine(err);
                 return 1;
             }
         }
@@ -141,6 +153,19 @@ namespace NexoraWindows
                 }
             }
             return false;
+        }
+
+        private static string GetArgValue(string[] args, string flag)
+        {
+            if (args == null) return null;
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (string.Equals(args[i], flag, StringComparison.OrdinalIgnoreCase))
+                {
+                    return args[i + 1];
+                }
+            }
+            return null;
         }
 
         private static string ExtractLaunchUrl(string[] args)
