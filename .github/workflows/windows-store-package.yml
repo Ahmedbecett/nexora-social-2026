@@ -193,8 +193,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $identity = Get-Content -LiteralPath windows/package-identity.json -Raw | ConvertFrom-Json
+          $smoke = Get-Content -LiteralPath dist/windows/smoke-check.json -Raw | ConvertFrom-Json
           $version = $identity.version
           $tag = "windows-v${version}"
+          $secretFlag = if ($smoke.secretConfigured) { 'YES (embedded in native AES vault)' } else { 'NO (add MG_ADS_SECRET_KEY in repo secrets and re-run build before Store upload)' }
           $notes = @"
           NEXORA AI by BECETTI — Windows Store MSIX (${version}, x64 Native C# + WebView2 + MG Ads C# SDK V1.2.1).
 
@@ -204,15 +206,15 @@ jobs:
           - ``smoke-check.json`` & ``install-test.json`` — Automated Windows verification reports.
           - ``SHA256SUMS.txt`` & ``BUILD-INFO.txt`` — Checksums and build metadata.
 
-          Identity: ``$($identity.identityName)`` · ``$($identity.publisher)`` · PFN ``$($identity.packageFamilyName)`` · Store Product ID ``$($identity.productId)`` · MG Ads AppId ``6b03f6af1f812ea86a26de4f``.
+          Identity: ``$($identity.identityName)`` · ``$($identity.publisher)`` · PFN ``$($identity.packageFamilyName)`` · Store Product ID ``$($identity.productId)`` · MG Ads AppId ``6b03f6af1f812ea86a26de4f`` · MG Ads Secret Configured: **${secretFlag}**.
           "@
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "NEXORA AI by BECETTI · Windows ${version}" --notes $notes --target $env:GITHUB_SHA
+            gh release create $tag --prerelease --title "NEXORA AI by BECETTI · Windows ${version}" --notes $notes --target $env:GITHUB_SHA
             if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
           }
           else {
-            gh release edit $tag --title "NEXORA AI by BECETTI · Windows ${version}" --notes $notes
+            gh release edit $tag --prerelease --title "NEXORA AI by BECETTI · Windows ${version}" --notes $notes
             if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit code $LASTEXITCODE" }
           }
           gh release upload $tag dist/windows/* --clobber
