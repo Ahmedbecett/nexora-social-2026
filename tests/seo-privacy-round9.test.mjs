@@ -13,7 +13,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { pairs } from '../scripts/generate-seo-pages.mjs';
+import { pairs, LAST_UPDATED } from '../scripts/generate-seo-pages.mjs';
 
 const base = 'https://nexora-social-2026.vercel.app';
 const read = (p) => readFileSync(p, 'utf8');
@@ -43,7 +43,7 @@ test('كل صفحة فهرسة تحمل رسمًا بيانيًا كاملًا �
     assert.equal(site['@id'], `${base}/#website`, path);
     assert.deepEqual(site.inLanguage, ['ar', 'en'], path);
     assert.equal(page.url, base + path, `${path}: page url`);
-    assert.equal(page.dateModified, '2026-11-18', `${path}: freshness`);
+    assert.equal(page.dateModified, LAST_UPDATED.iso, `${path}: freshness`);
     assert.equal(page.publisher['@id'], `${base}/#organization`, `${path}: publisher`);
     assert.ok(page.primaryImageOfPage?.url === `${base}/og-image.jpg`, `${path}: primary image`);
 
@@ -64,7 +64,7 @@ test('كل صفحة فهرسة تحمل رسمًا بيانيًا كاملًا �
     assert.match(head, /<meta name="twitter:image:alt" content="[^"]+" \/>/, `${path}: twitter alt`);
     assert.match(head, /max-snippet:-1/, `${path}: snippet control`);
     assert.match(head, /<meta name="author" content="Ahmed Becetti" \/>/, `${path}: author`);
-    assert.match(html, /<time datetime="2026-11-18">/, `${path}: visible update date`);
+    assert.match(html, new RegExp(`<time datetime="${LAST_UPDATED.iso}">`), `${path}: visible update date`);
   }
 });
 
@@ -110,10 +110,11 @@ test('سياسة الخصوصية تكشف المعالجة والمزوّدين
   assert.match(en, /never store card numbers/);
 
   // التاريخ الحالي فقط، ولا تاريخ قديم متبقٍ
-  assert.match(ar, /18 نوفمبر 2026/);
-  assert.match(en, /18 November 2026/);
-  assert.doesNotMatch(ar, /(15|17) نوفمبر 2026/);
-  assert.doesNotMatch(en, /(15|17) November 2026/);
+  assert.ok(ar.includes(LAST_UPDATED.ar), 'السياسة العربية تحمل تاريخ التحديث الحالي');
+  assert.ok(en.includes(LAST_UPDATED.en), 'السياسة الإنجليزية تحمل تاريخ التحديث الحالي');
+  const year = LAST_UPDATED.iso.slice(0, 4);
+  assert.doesNotMatch(ar, new RegExp(`(1[5-9]|2[0-2]) نوفمبر ${year}`), 'لا تاريخ قديم في السياسة العربية');
+  assert.doesNotMatch(en, new RegExp(`(1[5-9]|2[0-2]) November ${year}`), 'لا تاريخ قديم في السياسة الإنجليزية');
 });
 
 test('سياسة الخصوصية ليست FAQPage ولا تتنكّر لبيانات وصفية مكرّرة', () => {
@@ -130,8 +131,8 @@ test('سياسة الخصوصية ليست FAQPage ولا تتنكّر لبيا�
 test('خريطة الموقع وrobots: تاريخ اليوم، منع الأصول الثنائية، وإتاحة كل الصفحات', () => {
   const sitemap = read('public/sitemap.xml');
   assert.equal((sitemap.match(/<url>/g) || []).length, 12);
-  assert.equal((sitemap.match(/<lastmod>2026-11-18<\/lastmod>/g) || []).length, 12);
-  assert.doesNotMatch(sitemap, /2026-11-1[0-7]<\/lastmod>/);
+  assert.equal((sitemap.match(new RegExp(`<lastmod>${LAST_UPDATED.iso}<\\/lastmod>`, 'g')) || []).length, 12);
+  assert.doesNotMatch(sitemap, /<lastmod>2026-11-(0\d|1\d|2[0-3])<\/lastmod>/, 'لا تاريخ قديم في خريطة الموقع');
 
   const robots = read('public/robots.txt');
   assert.equal(robots, read('public/robots-webapp.txt'));
@@ -157,7 +158,7 @@ test('الأسئلة الشائعة: 10 أسئلة ظاهرة ومطابقة ل�
 test('الصفحة الرئيسية (index.html) تحمل نفس مستوى البيانات المنظمة والوسوم', () => {
   const html = read('index.html');
   const page = node(html, 'WebPage');
-  assert.equal(page.dateModified, '2026-11-18');
+  assert.equal(page.dateModified, LAST_UPDATED.iso);
   assert.equal(page.publisher['@id'], `${base}/#organization`);
   const app = graph(html).find((item) => item['@type'] === 'SoftwareApplication');
   assert.equal(app.offers.price, '0');

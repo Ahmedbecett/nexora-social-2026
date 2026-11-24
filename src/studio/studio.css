@@ -395,6 +395,18 @@
 .nxs-top-brand { --nxs-logo-fg: #faf9f5; }
 
 /* ------------------------------- auth & loading ---------------------------- */
+/* The signed-out shell scrolls: the sign-in card is followed by the public
+   explanation of the product, so the rendered DOM is not a bare login wall. */
+.nxs-auth-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.nxs-auth-wrap > .nxs-auth { flex: 0 0 auto; min-height: min(72vh, 560px); }
 .nxs-auth {
   flex: 1;
   display: flex;

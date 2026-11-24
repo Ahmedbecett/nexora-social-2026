@@ -8,7 +8,11 @@ import { resolve, dirname } from 'node:path';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const base = 'https://nexora-social-2026.vercel.app';
 // Change this date only when the public copy actually changes, not on every build.
-const lastmod = '2026-11-18';
+// It is exported so `lastmod` in the sitemap, `dateModified` in the JSON-LD, the visible
+// "last updated" line and the tests all read one value — a stale sitemap date tells Google
+// nothing changed and delays re-crawling of pages that were just fixed.
+export const LAST_UPDATED = { iso: '2026-11-24', ar: '24 نوفمبر 2026', en: '24 November 2026' };
+const lastmod = LAST_UPDATED.iso;
 const version = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
 // Rounded size stays honest even when CI refreshes the APK with small binary changes.
 const apkSize = Math.round(statSync(resolve(root, 'public/download/Nexora.apk')).size / 1_000_000);
@@ -431,7 +435,6 @@ const labels = {
   en: { lang: 'English', other: 'العربية', brand: 'NEXORA AI', home: 'Home', about: 'About', features: 'Features', download: 'Download', faq: 'FAQ', privacy: 'Privacy', app: 'Open platform', footer: 'NEXORA AI — a complete web AI platform like Arena AI, with NEXORA Studio for building apps, by Ahmed Becetti.', related: 'Explore NEXORA AI', relatedText: 'A complete web platform — explore features and open it in your browser.', toc: 'On this page', updated: 'Last updated' },
 };
 
-const LAST_UPDATED = { iso: '2026-11-18', ar: '18 نوفمبر 2026', en: '18 November 2026' };
 const ORG_ID = `${base}/#organization`;
 const APP_ID = `${base}/#app`;
 

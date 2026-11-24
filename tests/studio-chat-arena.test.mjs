@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { LAST_UPDATED } from '../scripts/generate-seo-pages.mjs';
 
 /* جولة أرينا على دردشة الاستوديو (ChatPanel) — السطح الذي يستخدمه المالك فعلًا:
    مرحلة تفكير مرئية بين الإرسال وأول إشارة عمل، نص أوضح وأثقل، تمرير ذكي + زر قفز */
@@ -140,15 +141,13 @@ test('الجولة الثامنة: إعلانات الويب في الاستود
   assert.match(privacyAr, /NEXORA Studio/);
   assert.match(privacyAr, /Google Docs/);
   assert.match(privacyAr, /GitHub وVercel/);
-  assert.match(privacyAr, /18 نوفمبر 2026/);
-  assert.doesNotMatch(privacyAr, /(15|17) نوفمبر 2026/);
+  assert.ok(privacyAr.includes(LAST_UPDATED.ar), 'سياسة عربية بتاريخ التحديث الحالي');
   assert.match(privacyEn, /NEXORA Studio/);
-  assert.match(privacyEn, /18 November 2026/);
+  assert.ok(privacyEn.includes(LAST_UPDATED.en), 'سياسة إنجليزية بتاريخ التحديث الحالي');
   for (const term of ['Adsterra', 'Monetag', 'AdSense', 'AdMob']) {
     assert.ok(privacyAr.includes(term), 'privacy ar: ' + term);
     assert.ok(privacyEn.includes(term), 'privacy en: ' + term);
   }
   /* خريطة الموقع: تاريخ اليوم على كل الروابط لإعادة الفهرسة */
-  assert.match(sitemap, /<lastmod>2026-11-18<\/lastmod>/);
-  assert.doesNotMatch(sitemap, /<lastmod>2026-11-1[57]<\/lastmod>/);
+  assert.ok(sitemap.includes(`<lastmod>${LAST_UPDATED.iso}</lastmod>`), 'خريطة الموقع تحمل تاريخ التحديث الحالي');
 });

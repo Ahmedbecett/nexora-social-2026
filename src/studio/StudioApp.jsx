@@ -13,6 +13,8 @@ import '@fontsource-variable/inter';
 
 import { StudioProvider, useStudio } from './state.jsx';
 import { loginWithPassword } from './api.js';
+import PublicInfo from '../ai/PublicInfo.jsx';
+import { isCapacitorNative } from '../platform.js';
 import ProjectsPanel from './ProjectsPanel.jsx';
 import ChatPanel from './ChatPanel.jsx';
 import Workspace from './Workspace.jsx';
@@ -33,6 +35,7 @@ function AuthGate() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const showPublicContent = !isCapacitorNative();
 
   const submit = async (e) => {
     e.preventDefault();
@@ -52,55 +55,62 @@ function AuthGate() {
 
   return (
     <div className="nxs" data-theme={theme}>
-      <div className="nxs-auth">
-        <form className="nxs-auth-card" onSubmit={submit}>
-          <div className="nxs-auth-brand">
-            <NexoraLogo size={32} />
-            <span className="nxs-wordmark lg">NEXORA</span>
-          </div>
-          <h1 className="nxs-auth-title">Welcome back</h1>
-          <p className="nxs-auth-sub">
-            Sign in to access your conversations, projects, connected services, and deployments.
-          </p>
-          {error && <div className="nxs-error-box" role="alert">{error}</div>}
-          <div className="nxs-field">
-            <label htmlFor="nxs-user">Username</label>
-            <input
-              id="nxs-user"
-              className="nxs-input"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              placeholder="your_username"
-            />
-          </div>
-          <div className="nxs-field">
-            <label htmlFor="nxs-pass">Password</label>
-            <input
-              id="nxs-pass"
-              className="nxs-input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              placeholder="••••••••"
-            />
-          </div>
-          <button
-            type="submit"
-            className="nxs-btn primary full"
-            disabled={busy || !username.trim() || !password}
-          >
-            {busy ? 'Signing in…' : 'Continue'}
-          </button>
-          <button
-            type="button"
-            className="nxs-btn ghost full"
-            onClick={() => window.dispatchEvent(new CustomEvent('nxs-open-chat'))}
-          >
-            Create a NEXORA account
-          </button>
-        </form>
+      <div className="nxs-auth-wrap">
+        <div className="nxs-auth">
+          <form className="nxs-auth-card" onSubmit={submit}>
+            <div className="nxs-auth-brand">
+              <NexoraLogo size={32} />
+              <span className="nxs-wordmark lg">NEXORA</span>
+            </div>
+            <h2 className="nxs-auth-title">Welcome back</h2>
+            <p className="nxs-auth-sub">
+              Sign in to access your conversations, projects, connected services, and deployments.
+            </p>
+            {error && <div className="nxs-error-box" role="alert">{error}</div>}
+            <div className="nxs-field">
+              <label htmlFor="nxs-user">Username</label>
+              <input
+                id="nxs-user"
+                className="nxs-input"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                placeholder="your_username"
+              />
+            </div>
+            <div className="nxs-field">
+              <label htmlFor="nxs-pass">Password</label>
+              <input
+                id="nxs-pass"
+                className="nxs-input"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                placeholder="••••••••"
+              />
+            </div>
+            <button
+              type="submit"
+              className="nxs-btn primary full"
+              disabled={busy || !username.trim() || !password}
+            >
+              {busy ? 'Signing in…' : 'Continue'}
+            </button>
+            <button
+              type="button"
+              className="nxs-btn ghost full"
+              onClick={() => window.dispatchEvent(new CustomEvent('nxs-open-chat'))}
+            >
+              Create a NEXORA account
+            </button>
+          </form>
+        </div>
+        {/* The public explanation of what NEXORA is must survive hydration: the
+            pre-render HTML in index.html is replaced by this tree, so without it
+            the only crawlable text on / would be a sign-in form. The Android app
+            keeps its previous auth-only view. */}
+        {showPublicContent && <PublicInfo />}
       </div>
     </div>
   );
